@@ -8,6 +8,11 @@ const weights: Record<string, number> = {
   heat: 0.15,
   access: 0.2,
   context: 0.2,
+  energy: 0.15,
+  air: 0.15,
+  "cbs-context": 0.1,
+  transit: 0.15,
+  future: 0.15,
 };
 
 export function componentFromSignal(signal: Signal, key: string, label: string, explanation: string): ScoreComponent {

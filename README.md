@@ -9,6 +9,10 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - PDOK Location API address autocomplete
 - BAG-backed VBO/pand identity, geometry, building year, and surface area
 - BGT road, green-area, and water context within approximately 250 m
+- Mapbox GL JS map with building overlay, search radius, and tokenless fallback preview
+- RIVM WMS screening for road noise and air quality
+- CBS 2024 neighbourhood context, NDOV halte proximity, and DSO spatial topics
+- Nearby BAG homes within 150 m, including registered usable area and links to their reports
 - Deterministic, versioned score components
 - Evidence and caveats on every signal
 - Shareable `/woning/[bagId]` property URLs
@@ -17,7 +21,9 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 
 When `DATABASE_URL` is present, analysis requests upsert the property and append evidence plus the versioned analysis to Postgres. Without it, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
 
-The current noise and heat cards are explicitly labelled as first-screening proxies. They are not official noise measurements or a formal climate-risk assessment.
+The heat card remains a first-screening proxy. RIVM noise and air values are official public raster/model sources, but are not a facade measurement or personal exposure assessment.
+
+Funda and Pararius scraping was assessed and intentionally rejected because their current terms restrict automated extraction. The supported data-source roadmap and licensed alternatives are documented in [`docs/listing-data-strategy.md`](docs/listing-data-strategy.md).
 
 ## Run locally
 
@@ -32,10 +38,15 @@ Open [http://localhost:3000](http://localhost:3000), then try `Korenstraat 18, E
 Useful checks:
 
 ```bash
+npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
+
+GitHub automation
+
+Pull requests and pushes to `main` run the quality pipeline in `.github/workflows/ci.yml`. The pipeline runs tests, lint, TypeScript checking, and a production build. The checked-in `.github/rulesets/main.json` is an importable GitHub branch ruleset that requires the `quality` check, one approving review, resolved review threads, linear history, and squash merges. Import it from the repository's Settings → Rules → Rulesets page, or with the GitHub CLI/API when repository administration permissions are available.
 
 ## API routes
 
@@ -66,14 +77,14 @@ npm run db:migrate
 
 The prepared deployment commands are `npm run vercel:link` and `npm run vercel:deploy`.
 
-The first slice does not require any API keys because PDOK Location, BAG, and BGT are open services. DSO and EP-Online keys are reserved for the next feature slices.
+The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV are open services. Add `NEXT_PUBLIC_MAPBOX_TOKEN` for the interactive map, `EPONLINE_API_KEY` for energy labels, and `DSO_API_KEY` for spatial planning topics.
 
 ## Next slices
 
 1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
-2. Add official RIVM/Atlas raster sampling for noise, greenery, and air quality.
-3. Add DSO/KOOP development items as the Future View.
-4. Add EP-Online, RDW parking, CBS neighbourhood data, schools, and transit.
+2. Add official RIVM/Atlas raster sampling for additional greenery and climate layers.
+3. Add DSO/KOOP document detail links and timeline presentation.
+4. Add RDW parking, schools, and route-based transit accessibility.
 5. Build the 3D/AHN Sun Time Machine after the basic chain has usage.
 
 ## Product boundaries

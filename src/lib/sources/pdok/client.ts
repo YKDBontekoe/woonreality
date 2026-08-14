@@ -33,6 +33,19 @@ export function pdokBagVboSearchUrl(bagVboId: string) {
   return `${PDOK_BAG_BASE}/collections/verblijfsobject/items?${params.toString()}`;
 }
 
+export function pdokBagNearbyVboUrl(coordinates: { lat: number; lng: number }, radiusM = 150, limit = 100) {
+  const latitudeDelta = radiusM / 111_320;
+  const longitudeDelta = radiusM / (111_320 * Math.cos((coordinates.lat * Math.PI) / 180));
+  const bbox = [
+    coordinates.lng - longitudeDelta,
+    coordinates.lat - latitudeDelta,
+    coordinates.lng + longitudeDelta,
+    coordinates.lat + latitudeDelta,
+  ].join(",");
+  const params = new URLSearchParams({ f: "json", bbox, limit: String(Math.min(limit, 100)) });
+  return `${PDOK_BAG_BASE}/collections/verblijfsobject/items?${params.toString()}`;
+}
+
 export function pdokBagFeatureUrl(collection: "verblijfsobject" | "pand", id: string) {
   return `${PDOK_BAG_BASE}/collections/${collection}/items/${encodeURIComponent(id)}?f=json`;
 }

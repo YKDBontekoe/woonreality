@@ -1,6 +1,7 @@
 import type { Geometry } from "geojson";
-import type { GeoJsonFeature, Property } from "@/src/lib/types";
-import { getJson, pdokBagAddressUrl, pdokBagFeatureUrl, pdokBagVboSearchUrl } from "@/src/lib/sources/pdok/client";
+import type { GeoJsonFeature, GeoJsonFeatureCollection, NearbyProperty, Property } from "@/src/lib/types";
+import { haversineM } from "@/src/lib/geo/measure";
+import { getJson, pdokBagAddressUrl, pdokBagFeatureUrl, pdokBagNearbyVboUrl, pdokBagVboSearchUrl } from "@/src/lib/sources/pdok/client";
 
 type AddressFeature = GeoJsonFeature & {
   properties: {
@@ -109,4 +110,30 @@ export async function getPropertyById(id: string): Promise<Property> {
   const bagVboId = address.properties.adresseerbaar_object_identificatie;
   if (!bagVboId) throw new Error(`PDOK address ${id} did not resolve to a BAG VBO`);
   return getPropertyByBagId(bagVboId);
+}
+
+export async function getNearbyProperties(property: Property, radiusM = 150): Promise<NearbyProperty[]> {
+  const collection = await getJson<GeoJsonFeatureCollection>(pdokBagNearbyVboUrl(property.coordinates, radiusM), 604_800);
+
+  return collection.features.flatMap((feature) => {
+    const coordinates = pointFromGeometry(feature.geometry);
+    const bagVboId = typeof feature.properties.identificatie === "string" ? feature.properties.identificatie : undefined;
+    const houseNumber = feature.properties.huisnummer;
+    const street = feature.properties.openbare_ruimte_naam;
+    const purposes = Array.isArray(feature.properties.gebruiksdoel) ? feature.properties.gebruiksdoel : [feature.properties.gebruiksdoel];
+    if (!purposes.includes("woonfunctie") || !coordinates || !bagVboId || bagVboId === property.bagVboId || typeof street !== "string" || (typeof houseNumber !== "number" && typeof houseNumber !== "string")) return [];
+    const distanceM = haversineM(property.coordinates, coordinates);
+    if (distanceM > radiusM) return [];
+    const suffix = [feature.properties.huisletter, feature.properties.toevoeging].filter(Boolean).join("-");
+    const city = typeof feature.properties.woonplaats_naam === "string" ? feature.properties.woonplaats_naam : "";
+    const postcode = typeof feature.properties.postcode === "string" ? feature.properties.postcode : "";
+    const areaM2 = typeof feature.properties.oppervlakte === "number" ? feature.properties.oppervlakte : undefined;
+    return [{
+      bagVboId,
+      addressLabel: `${street} ${houseNumber}${suffix ? `-${suffix}` : ""}${postcode || city ? `, ${postcode} ${city}`.trimEnd() : ""}`,
+      areaM2,
+      distanceM: Math.round(distanceM),
+      coordinates,
+    }];
+  }).sort((a, b) => a.distanceM - b.distanceM).slice(0, 12);
 }

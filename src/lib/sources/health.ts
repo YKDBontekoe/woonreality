@@ -1,4 +1,7 @@
 import { pdokUrls } from "@/src/lib/sources/pdok/client";
+import { cbsBuurtenUrl } from "@/src/lib/sources/cbs";
+import { rivmUrls } from "@/src/lib/sources/rivm";
+import { ndovHaltesUrl } from "@/src/lib/sources/ndov";
 
 export type SourceHealth = {
   source: string;
@@ -13,6 +16,10 @@ const checks = [
   { source: "PDOK Location API", url: `${pdokUrls.location.replace("?f=html", "?f=json")}` },
   { source: "PDOK BAG", url: `${pdokUrls.bag.replace("?f=html", "?f=json")}` },
   { source: "PDOK BGT", url: `${pdokUrls.bgt}collections/wegdeel?f=json` },
+  { source: "CBS Wijk- en Buurtkaart", url: `${cbsBuurtenUrl}?f=json&bbox=5.9,52.3,6,52.4&limit=1` },
+  { source: "RIVM lucht WMS", url: `${rivmUrls.air}&service=WMS&request=GetCapabilities` },
+  { source: "RIVM geluid WMS", url: `${rivmUrls.noise}&service=WMS&request=GetCapabilities` },
+  { source: "NDOV haltecatalogus", url: ndovHaltesUrl },
 ];
 
 export async function checkSources(): Promise<SourceHealth[]> {
@@ -26,7 +33,7 @@ export async function checkSources(): Promise<SourceHealth[]> {
         ok: response.ok,
         checkedAt: new Date().toISOString(),
         latencyMs: Math.round(performance.now() - started),
-        sampleRecordValid: response.ok && body.trim().startsWith("{") && body.length > 30,
+        sampleRecordValid: response.ok && body.length > 30 && (body.trim().startsWith("{") || body.includes("WMS_Capabilities") || body.includes("ExportCHB_")),
         ...(response.ok ? {} : { error: `HTTP ${response.status}` }),
       };
     } catch (error) {
