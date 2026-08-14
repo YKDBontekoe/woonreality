@@ -14,6 +14,22 @@ Use provider adapters with explicit provenance instead:
 4. **Current listings:** request a licensed feed or written permission from Funda/NVM/brainbay, or contract with a property-data API vendor. Keep this behind a `ListingProvider` interface so licensing can change without changing the analysis model.
 5. **User supplied listing:** optionally let a user paste or upload their own brochure/export. Extract only that submitted document, retain the source URL/file and timestamp, and never crawl related pages automatically.
 
+## Licensed feed integration
+
+WoonReality exposes `GET /api/listing/:bagId` behind a provider-neutral adapter.
+Set `LISTING_PROVIDER_URL` to the licensed provider endpoint; the adapter sends
+the BAG VBO id, postcode and house number as query parameters and expects JSON
+with `externalId`, `sourceUrl`, and the market fields listed below. An optional
+`LISTING_PROVIDER_API_KEY` is sent as a bearer token. The route is private and
+non-cacheable by default so retention and display remain controlled by the
+provider agreement.
+
+This integration intentionally does not capture browser traffic, replay
+undocumented portal requests, bypass bot protection, or infer a Funda API from
+the site frontend. A Funda/NVM/brainbay connection should use a documented feed
+or written permission and can be connected without changing the normalized app
+contract.
+
 ## Data worth importing from a licensed listing source
 
 - asking price and price per square metre;

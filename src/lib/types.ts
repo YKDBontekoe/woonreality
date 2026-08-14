@@ -47,6 +47,13 @@ export type DomainSummary = {
   summary: string;
 };
 
+export type EverydayInsight = {
+  title: string;
+  summary: string;
+  tone: "good" | "neutral" | "attention";
+  signalKeys: string[];
+};
+
 export type SourceStatus = {
   source: string;
   status: "ok" | "partial" | "unavailable";
@@ -100,6 +107,109 @@ export type NearbyProperty = {
   coordinates: Coordinates;
 };
 
+export type PropertyListing = {
+  provider: string;
+  externalId: string;
+  sourceUrl: string;
+  fetchedAt: string;
+  status: "active" | "sold" | "withdrawn" | "unknown";
+  askingPrice?: number;
+  originalAskingPrice?: number;
+  priceChangeAmount?: number;
+  priceChangePct?: number;
+  pricePerM2?: number;
+  firstPublishedAt?: string;
+  lastUpdatedAt?: string;
+  offerDeadline?: string;
+  livingAreaM2?: number;
+  plotAreaM2?: number;
+  volumeM3?: number;
+  roomCount?: number;
+  bedroomCount?: number;
+  bathroomCount?: number;
+  propertyType?: string;
+  constructionYear?: number;
+  energyLabel?: string;
+  energyIndex?: number;
+  insulation?: string;
+  heating?: string;
+  glazing?: string;
+  solarPanelCount?: number;
+  vveContribution?: number;
+  vveReserveFund?: number;
+  outdoorSpaceM2?: number;
+  gardenOrientation?: string;
+  balcony?: boolean;
+  terrace?: boolean;
+  parking?: string;
+  storage?: string;
+  addressLabel?: string;
+  municipality?: string;
+  province?: string;
+  description?: string;
+};
+
+export type ResearchSourceType = "official" | "municipality" | "planning" | "listing" | "web";
+
+export type ResearchSource = {
+  id: string;
+  title: string;
+  url: string;
+  publisher?: string;
+  type: ResearchSourceType;
+  publishedAt?: string;
+  fetchedAt: string;
+  spatialScale?: string;
+  distanceM?: number;
+  status?: string;
+  excerpt?: string;
+};
+
+export type ResearchFinding = {
+  id: string;
+  category: "woning" | "omgeving" | "plannen" | "mobiliteit" | "klimaat" | "markt";
+  title: string;
+  summary: string;
+  impact: "positive" | "neutral" | "attention";
+  confidence: Confidence;
+  temporalStatus?: string;
+  spatialScale?: string;
+  sourceIds: string[];
+};
+
+export type PropertyContradiction = {
+  id: string;
+  subject: string;
+  summary: string;
+  severity: "low" | "medium" | "high";
+  sourceIds: string[];
+};
+
+export type AiPropertyReport = {
+  reportVersion: string;
+  promptVersion: string;
+  generatedAt: string;
+  expiresAt: string;
+  researchModel: string;
+  synthesisModel: string;
+  verdict: {
+    title: string;
+    summary: string;
+    confidence: Confidence;
+  };
+  findings: ResearchFinding[];
+  contradictions: PropertyContradiction[];
+  questions: string[];
+  coverage: {
+    searched: string[];
+    missing: string[];
+    sourceCount: number;
+  };
+  sources: ResearchSource[];
+};
+
+export type AiReportStatus = "missing" | "generating" | "ready" | "stale" | "failed" | "unavailable";
+
 export type Analysis = {
   property: Property;
   overallScore: number;
@@ -111,6 +221,7 @@ export type Analysis = {
   generatedAt: string;
   sources: string[];
   domains: DomainSummary[];
+  everydayInsights: EverydayInsight[];
   highlights: { type: "positive" | "attention"; signalKey: string; text: string }[];
   dataCoverage: DataCoverage;
   sourceStatuses: SourceStatus[];

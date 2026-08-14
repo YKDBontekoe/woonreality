@@ -1,4 +1,4 @@
-import type { Analysis, Evidence, Property, Signal } from "@/src/lib/types";
+import type { Analysis, EverydayInsight, Evidence, Property, Signal } from "@/src/lib/types";
 import { getBgtContext, pdokUrls, type BgtContext } from "@/src/lib/sources/pdok/bgt";
 import { getEnergyLabel, epOnlineUrl } from "@/src/lib/sources/ep-online";
 import { createEvidence } from "@/src/lib/analysis/evidence";
@@ -362,6 +362,50 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     .slice(0, 3)
     .map((signal) => ({ type: "positive" as const, signalKey: signal.key, text: signal.summary }));
   const availableDomainCount = domains.filter((domain) => domain.available).length;
+  const signal = (key: string) => signals.find((item) => item.key === key && item.availability !== "unavailable");
+  const scoreOf = (key: string) => signal(key)?.score;
+  const insights: EverydayInsight[] = [];
+  const noiseSignalScore = scoreOf("noise");
+  const greenSignalScore = scoreOf("green");
+  if (noiseSignalScore != null || greenSignalScore != null) {
+    const tone = (noiseSignalScore ?? 5) < 5.5 ? "attention" : (greenSignalScore ?? 5) >= 6.5 ? "good" : "neutral";
+    insights.push({
+      title: "Hoe voelt de straat waarschijnlijk?",
+      summary: (noiseSignalScore ?? 5) < 5.5
+        ? "De directe wegcontext vraagt om een extra luistermoment. Plan je bezichtiging op een druk én rustig tijdstip; het aanwezige groen verandert dat niet automatisch."
+        : (greenScore ?? 5) >= 6.5
+          ? "De combinatie van lokale groenstructuur en wegcontext wijst op een prettiger straatbeeld. Check tijdens de bezichtiging nog wel geluid met open ramen."
+          : "De openbare data geven geen uitgesproken straatbeeld. Kijk bij de bezichtiging bewust naar geluid, schaduw en de ruimte rondom de woning.",
+      tone,
+      signalKeys: ["noise", "green"].filter((key) => Boolean(signal(key))),
+    });
+  }
+  const energyScoreValue = scoreOf("energy");
+  const heatSignalScore = scoreOf("heat");
+  if (energyScoreValue != null || heatSignalScore != null) {
+    const tone = (energyScoreValue ?? 5) < 5.5 || (heatSignalScore ?? 5) < 5.5 ? "attention" : (energyScoreValue ?? 5) >= 6.5 && (heatSignalScore ?? 5) >= 6.5 ? "good" : "neutral";
+    insights.push({
+      title: "Comfort en energierekening",
+      summary: (energyScoreValue ?? 5) < 5.5
+        ? "De energiedata verdienen extra aandacht. Vraag naar verbruik, isolatie, ventilatie en wat al is verbeterd—dat zegt meer over je maandlasten dan een label alleen."
+        : (heatSignalScore ?? 5) < 5.5
+          ? "De woning kan prima presteren in de winter, maar de omgevingsindicatie vraagt aandacht voor warmte in de zomer. Vraag naar zonwering en ventilatie."
+          : "Energie- en omgevingssignalen geven geen directe rode vlag. Vraag alsnog om recente energiekosten en test ventilatie tijdens de bezichtiging.",
+      tone,
+      signalKeys: ["energy", "heat"].filter((key) => Boolean(signal(key))),
+    });
+  }
+  const transitScore = scoreOf("transit");
+  const accessScore = scoreOf("access");
+  if (transitScore != null || accessScore != null) {
+    const tone = Math.min(transitScore ?? 5, accessScore ?? 5) >= 6.5 ? "good" : Math.min(transitScore ?? 5, accessScore ?? 5) < 5.5 ? "attention" : "neutral";
+    insights.push({
+      title: "Je dagelijkse route",
+      summary: tone === "good" ? "De bereikbaarheidssignalen zijn gunstig voor dagelijkse verplaatsingen. Probeer je eigen woon-werkroute wel rond jouw vertrektijd." : "De route naar voorzieningen of vervoer is niet eenduidig gunstig. Check je eigen fiets-, auto- en ov-route voordat je beslist.",
+      tone,
+      signalKeys: ["transit", "access"].filter((key) => Boolean(signal(key))),
+    });
+  }
 
   return {
     property,
@@ -383,6 +427,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       ...(dsoAvailable ? ["DSO Omgevingsdocumenten"] : []),
     ],
     domains,
+    everydayInsights: insights,
     highlights: [...highlights, ...positives],
     dataCoverage: { available: availableDomainCount, total: domains.length, label: `${availableDomainCount} van ${domains.length} domeinen beschikbaar` },
     sourceStatuses: [

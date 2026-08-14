@@ -14,6 +14,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - CBS 2024 neighbourhood context, NDOV halte proximity, and DSO spatial topics
 - Nearby BAG homes within 150 m, including registered usable area and links to their reports
 - Deterministic, versioned score components
+- Optional AI woningonderzoek via Vercel AI Gateway with municipal and official web sources
 - Evidence and caveats on every signal
 - Shareable `/woning/[bagId]` property URLs
 - Vercel-ready API routes and a protected source-health Cron route
@@ -54,11 +55,21 @@ Pull requests and pushes to `main` run the quality pipeline in `.github/workflow
 GET /api/address/search?q=...
 GET /api/property/:bagId
 GET /api/analysis/:bagId
+GET /api/ai-analysis/:bagId
+POST /api/ai-analysis/:bagId
+GET /api/listing/:bagId
 GET /api/cron/source-health
 GET /api/health
 ```
 
 The source adapters live below `src/lib/sources/`, the normalized contracts are in `src/lib/types.ts`, and score calculation is in `src/lib/scoring/`.
+
+Current listing data is available only through an explicitly configured licensed
+provider (`LISTING_PROVIDER_URL`, with optional API key and provider name). The
+provider must accept `bagVboId`, `postcode`, and `houseNumber` query parameters
+and return a normalized JSON object containing at least `externalId` and an
+HTTPS `sourceUrl`. The app does not call or reverse-engineer undocumented Funda
+endpoints.
 
 ## Vercel setup
 
@@ -78,6 +89,8 @@ npm run db:migrate
 The prepared deployment commands are `npm run vercel:link` and `npm run vercel:deploy`.
 
 The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV are open services. Add `NEXT_PUBLIC_MAPBOX_TOKEN` for the interactive map, `EPONLINE_API_KEY` for energy labels, and `DSO_API_KEY` for spatial planning topics.
+
+AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and `DATABASE_URL`. The app uses Vercel AI Gateway with `AI_RESEARCH_MODEL` for source research/document extraction and `AI_SYNTHESIS_MODEL` for the structured report. Reports are stored for `AI_REPORT_TTL_DAYS` (default seven days), cite their source URLs, and never alter the deterministic Reality Score. `AI_ALLOWED_DOMAINS` and `LISTING_ALLOWED_HOSTS` limit additional web and listing sources.
 
 ## Next slices
 

@@ -4,13 +4,15 @@ import { ExternalLink, Layers3, MapPinned } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import * as mapboxgl from "mapbox-gl/esm";
 import "mapbox-gl/dist/mapbox-gl.css";
-import type { Property } from "@/src/lib/types";
+import type { NearbyProperty, Property } from "@/src/lib/types";
 
-export function PropertyMap({ property }: { property: Property }) {
+export function PropertyMap({ property, nearbyProperties = [] }: { property: Property; nearbyProperties?: NearbyProperty[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
   const [showBuilding, setShowBuilding] = useState(true);
   const mapUrl = `https://www.openstreetmap.org/?mlat=${property.coordinates.lat}&mlon=${property.coordinates.lng}#map=17/${property.coordinates.lat}/${property.coordinates.lng}`;
+  const delta = 0.0035;
+  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${property.coordinates.lng - delta}%2C${property.coordinates.lat - delta}%2C${property.coordinates.lng + delta}%2C${property.coordinates.lat + delta}&layer=mapnik&marker=${property.coordinates.lat}%2C${property.coordinates.lng}`;
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -32,11 +34,32 @@ export function PropertyMap({ property }: { property: Property }) {
         map.addLayer({ id: "building-fill", type: "fill", source: "building", paint: { "fill-color": "#244b3c", "fill-opacity": 0.42 } });
         map.addLayer({ id: "building-line", type: "line", source: "building", paint: { "line-color": "#173c2d", "line-width": 2 } });
       }
+      if (nearbyProperties.length) {
+        map.addSource("nearby-homes", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: nearbyProperties.map((home) => ({
+              type: "Feature" as const,
+              geometry: { type: "Point" as const, coordinates: [home.coordinates.lng, home.coordinates.lat] },
+              properties: { address: home.addressLabel, distance: home.distanceM },
+            })),
+          },
+        });
+        map.addLayer({ id: "nearby-homes", type: "circle", source: "nearby-homes", paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#4a8f65", "circle-stroke-width": 2 } });
+        map.on("click", "nearby-homes", (event) => {
+          const feature = event.features?.[0];
+          if (!feature || !event.lngLat) return;
+          new mapboxgl.Popup({ offset: 8 }).setLngLat(event.lngLat).setHTML(`<strong>${feature.properties?.address}</strong><br/>${feature.properties?.distance} m afstand`).addTo(map);
+        });
+        map.on("mouseenter", "nearby-homes", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "nearby-homes", () => { map.getCanvas().style.cursor = ""; });
+      }
       new mapboxgl.Marker({ color: "#dc795e" }).setLngLat([property.coordinates.lng, property.coordinates.lat]).addTo(map);
     });
     mapInstance.current = map;
     return () => { map.remove(); mapInstance.current = null; };
-  }, [property]);
+  }, [property, nearbyProperties]);
 
   useEffect(() => {
     if (!mapInstance.current || !property.buildingGeometry) return;
@@ -46,5 +69,5 @@ export function PropertyMap({ property }: { property: Property }) {
   }, [property.buildingGeometry, showBuilding]);
 
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
-  return <div className="map-card interactive-map"><div className="map-fallback-grid" /><div ref={mapRef} className="map-canvas" />{!hasToken && <div className="map-token-notice">Voeg <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> toe om de Mapbox-kaart te laden.</div>}<div className="map-badge"><MapPinned size={12} /> {hasToken ? "interactieve kaart" : "kaartvoorbeeld"}</div><div className="map-controls"><button type="button" onClick={() => setShowBuilding((value) => !value)}><Layers3 size={12} /> {showBuilding ? "Gebouw verbergen" : "Gebouw tonen"}</button><a className="secondary-button" href={mapUrl} target="_blank" rel="noreferrer">Open kaart <ExternalLink size={12} /></a></div><div className="map-coordinates">{property.coordinates.lat.toFixed(4)}, {property.coordinates.lng.toFixed(4)}</div></div>;
+  return <div className="map-card interactive-map">{hasToken ? <div ref={mapRef} className="map-canvas" /> : <iframe className="map-osm-frame" title={`Kaart van ${property.addressLabel}`} src={embedUrl} loading="lazy" />}<div className="map-badge"><MapPinned size={12} /> {hasToken ? `${nearbyProperties.length} woningen op de kaart` : "locatie & omgeving"}</div><div className="map-controls">{hasToken && <button type="button" onClick={() => setShowBuilding((value) => !value)}><Layers3 size={12} /> {showBuilding ? "Gebouw verbergen" : "Gebouw tonen"}</button>}<a className="secondary-button" href={mapUrl} target="_blank" rel="noreferrer">Grotere kaart <ExternalLink size={12} /></a></div>{hasToken && <><div className="map-legend"><span><i className="legend-dot home" /> deze woning</span><span><i className="legend-dot nearby" /> omgeving</span></div><div className="map-coordinates">{property.coordinates.lat.toFixed(4)}, {property.coordinates.lng.toFixed(4)}</div></>}</div>;
 }
