@@ -1,0 +1,81 @@
+# WoonReality
+
+> Weet waar je écht gaat wonen.
+
+WoonReality is a Next.js vertical slice for a transparent Dutch property reality check. A user searches an address, the app resolves the BAG identity, loads nearby BGT context, and returns explainable signals with source evidence.
+
+## Included in this MVP
+
+- PDOK Location API address autocomplete
+- BAG-backed VBO/pand identity, geometry, building year, and surface area
+- BGT road, green-area, and water context within approximately 250 m
+- Deterministic, versioned score components
+- Evidence and caveats on every signal
+- Shareable `/woning/[bagId]` property URLs
+- Vercel-ready API routes and a protected source-health Cron route
+- Drizzle/Postgres schema for the next persistence step
+
+When `DATABASE_URL` is present, analysis requests upsert the property and append evidence plus the versioned analysis to Postgres. Without it, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
+
+The current noise and heat cards are explicitly labelled as first-screening proxies. They are not official noise measurements or a formal climate-risk assessment.
+
+## Run locally
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000), then try `Korenstraat 18, Epe`.
+
+Useful checks:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## API routes
+
+```text
+GET /api/address/search?q=...
+GET /api/property/:bagId
+GET /api/analysis/:bagId
+GET /api/cron/source-health
+GET /api/health
+```
+
+The source adapters live below `src/lib/sources/`, the normalized contracts are in `src/lib/types.ts`, and score calculation is in `src/lib/scoring/`.
+
+## Vercel setup
+
+1. Create or select a Vercel team/project.
+2. Import this repository with framework preset `Next.js`.
+3. Add the variables from `.env.example` in Project Settings → Environment Variables.
+4. Set `CRON_SECRET`; Vercel will send it as `Authorization: Bearer ...` to the cron route.
+5. Deploy with the production branch. `vercel.json` schedules source-health checks daily at 03:15 UTC.
+6. Add a Neon/Vercel Postgres connection as `DATABASE_URL` before enabling persistence migrations.
+
+With `DATABASE_URL` configured, apply the checked-in schema migration with:
+
+```bash
+npm run db:migrate
+```
+
+The prepared deployment commands are `npm run vercel:link` and `npm run vercel:deploy`.
+
+The first slice does not require any API keys because PDOK Location, BAG, and BGT are open services. DSO and EP-Online keys are reserved for the next feature slices.
+
+## Next slices
+
+1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
+2. Add official RIVM/Atlas raster sampling for noise, greenery, and air quality.
+3. Add DSO/KOOP development items as the Future View.
+4. Add EP-Online, RDW parking, CBS neighbourhood data, schools, and transit.
+5. Build the 3D/AHN Sun Time Machine after the basic chain has usage.
+
+## Product boundaries
+
+WoonReality is screening and decision support. It does not replace a building inspection, acoustic or foundation survey, soil investigation, legal planning advice, appraisal, or formal permit check. Public-data absence is not proof that a risk is absent.
