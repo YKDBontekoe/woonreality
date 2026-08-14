@@ -128,7 +128,8 @@ a { color: inherit; text-decoration: none; }
 .secondary-button.selected { background: var(--mint); border-color: #b9dcc2; color: var(--moss); }
 .primary-button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 10px; padding: 10px 14px; background: var(--moss); color: white; font-size: 12px; font-weight: 600; }
 .primary-button:hover { background: #1a3b2e; }
-.dashboard-tabs { display: flex; gap: 22px; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 0 0 12px; margin-bottom: 8px; }
+.dashboard-tabs { display: flex; gap: 22px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; border-bottom: 1px solid var(--line); padding: 0 0 12px; margin-bottom: 8px; }
+.dashboard-tabs::-webkit-scrollbar { display: none; }
 .dashboard-tabs a { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .dashboard-tabs a:hover { color: var(--moss); }
 .compare-banner { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 16px 0 2px; padding: 12px 14px; border: 1px solid #c9dfcf; border-radius: 11px; background: #edf7ef; color: var(--moss); font-size: 12px; }
@@ -169,16 +170,17 @@ a { color: inherit; text-decoration: none; }
 .signals-heading h2 { margin: 0; font: 600 22px "Space Grotesk", sans-serif; letter-spacing: -.04em; }
 .signals-heading span { color: var(--muted); font-size: 11px; }
 .signals-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-.signal-card { background: white; border: 1px solid var(--line); border-radius: 15px; padding: 18px; }
+.signal-card { min-width: 0; background: white; border: 1px solid var(--line); border-radius: 15px; padding: 18px; }
 .signal-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.signal-title { display: flex; align-items: center; gap: 9px; }
+.signal-title { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .signal-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--moss-bright); }
 .signal-dot.attention { background: var(--coral); }
 .signal-dot.neutral { background: var(--yellow); }
 .signal-title h3 { margin: 0; font: 600 15px "Space Grotesk", sans-serif; }
 .signal-category { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
-.signal-value { color: var(--moss); font: 600 16px "DM Mono", monospace; white-space: nowrap; }
+.signal-value { flex: 0 1 auto; overflow-wrap: anywhere; color: var(--moss); font: 600 16px "DM Mono", monospace; text-align: right; }
 .signal-summary { color: var(--ink-soft); margin: 14px 0; min-height: 42px; font-size: 12px; line-height: 1.55; }
+.signal-context { margin: -7px 0 13px; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .signal-action { color: var(--ink); background: #f6f8f3; border-radius: 9px; padding: 10px; font-size: 11px; line-height: 1.45; }
 .signal-action strong { color: var(--moss); font-weight: 600; }
 .signal-bar { height: 5px; overflow: hidden; background: #edf1ec; border-radius: 99px; margin-top: 15px; }
@@ -293,11 +295,14 @@ a { color: inherit; text-decoration: none; }
   .proof-strip { grid-template-columns: 1fr; gap: 15px; }
   .section { padding: 65px 0; }
   .section-heading h2 { font-size: 34px; }
-  .feature-grid, .signals-grid, .loading-grid { grid-template-columns: 1fr; }
+  .feature-grid, .signals-grid, .loading-grid { grid-template-columns: minmax(0, 1fr); }
   .dashboard-top { align-items: flex-start; flex-direction: column; }
   .dashboard-actions { width: 100%; }
   .secondary-button { flex: 1; justify-content: center; }
   .dashboard-grid { padding-top: 18px; }
+  .score-card { min-height: 0; }
+  .fit-score { max-width: none; }
+  .score-footer { position: relative; left: auto; right: auto; bottom: auto; margin-top: 18px; padding-top: 14px; }
   .dashboard-actions { flex-wrap: wrap; }
   .dashboard-actions .secondary-button { min-width: calc(50% - 5px); }
   .insight-grid, .source-status-list, .nearby-grid { grid-template-columns: 1fr; }

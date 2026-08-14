@@ -149,7 +149,6 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     : clamp(nearestRoadM === Infinity ? 8 : 8 - Math.max(0, 120 - nearestRoadM) / 25);
   const greenScore = clamp(4 + greenPercent / 8);
   const heatScore = clamp(9 - (100 - greenPercent) / 18);
-  const accessScore = clamp(5.5 + Math.min(2.5, bgt.roads.length / 8));
   const contextScore = clamp(property.buildingYear ? 6.5 + (property.buildingYear >= 2000 ? 1 : 0) : 6);
 
   const signals: Signal[] = [
@@ -171,6 +170,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
         ? { value: rivm.noiseLden, unit: "dB Lden", metric: "RIVM wegverkeersgeluid" }
         : { value: Math.round(nearestRoadM), unit: "m", metric: "afstand tot dichtstbijzijnde BGT-wegdeel" },
       confidence: "medium",
+      spatialScale: rivm?.noiseLden != null ? "RIVM rastercel" : "circa 250 m zoekbuffer",
       evidence: rivm?.noiseLden != null ? [rivmEvidence] : [bgtRoadEvidence],
       availability: rivm?.noiseLden != null || bgtAvailable ? "available" : "unavailable",
     },
@@ -185,6 +185,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Check bij een bezichtiging ook de boomkroon, privacy en het groen dat je daadwerkelijk vanuit de woning ziet.",
       raw: { value: Math.round(greenPercent), unit: "%", metric: "BGT-begroeid terrein binnen circa 250 m" },
       confidence: "medium",
+      spatialScale: "circa 250 m zoekbuffer",
       evidence: [bgtGreenEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
     },
@@ -200,19 +201,20 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Kijk op een hete dag naar schaduw, geveloriëntatie en de hoeveelheid verharding rond tuin en straat.",
       raw: { value: Math.round(100 - greenPercent), unit: "% verhardingsproxy", metric: "afgeleid uit BGT" },
       confidence: "low",
+      spatialScale: "circa 250 m zoekbuffer",
       evidence: [bgtGreenEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
     },
     {
       key: "access",
-      label: "Lokale bereikbaarheid",
+      label: "Lokale wegstructuur",
       category: "mobiliteit",
       value: `${bgt.roads.length} wegdelen`,
-      score: accessScore,
-      severity: scoreSeverity(accessScore),
-      summary: `${bgt.roads.length} BGT-wegdelen zijn in de eerste zoekbuffer aangetroffen.`,
-      action: "De volgende slice voegt looproutes, scholen, OV en dagelijkse voorzieningen toe.",
+      severity: "neutral",
+      summary: `${bgt.roads.length} BGT-wegdelen zijn in de eerste zoekbuffer aangetroffen; dit beschrijft de straatstructuur, geen bereikbaarheid.`,
+      action: "Controleer looproutes, scholen, OV en dagelijkse voorzieningen; deze eerste indicatie meet die niet.",
       confidence: "medium",
+      spatialScale: "circa 250 m zoekbuffer",
       evidence: [bgtRoadEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
     },
@@ -229,6 +231,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
         : "BAG koppelt dit adres aan een verblijfsobject.",
       action: "Gebruik dit als startpunt; een bouwkundige keuring blijft nodig voor de staat van het gebouw.",
       confidence: "high",
+      spatialScale: "BAG-verblijfsobject",
       evidence: [identity],
       availability: "available",
     },
@@ -242,6 +245,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       summary: energy?.Energieklasse ? `Geregistreerd energielabel ${energy.Energieklasse}.` : "Er is geen energielabel beschikbaar in deze analyse.",
       action: "Vraag naar de originele labelstukken en recente verbeteringen aan isolatie, glas en installaties.",
       confidence: "high",
+      spatialScale: "BAG-verblijfsobject",
       availability: energyAvailable ? "available" : "unavailable",
       evidence: [energyEvidence],
     },
@@ -256,6 +260,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Gebruik de waarde als buurtindicatie; ventilatie, verkeer op straatniveau en binnenlucht bepalen je werkelijke blootstelling.",
       raw: rivm?.no2 != null ? { value: rivm.no2, unit: "µg/m³", metric: "RIVM jaargemiddelde NO₂" } : rivm?.pm25 != null ? { value: rivm.pm25, unit: "µg/m³", metric: "RIVM jaargemiddelde PM₂·₅" } : undefined,
       confidence: "medium",
+      spatialScale: "RIVM rastercel",
       evidence: [rivmEvidence],
       availability: rivm?.no2 != null || rivm?.pm25 != null ? "available" : "unavailable",
     },
@@ -270,6 +275,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Vergelijk buurtgemiddelden met je eigen leefstijl en controleer voorzieningen op verschillende tijdstippen.",
       raw: cbs?.supermarketDistanceKm != null ? { value: cbs.supermarketDistanceKm, unit: "km", metric: "CBS gemiddelde afstand supermarkt" } : undefined,
       confidence: "medium",
+      spatialScale: "buurt",
       evidence: [cbsEvidence],
       availability: cbsAvailable ? "available" : "unavailable",
     },
@@ -284,6 +290,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Controleer lijnfrequentie, avondritten en de daadwerkelijke looproute vanaf de voordeur.",
       raw: ndov?.nearestDistanceM != null ? { value: Math.round(ndov.nearestDistanceM), unit: "m", metric: "afstand tot dichtstbijzijnde NDOV-halte" } : undefined,
       confidence: "high",
+      spatialScale: "haltecoördinaat",
       evidence: [ndovEvidence],
       availability: ndovAvailable ? "available" : "unavailable",
     },
@@ -297,12 +304,15 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       summary: dso ? `${dso.topicCount} DSO-onderwerp(en) raken deze locatie${dso.topicNames.length ? `, waaronder ${dso.topicNames.join(", ")}` : ""}.` : "Er is geen DSO-onderwerpenbevraging beschikbaar.",
       action: "Open de relevante omgevingsdocumenten en controleer status, besluitdatum en kaartbegrenzing voordat je conclusies trekt.",
       confidence: "medium",
+      spatialScale: "puntbevraging",
       evidence: [dsoEvidence],
       availability: dsoAvailable ? "available" : "unavailable",
     },
   ];
 
-  const components = signals.filter((signal) => signal.availability !== "unavailable").map((signal) => componentFromSignal(
+  // Only signals with an actual score contribute. Descriptive context, such as
+  // BGT road segments, remains useful to show but must not imply a score.
+  const components = signals.filter((signal) => signal.availability !== "unavailable" && typeof signal.score === "number").map((signal) => componentFromSignal(
     signal,
     signal.key,
     signal.label,
