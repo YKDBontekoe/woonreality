@@ -202,7 +202,7 @@ export type BidDraftRow = {
   case_id: string;
   user_id: string;
   version: number;
-  amount: number;
+  amount: number | null;
   transfer_date: string | null;
   conditions: Json;
   body: string;
@@ -244,7 +244,16 @@ export type Database = {
       case_events: Table<CaseEventRow>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      merge_profile_preferences: {
+        Args: { p_preferences?: Json | null; p_buyer_profile?: Json | null; p_compare_ids?: Json | null };
+        Returns: Json;
+      };
+      apply_case_workflow: {
+        Args: { p_case_id: string; p_payload: Json };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

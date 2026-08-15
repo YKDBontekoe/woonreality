@@ -5,6 +5,8 @@ import type { PersonalPreferences, Property } from "@/src/lib/types";
 import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
 import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
 
+export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
+
 export function usePropertyWorkspace() {
   const [workspace, setWorkspace] = useState<WorkspaceData>(() => emptyWorkspace());
   const [workspaceError, setWorkspaceError] = useState("");
@@ -27,13 +29,20 @@ export function usePropertyWorkspace() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const mutate = useCallback(async (payload: Record<string, unknown>) => {
-    const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-    const body = await response.json() as { workspace?: WorkspaceData; error?: string };
-    if (response.status === 401) { window.location.href = "/login"; return; }
-    if (!response.ok || !body.workspace) throw new Error(body.error ?? "Wijziging kon niet worden opgeslagen.");
-    setWorkspace(body.workspace);
-    setWorkspaceError("");
+  const mutate = useCallback(async (payload: Record<string, unknown>): Promise<WorkspaceMutationResult> => {
+    try {
+      const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await response.json() as { workspace?: WorkspaceData; error?: string };
+      if (response.status === 401) { window.location.href = "/login"; return { ok: false, error: "Log in om wijzigingen te bewaren." }; }
+      if (!response.ok || !body.workspace) throw new Error(body.error ?? "Wijziging kon niet worden opgeslagen.");
+      setWorkspace(body.workspace);
+      setWorkspaceError("");
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Wijziging kon niet worden opgeslagen.";
+      setWorkspaceError(message);
+      return { ok: false, error: message };
+    }
   }, []);
 
   const toggleSaved = useCallback(async (property: Property) => {

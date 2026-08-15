@@ -3,6 +3,7 @@ import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { DEFAULT_BUYER_PROFILE, PROPERTY_STAGE_LABELS, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
+import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function isStage(value: unknown): value is PropertyStage {
-  return typeof value === "string" && value in PROPERTY_STAGE_LABELS;
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(PROPERTY_STAGE_LABELS, value);
 }
 
 function isBagId(value: unknown): value is string {
@@ -27,10 +28,12 @@ async function currentUser() {
 async function readWorkspace() {
   const { supabase, user } = await currentUser();
   if (!user) return { supabase, user: null, workspace: null };
-  const [{ data: profile }, { data: saved }] = await Promise.all([
+  const [{ data: profile, error: profileError }, { data: saved, error: savedError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.from("saved_properties").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
   ]);
+  if (profileError) throw profileError;
+  if (savedError) throw savedError;
   const profilePreferences = record(profile?.preferences_json);
   const savedProperties = (saved ?? []) as Array<{ bag_vbo_id: string; address_label: string; city: string; postcode: string; stage: string; saved_at: string }>;
   const buyerProfile = { ...DEFAULT_BUYER_PROFILE, ...record(profilePreferences.buyerProfile) } as BuyerProfile;
@@ -65,12 +68,16 @@ export async function POST(request: Request) {
   try {
     const result = await readWorkspace();
     if (!result.user || !result.workspace) return NextResponse.json({ error: "Log in om wijzigingen te bewaren." }, { status: 401 });
-    const body = await request.json() as { action?: string; bagVboId?: string; addressLabel?: string; city?: string; postcode?: string; stage?: string; preferences?: PersonalPreferences; buyerProfile?: BuyerProfile; compare?: string[] };
+    const parsed = workspaceBodySchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "Ongeldige aankoopomgevinggegevens." }, { status: 400 });
+    const body: WorkspaceRequest = parsed.data;
     const now = new Date().toISOString();
 
     if (body.action === "save") {
       if (!isBagId(body.bagVboId) || !body.addressLabel || !body.city || !body.postcode) return NextResponse.json({ error: "Onvolledige woninggegevens." }, { status: 400 });
-      const { error } = await result.supabase.from("saved_properties").upsert({ user_id: result.user.id, bag_vbo_id: body.bagVboId, address_label: body.addressLabel, city: body.city, postcode: body.postcode, stage: isStage(body.stage) ? body.stage : "saved", updated_at: now }, { onConflict: "user_id,bag_vbo_id" });
+      const savedPayload: { user_id: string; bag_vbo_id: string; address_label: string; city: string; postcode: string; stage?: PropertyStage; updated_at: string } = { user_id: result.user.id, bag_vbo_id: body.bagVboId, address_label: body.addressLabel, city: body.city, postcode: body.postcode, updated_at: now };
+      if (body.stage !== undefined) savedPayload.stage = body.stage;
+      const { error } = await result.supabase.from("saved_properties").upsert(savedPayload, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
     } else if (body.action === "unsave") {
       if (!isBagId(body.bagVboId)) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
@@ -82,16 +89,12 @@ export async function POST(request: Request) {
       if (error) throw error;
     } else if (body.action === "compare") {
       const compare = (body.compare ?? []).filter(isBagId).slice(0, 4);
-      const { error } = await result.supabase.from("profiles").upsert({ id: result.user.id, compare_ids: compare, updated_at: now }, { onConflict: "id" });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare });
       if (error) throw error;
     } else if (body.action === "profile") {
-      const current = record((await result.supabase.from("profiles").select("preferences_json").eq("id", result.user.id).maybeSingle()).data?.preferences_json);
-      const preferencesJson = {
-        ...current,
-        ...(body.preferences ? { personalPreferences: body.preferences } : {}),
-        ...(body.buyerProfile ? { buyerProfile: body.buyerProfile } : {}),
-      };
-      const { error } = await result.supabase.from("profiles").upsert({ id: result.user.id, preferences_json: preferencesJson, updated_at: now }, { onConflict: "id" });
+      if (!body.preferences && !body.buyerProfile) return NextResponse.json({ error: "Geef voorkeuren of een woonprofiel mee." }, { status: 400 });
+      if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: body.preferences ?? null, p_buyer_profile: body.buyerProfile ?? null, p_compare_ids: null });
       if (error) throw error;
     } else {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });

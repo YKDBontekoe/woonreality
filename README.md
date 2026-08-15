@@ -106,9 +106,11 @@ The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV 
 
 AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and the Supabase variables. The app uses Vercel AI Gateway with `AI_RESEARCH_MODEL` for source research/document extraction and `AI_SYNTHESIS_MODEL` for the structured report. Reports are stored for `AI_REPORT_TTL_DAYS` (default seven days), cite their source URLs, and never alter the deterministic Reality Score. `AI_ALLOWED_DOMAINS` and `LISTING_ALLOWED_HOSTS` limit additional web and listing sources.
 
-## Next slices
+## Included in this MVP
 
 The purchase cockpit slice is now included. `/mijn-aankoop` works as a database-backed dashboard with a buyer profile, saved-home board, property stages, next actions, and links into the existing transparent woningcheck. Buyer preferences, saved homes, comparison selection, viewing checklists, bid drafts, valuation snapshots, finance data, and purchase workflow data are stored through Supabase with user-scoped RLS. The UI keeps drafts user-controlled but no longer uses browser storage for product data.
+
+## Next slices
 
 1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
 2. Add official RIVM/Atlas raster sampling for additional greenery and climate layers.

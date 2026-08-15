@@ -28,16 +28,21 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({});
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
 
-  useEffect(() => setProfile(workspace.buyerProfileConfigured ? workspace.buyerProfile : EMPTY_BUYER_PROFILE), [workspace.buyerProfile, workspace.buyerProfileConfigured]);
-
   useEffect(() => {
-    if (!workspace.saved.length) {
+    if (!editingProfile) setProfile(workspace.buyerProfileConfigured ? workspace.buyerProfile : EMPTY_BUYER_PROFILE);
+  }, [editingProfile, workspace.buyerProfile, workspace.buyerProfileConfigured]);
+
+  const savedKey = workspace.saved.map((saved) => saved.bagVboId).join("|");
+  // The identifiers are the intended refresh boundary; stage/profile updates should not refetch analysis data.
+  const savedHomes = useMemo(() => workspace.saved, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!savedHomes.length) {
       setAnalyses({});
       return;
     }
     let active = true;
     setLoadingAnalyses(true);
-    Promise.all(workspace.saved.slice(0, 8).map(async (saved) => {
+    Promise.all(savedHomes.slice(0, 8).map(async (saved) => {
       try {
         const response = await fetch(`/api/analysis/${encodeURIComponent(saved.bagVboId)}`);
         return response.ok ? [saved.bagVboId, await response.json() as Analysis] as const : null;
@@ -47,11 +52,11 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
       setAnalyses(Object.fromEntries(items.filter((item): item is readonly [string, Analysis] => Boolean(item))));
     }).finally(() => { if (active) setLoadingAnalyses(false); });
     return () => { active = false; };
-  }, [workspace.saved]);
+  }, [savedHomes]);
 
   const profileConfigured = workspaceReady && workspace.buyerProfileConfigured;
   const completion = profileConfigured ? profileCompletion(profile) : 0;
-  const activeHomes = workspace.saved.filter((item) => workspace.propertyStages[item.bagVboId] !== "dropped");
+  const activeHomes = useMemo(() => savedHomes.filter((item) => workspace.propertyStages[item.bagVboId] !== "dropped"), [savedHomes, workspace.propertyStages]);
   const nextAction = useMemo(() => {
     if (!workspaceReady) return { title: "Aankoopomgeving laden", text: "Je profiel en woningen worden opgehaald.", href: "#woonprofiel" };
     if (workspaceError) return { title: "Koppel je aankoopomgeving", text: "Log in om je profiel en woningen veilig te bewaren.", href: "/login" };
@@ -69,9 +74,9 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
     return actions[stage] ?? { title: "Open je woningdossier", text: first.addressLabel, href: `/woning/${first.bagVboId}` };
   }, [activeHomes, profileConfigured, workspace.propertyStages, workspaceError, workspaceReady]);
 
-  function saveProfile() {
-    setBuyerProfile(profile);
-    setEditingProfile(false);
+  async function saveProfile() {
+    const result = await setBuyerProfile(profile);
+    if (result.ok) setEditingProfile(false);
   }
 
   function updateNumber(key: "budget" | "monthlyPayment" | "ownFunds" | "bedrooms", value: string) {
@@ -79,7 +84,7 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
   }
 
   return <main className="site-shell"><div className="container purchase-cockpit">
-    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>Goedemiddag.</h1><p className="hero-copy">Van eerste twijfel tot sleuteloverdracht: hier houd je grip op je aankoop.</p></div><Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link></div>
+    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>Jouw aankoopoverzicht.</h1><p className="hero-copy">Van eerste twijfel tot sleuteloverdracht: hier houd je grip op je aankoop.</p></div><Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link></div>
 
     {focusCase && <div className="cockpit-toast"><Check size={15} /> Je aankoopdossier is gestart. Vul eerst je woonprofiel aan.</div>}
     {workspaceError && <div className="cockpit-toast warning"><CircleAlert size={15} /> {workspaceError} <Link href="/login">Inloggen</Link></div>}

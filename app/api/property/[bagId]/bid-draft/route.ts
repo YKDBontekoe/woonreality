@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 
 export const runtime = "nodejs";
+
+const bidDraftBodySchema = z.object({
+  askingPrice: z.number().finite().nonnegative().nullable().optional(),
+  selected: z.enum(["cautious", "balanced", "strong"]).optional(),
+}).strict();
 
 async function contextFor(bagId: string) {
   const supabase = await createSupabaseServerClient();
@@ -29,10 +35,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ bagId
     const result = await contextFor(decodeURIComponent(rawBagId));
     if (!result.valid) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
     if (!result.user) return NextResponse.json({ error: "Log in om een bodconcept te bewaren." }, { status: 401 });
-    const body = await request.json() as { askingPrice?: number; selected?: string };
-    if (body.askingPrice != null && (!Number.isFinite(body.askingPrice) || body.askingPrice < 0)) return NextResponse.json({ error: "Ongeldige vraagprijs." }, { status: 400 });
-    if (body.selected && !["cautious", "balanced", "strong"].includes(body.selected)) return NextResponse.json({ error: "Ongeldig biedscenario." }, { status: 400 });
-    const { data, error } = await result.supabase.from("property_bid_drafts").upsert({ user_id: result.user.id, bag_vbo_id: result.bagId, asking_price: body.askingPrice ?? null, selected_scenario: body.selected ?? "balanced", updated_at: new Date().toISOString() }, { onConflict: "user_id,bag_vbo_id" }).select("asking_price,selected_scenario,updated_at").single();
+    const parsed = bidDraftBodySchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "Ongeldige bodgegevens." }, { status: 400 });
+    const payload: { user_id: string; bag_vbo_id: string; asking_price?: number | null; selected_scenario?: "cautious" | "balanced" | "strong"; updated_at: string } = { user_id: result.user.id, bag_vbo_id: result.bagId, updated_at: new Date().toISOString() };
+    if (Object.prototype.hasOwnProperty.call(parsed.data, "askingPrice")) payload.asking_price = parsed.data.askingPrice;
+    if (Object.prototype.hasOwnProperty.call(parsed.data, "selected")) payload.selected_scenario = parsed.data.selected;
+    const { data, error } = await result.supabase.from("property_bid_drafts").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("asking_price,selected_scenario,updated_at").single();
     if (error) return NextResponse.json({ error: "Bodconcept kon niet worden opgeslagen." }, { status: 502 });
     return NextResponse.json({ draft: data });
   } catch {

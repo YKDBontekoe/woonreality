@@ -28,8 +28,8 @@ create table if not exists public.property_bid_drafts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   bag_vbo_id varchar(32) not null,
-  asking_price numeric,
-  selected_scenario varchar(16) not null default 'balanced',
+  asking_price numeric check (asking_price is null or asking_price >= 0),
+  selected_scenario varchar(16) not null default 'balanced' check (selected_scenario in ('cautious', 'balanced', 'strong')),
   updated_at timestamptz not null default now(),
   unique (user_id, bag_vbo_id)
 );
