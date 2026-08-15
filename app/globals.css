@@ -711,7 +711,8 @@ button.text-link { background: none; border: 0; padding: 0; }
 .work-chips button.active, .work-chips button:hover { border-color: var(--moss-focus); background: var(--mint-soft); color: var(--moss); }
 .work-chips button.is-quiet { background: transparent; }
 .mortgage-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
-.mortgage-fold { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: none; text-align: left; }
+.mortgage-fold { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; margin: -8px -10px 0; border: 0; background: none; text-align: left; border-radius: 12px; }
+.mortgage-fold:hover { background: var(--mint-pale); }
 .mortgage-fold span { display: grid; gap: 4px; }
 .mortgage-fold strong { color: var(--ink); font-size: 15px; font-weight: 600; }
 .mortgage-fold svg { flex: none; color: var(--muted); transition: transform .15s ease; }

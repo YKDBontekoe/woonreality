@@ -576,7 +576,7 @@ function PersonFields({
       {!showMoreWork && <button type="button" className="is-quiet" onClick={onMoreWork}>DGA, pensioen of mix</button>}
     </div>
     {needsJob && <div className="form-grid">
-      <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Wat er op je jaaropgave staat, vóór belasting." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} />
+      <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Wat er op je jaaropgave staat, vóór belasting." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
       {work === "temporary" && <label className="mortgage-span"><input type="checkbox" checked={person.intent} onChange={(event) => onChange({ ...person, intent: event.target.checked })} /> Ik krijg een intentieverklaring voor vast werk</label>}
       {work === "flex" && <label className="mortgage-span"><input type="checkbox" checked={person.perspectief} onChange={(event) => onChange({ ...person, perspectief: event.target.checked })} /> Ik heb een perspectiefverklaring</label>}
     </div>}
@@ -624,8 +624,8 @@ function YearFields({ label, years, onChange }: { label: string; years: YearTrip
   }} step={1000} />)}</div></div>;
 }
 
-function MoneyField({ label, value, onChange, step = 50, hint, className }: { label: string; value: number; onChange: (value: number) => void; step?: number; hint?: string; className?: string }) {
-  return <label className={className}>{label}{hint ? <small className="mortgage-field-hint">{hint}</small> : null}<input type="number" min="0" step={step} inputMode="numeric" placeholder="0" value={value || ""} onChange={(event) => onChange(Number(event.target.value) || 0)} /></label>;
+function MoneyField({ label, value, onChange, step = 50, hint, className, placeholder = "0" }: { label: string; value: number; onChange: (value: number) => void; step?: number; hint?: string; className?: string; placeholder?: string }) {
+  return <label className={className}>{label}{hint ? <small className="mortgage-field-hint">{hint}</small> : null}<input type="number" min="0" step={step} inputMode="numeric" placeholder={placeholder} value={value || ""} onChange={(event) => onChange(Number(event.target.value) || 0)} /></label>;
 }
 
 function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean) {
