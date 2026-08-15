@@ -1,22 +1,22 @@
 "use client";
 
-import { ArrowUpRight, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, SunMedium } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, Sparkles, SunMedium } from "lucide-react";
 import { AddressSearch } from "@/components/address-search";
 import { SiteHeader } from "@/components/site-header";
 
 export function LandingPage() {
-  return <main className="site-shell">
+  return <main className="site-shell landing-shell">
     <div className="container"><SiteHeader /></div>
     <section className="container hero">
       <div>
-        <div className="eyebrow"><span className="eyebrow-dot" /> voor de werkelijkheid achter de advertentie</div>
-        <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
-        <p className="hero-copy">Een woning vertelt wat er ín zit. WoonReality laat zien wat je tijdens een bezichtiging moeilijk ziet — met openbare data, duidelijke uitleg en altijd de bron erbij.</p>
+        <div className="eyebrow"><span className="eyebrow-dot" /> Vastgoed, zonder ruis</div>
+        <h1>Zie wat een woning <em>niet</em> vertelt.</h1>
+        <p className="hero-copy">WoonReality legt de werkelijkheid achter een adres bloot. Heldere signalen uit openbare data, scherp uitgelegd en altijd te controleren.</p>
         <AddressSearch />
-        <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen AI-score. Wel signalen die je kunt controleren.</div>
+        <div className="hero-note"><ShieldCheck size={15} /> Transparant, brongebonden en gemaakt voor jouw bezichtiging.</div>
       </div>
       <div className="hero-visual" aria-label="Voorbeeld van een WoonReality analyse">
-        <div className="visual-card"><div className="visual-map" /><div className="visual-top"><span className="visual-label">Live reality check</span><span className="visual-time">09:42 · BAG + BGT</span></div><div className="visual-building" /><div className="visual-pin"><MapPinIcon /></div><div className="visual-score"><div className="visual-score-label">Reality score</div><div className="visual-score-number">7,8<span>/ 10</span></div><div className="visual-score-meta">sterke basis, let op geluid</div></div></div>
+        <div className="visual-card"><div className="visual-grid" /><div className="visual-map" /><div className="visual-top"><span className="visual-label"><Sparkles size={11} /> Reality intelligence</span><span className="visual-time">LIVE · BAG + BGT</span></div><div className="visual-building" /><div className="visual-pin"><MapPinIcon /></div><div className="visual-score"><div className="visual-score-label">Reality score</div><div className="visual-score-number">7,8<span>/ 10</span></div><div className="visual-score-meta"><span /> sterke basis, let op geluid</div></div><div className="visual-source"><CheckCircle2 size={13} /> 12 signalen geverifieerd</div></div>
         <div className="floating-tag"><span className="tag-icon"><Leaf size={15} /></span><span><strong>Groen 8,7</strong>binnen 250 m</span></div>
       </div>
     </section>

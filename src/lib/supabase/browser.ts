@@ -11,6 +11,13 @@ export function createSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("Supabase is nog niet geconfigureerd.");
-  client = createBrowserClient<Database>(url, key);
+  client = createBrowserClient<Database>(url, key, {
+    auth: {
+      // Supabase passkeys are experimental and must be explicitly enabled in
+      // the client. The project-level WebAuthn relying-party configuration
+      // remains the source of truth for allowed origins.
+      experimental: { passkey: true },
+    },
+  });
   return client;
 }
