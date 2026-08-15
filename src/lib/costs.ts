@@ -1,3 +1,4 @@
+import { NHG } from "@/src/lib/mortgage/norms-2026";
 import type { BuyerProfile } from "@/src/lib/purchase";
 
 export const TRANSFER_TAX = {
@@ -45,10 +46,11 @@ export function transferTaxRate(profile: TransferTaxProfile, purchasePrice: numb
   return starterExemptionEligible(profile, purchasePrice) ? TRANSFER_TAX.starterRate : TRANSFER_TAX.standardRate;
 }
 
-export function estimateBuyerCosts(purchasePrice: number, profile: TransferTaxProfile & Pick<BuyerProfile, "ownFunds" | "budget">, financingAmount?: number | null): BuyerCostEstimate | null {
+export function estimateBuyerCosts(purchasePrice: number, profile: TransferTaxProfile & Pick<BuyerProfile, "ownFunds" | "budget"> & Partial<Pick<BuyerProfile, "nhg">>, financingAmount?: number | null): BuyerCostEstimate | null {
   if (!purchasePrice || purchasePrice < 1) return null;
   const rate = transferTaxRate(profile, purchasePrice);
   const thresholdLabel = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(TRANSFER_TAX.starterThreshold);
+  const loan = financingAmount && financingAmount > 0 ? financingAmount : Math.max(0, purchasePrice - (profile.ownFunds || 0));
   const lines: BuyerCostLine[] = [
     {
       key: "transfer-tax",
@@ -63,8 +65,15 @@ export function estimateBuyerCosts(purchasePrice: number, profile: TransferTaxPr
     { key: "inspection", label: "Bouwkundige keuring (indicatie)", amount: 500, note: "Laat een erkend inspecteur kijken, zeker bij oudere bouw." },
     { key: "kadaster", label: "Kadaster / inschrijving", amount: 90, note: "Inschrijving levering en hypotheek." },
   ];
+  if (profile.nhg && purchasePrice > 0 && purchasePrice <= NHG.limit && loan > 0) {
+    lines.push({
+      key: "nhg",
+      label: "NHG-borgtochtprovisie",
+      amount: roundEuro(loan * NHG.feeRate),
+      note: `0,4% van de hypotheeksom (${TRANSFER_TAX.year}; grens ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(NHG.limit)}). Vaak meegefinancierd.`,
+    });
+  }
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
-  const loan = financingAmount && financingAmount > 0 ? financingAmount : Math.max(0, purchasePrice - (profile.ownFunds || 0));
   const cashForPrice = Math.max(0, purchasePrice - loan);
   const ownFundsNeeded = total + cashForPrice;
   const financingGap = profile.ownFunds > 0 ? ownFundsNeeded - profile.ownFunds : null;

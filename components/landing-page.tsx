@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, SunMedium } from "lucide-react";
+import { ArrowUpRight, FileCheck2, Landmark, Leaf, LocateFixed, Map, ShieldCheck, SunMedium } from "lucide-react";
 import { AddressSearch } from "@/components/address-search";
 import { ListingIntake } from "@/components/listing-intake";
 import { SiteHeader } from "@/components/site-header";
@@ -23,11 +23,14 @@ export function LandingPage() {
       </div>
     </section>
     <div className="container proof-strip" id="bronnen"><Proof icon={<LocateFixed size={17} />} title="Adresgericht" text="BAG als vaste woningidentiteit" /><Proof icon={<FileCheck2 size={17} />} title="Herleidbaar" text="Bron en caveat bij elk signaal" /><Proof icon={<Map size={17} />} title="Jij houdt controle" text="Geen bod of mail zonder jouw actie" /></div>
-    <section className="container section" id="werkwijze"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-dot" /> wat een makelaar ook zou doen</div><h2>Van eerste twijfel tot sleutel.</h2><p>Eerst de plek checken met open data. Daarna stukken lezen, een bezichtiging voorbereiden en pas dan een bodconcept — met ontbindende voorwaarden, geen winkans-theater.</p></div><div className="feature-grid"><Feature icon={<LocateFixed size={18} />} title="De plek" text="BAG, gebouw, groen en lokale topografie op het exacte woonadres." /><Feature icon={<SunMedium size={18} />} title="De stukken" text="Brochure, vragenlijst en VvE naast de feiten. Tegenstrijdigheden worden zichtbaar." /><Feature icon={<ArrowUpRight size={18} />} title="De volgende stap" text="Geen stellige conclusie, maar één actie: bezichtigen, doorvragen of laten vallen." /></div></section>
+    <section className="container section" id="werkwijze"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-dot" /> wat een makelaar ook zou doen</div><h2>Van eerste twijfel tot sleutel.</h2><p>Eerst de plek checken met open data. Daarna stukken lezen, een bezichtiging voorbereiden en pas dan een bodconcept — met ontbindende voorwaarden, geen winkans-theater.</p></div><div className="feature-grid"><Feature icon={<LocateFixed size={18} />} title="De plek" text="BAG, gebouw, groen en lokale topografie op het exacte woonadres." /><Feature icon={<SunMedium size={18} />} title="De stukken" text="Brochure, vragenlijst en VvE naast de feiten. Tegenstrijdigheden worden zichtbaar." /><Feature icon={<Landmark size={18} />} title="De hypotheek" text="Maximale lening op de leennormen 2026: loondienst, zelfstandig, schulden, NHG en energielabel." href="/hypotheek" /><Feature icon={<ArrowUpRight size={18} />} title="De volgende stap" text="Geen stellige conclusie, maar één actie: bezichtigen, doorvragen of laten vallen." /></div></section>
     <footer className="container footer"><span><strong>WoonReality</strong> · AI-aankoopbegeleider</span><span>Open data, menselijke uitleg, jij tekent.</span></footer>
   </main>;
 }
 
 function Proof({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="proof-item"><span className="proof-item-icon">{icon}</span><span><strong>{title}</strong><span>{text}</span></span></div>; }
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="feature-card"><span className="feature-card-icon">{icon}</span><h3>{title}</h3><p>{text}</p></div>; }
+function Feature({ icon, title, text, href }: { icon: React.ReactNode; title: string; text: string; href?: string }) {
+  const inner = <><span className="feature-card-icon">{icon}</span><h3>{title}</h3><p>{text}</p></>;
+  return href ? <a className="feature-card" href={href}>{inner}</a> : <div className="feature-card">{inner}</div>;
+}
 function MapPinIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>; }
