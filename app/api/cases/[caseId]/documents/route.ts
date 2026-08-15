@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getDocumentProxy, extractText } from "unpdf";
+import { analyzeDocumentText } from "@/src/lib/documents/analyze";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { syncEngineTasks } from "@/src/lib/cases/sync-tasks";
+import { extractListingFacts } from "@/src/lib/listing-intake";
+import { normalizeCaseStage } from "@/src/lib/journey";
+import { normalizeBuyerProfile } from "@/src/lib/purchase";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -18,12 +23,16 @@ function documentType(filename: string) {
   return "overig";
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
 export async function POST(request: Request, context: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await context.params;
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Log in om documenten te bewaren." }, { status: 401 });
-  const { data: purchaseCase } = await supabase.from("purchase_cases").select("id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
+  const { data: purchaseCase } = await supabase.from("purchase_cases").select("id,stage,property_id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
   if (!purchaseCase) return NextResponse.json({ error: "Dossier niet gevonden." }, { status: 404 });
 
   const formData = await request.formData();
@@ -36,16 +45,37 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
   const storagePath = `${auth.user.id}/${caseId}/${documentId}.pdf`;
   const bytes = new Uint8Array(await file.arrayBuffer());
   let pageCount = 0;
-  let preview = "";
+  let text = "";
   try {
     const pdf = await getDocumentProxy(bytes);
     pageCount = pdf.numPages;
     if (pageCount > 100) return NextResponse.json({ error: "Dit document heeft meer dan 100 pagina’s." }, { status: 400 });
-    const text = await extractText(pdf, { mergePages: true });
-    preview = String(text.text).replace(/\s+/g, " ").trim().slice(0, 500);
+    const extracted = await extractText(pdf, { mergePages: true });
+    text = String(extracted.text).replace(/\s+/g, " ").trim();
   } catch {
     return NextResponse.json({ error: "Dit PDF-bestand kon niet worden gelezen. Probeer een andere versie." }, { status: 400 });
   }
+
+  const type = documentType(file.name);
+  const preview = text.slice(0, 800);
+  const facts = extractListingFacts(text);
+
+  const { data: property } = purchaseCase.property_id
+    ? await supabase.from("properties").select("bag_vbo_id,area_m2,build_year").eq("id", purchaseCase.property_id).maybeSingle()
+    : { data: null };
+  const { data: bid } = await supabase.from("bid_drafts").select("amount,conditions").eq("case_id", caseId).eq("user_id", auth.user.id).order("version", { ascending: false }).limit(1).maybeSingle();
+  const { data: valuation } = await supabase.from("valuation_snapshots").select("midpoint_value,methodology").eq("case_id", caseId).eq("user_id", auth.user.id).order("version", { ascending: false }).limit(1).maybeSingle();
+  const askingPrice = Number(record(valuation?.methodology).askingPrice ?? valuation?.midpoint_value ?? facts.askingPrice ?? 0) || null;
+
+  const findings = analyzeDocumentText({
+    documentType: type,
+    filename: file.name,
+    text: text.slice(0, 40_000),
+    bagAreaM2: property?.area_m2,
+    askingPrice,
+    offerAmount: bid?.amount,
+    buildingYear: property?.build_year,
+  });
 
   const { error: uploadError } = await supabase.storage.from("purchase-documents").upload(storagePath, bytes, { contentType: "application/pdf", upsert: false });
   if (uploadError) return NextResponse.json({ error: "Het document kon niet veilig worden opgeslagen." }, { status: 502 });
@@ -57,13 +87,53 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
     filename: file.name,
     mime_type: "application/pdf",
     byte_size: file.size,
-    document_type: documentType(file.name),
+    document_type: type,
     status: "ready",
-    extracted_json: { pageCount, preview },
+    extracted_json: { pageCount, preview, textLength: text.length, facts },
   }).select("*").single();
   if (error || !document) {
     await supabase.storage.from("purchase-documents").remove([storagePath]);
     return NextResponse.json({ error: "De documentgegevens konden niet worden opgeslagen." }, { status: 502 });
   }
-  return NextResponse.json({ document }, { status: 201 });
+
+  if (findings.length) {
+    await supabase.from("document_findings").insert(findings.map((finding) => ({
+      document_id: documentId,
+      case_id: caseId,
+      user_id: auth.user.id,
+      title: finding.title,
+      summary: finding.summary,
+      severity: finding.severity,
+      action: finding.action,
+      status: "open",
+    })));
+  }
+
+  await supabase.from("case_events").insert({
+    case_id: caseId,
+    user_id: auth.user.id,
+    event_type: "document_uploaded",
+    payload: { filename: file.name, documentType: type, findingCount: findings.length },
+  });
+
+  const [{ data: documents }, { data: openFindings }, { data: profile }] = await Promise.all([
+    supabase.from("case_documents").select("document_type").eq("case_id", caseId),
+    supabase.from("document_findings").select("title,severity,action,status").eq("case_id", caseId).eq("status", "open"),
+    supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle(),
+  ]);
+  await syncEngineTasks(supabase, auth.user.id, {
+    profile: normalizeBuyerProfile(record(profile?.preferences_json).buyerProfile),
+    profileConfigured: Boolean(record(profile?.preferences_json).buyerProfile),
+    stage: normalizeCaseStage(purchaseCase.stage),
+    bagVboId: property?.bag_vbo_id,
+    caseId,
+    documentTypes: (documents ?? []).map((item) => item.document_type),
+    openFindings: openFindings ?? [],
+    hasAskingPrice: Boolean(askingPrice),
+    hasOffer: Boolean(bid?.amount),
+    hasContractAmount: Boolean(record(bid?.conditions).contractAmount),
+  });
+
+  const { data: storedFindings } = await supabase.from("document_findings").select("*").eq("document_id", documentId).eq("user_id", auth.user.id);
+  return NextResponse.json({ document, findings: storedFindings ?? [] }, { status: 201 });
 }

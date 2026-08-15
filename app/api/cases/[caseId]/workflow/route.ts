@@ -1,20 +1,9 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
+import { workflowBodySchema } from "@/src/lib/validation/workspace";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { normalizeCaseStage } from "@/src/lib/journey";
 
 export const runtime = "nodejs";
-
-const stageSchema = z.enum(["profile", "shortlist", "documents", "viewing", "offer", "contract", "transfer"]);
-const workflowBodySchema = z.object({
-  askingPrice: z.number().finite().nonnegative().nullable().optional(),
-  offerAmount: z.number().finite().nonnegative().nullable().optional(),
-  financingAmount: z.number().finite().nonnegative().nullable().optional(),
-  contractAmount: z.number().finite().nonnegative().nullable().optional(),
-  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  financingCondition: z.boolean().optional(),
-  inspectionCondition: z.boolean().optional(),
-  stage: stageSchema.optional(),
-}).strict();
 
 async function ownedCase(caseId: string) {
   const supabase = await createSupabaseServerClient();
@@ -40,7 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ caseId
     if (financeResult.error) throw financeResult.error;
     if (valuationResult.error) throw valuationResult.error;
     if (bidResult.error) throw bidResult.error;
-    return NextResponse.json({ finance: financeResult.data, valuation: valuationResult.data, bid: bidResult.data, stage: purchaseCase.stage });
+    return NextResponse.json({ finance: financeResult.data, valuation: valuationResult.data, bid: bidResult.data, stage: normalizeCaseStage(purchaseCase.stage) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Workflow kon niet worden geladen." }, { status: 503 });
   }
@@ -56,7 +45,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ caseI
     if (!parsed.success) return NextResponse.json({ error: "Ongeldige workflowgegevens." }, { status: 400 });
     const { error } = await supabase.rpc("apply_case_workflow", { p_case_id: caseId, p_payload: parsed.data });
     if (error) throw error;
-    return NextResponse.json({ saved: true });
+    return NextResponse.json({ saved: true, stage: parsed.data.stage ?? normalizeCaseStage(purchaseCase.stage) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Workflow kon niet worden opgeslagen." }, { status: 502 });
   }

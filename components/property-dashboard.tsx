@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "@/components/property-map";
 import { SignalCard } from "@/components/signal-card";
+import { SiteHeader } from "@/components/site-header";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { StartCaseButton } from "@/components/start-case-button";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
@@ -56,11 +57,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   >("loading");
   const [aiReport, setAiReport] = useState<AiPropertyReport | null>(null);
   const [aiStatus, setAiStatus] = useState<AiReportStatus>("missing");
-  const { workspace, toggleSaved, setPreferences } = usePropertyWorkspace();
+  const { workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [checklistError, setChecklistError] = useState("");
+  const [caseId, setCaseId] = useState<string | null>(null);
   const checklistWriteQueue = useRef(Promise.resolve());
 
   useEffect(() => {
@@ -150,6 +152,19 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         if (!(caught instanceof DOMException && caught.name === "AbortError"))
           setListingStatus("unavailable");
       });
+    return () => controller.abort();
+  }, [bagId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/cases", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = (await response.json()) as { cases?: Array<{ id: string; bagVboId?: string | null }> };
+        const match = body.cases?.find((item) => item.bagVboId === bagId);
+        if (match) setCaseId(match.id);
+      })
+      .catch(() => undefined);
     return () => controller.abort();
   }, [bagId]);
 
@@ -285,6 +300,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   return (
     <main className="site-shell">
       <div className="container">
+        <SiteHeader current="woning" />
         <header className="dashboard-header">
           <Link className="back-link" href="/">
             <ArrowLeft size={14} /> Ander adres
@@ -318,6 +334,16 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 {isSaved ? "Bewaard" : "Bewaar"}
               </button>
               <button
+                className={`secondary-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
+                type="button"
+                onClick={async () => {
+                  await toggleCompare(property.bagVboId);
+                }}
+              >
+                <GitCompare size={14} />
+                {workspace.compare.includes(property.bagVboId) ? "In vergelijking" : "Vergelijk"}
+              </button>
+              <button
                 className="secondary-button share-button"
                 type="button"
                 onClick={share}
@@ -328,7 +354,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             </div>
           </div>
         </header>
-        {showDetails && workspace.compare.length >= 2 && (
+        {workspace.compare.length >= 2 && (
           <div className="compare-banner">
             <span>
               <GitCompare size={15} /> {workspace.compare.length} woningen
@@ -370,6 +396,17 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </div>
         </section>
         <PurchaseGuardrails buildingYear={property.buildingYear} />
+        <section className="decision-bar" aria-label="Beslis in 30 seconden">
+          <div>
+            <div className="section-kicker">Wat nu?</div>
+            <h2>Bezichtigen, bewaren of laten vallen.</h2>
+            <p>De score is screening. De volgende stap is een actie die een makelaar ook zou voorstellen.</p>
+          </div>
+          <div className="decision-bar-actions">
+            <Link className="primary-button" href={`/woning/${property.bagVboId}/bezichtiging`}>Bezichtiging voorbereiden</Link>
+            {caseId ? <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>Open dossier</Link> : <StartCaseButton bagVboId={property.bagVboId} />}
+          </div>
+        </section>
         <AiResearchSection report={aiReport} status={aiStatus} />
         {listingStatus !== "unavailable" && (
           <ListingSection listing={listing} status={listingStatus} />
@@ -378,6 +415,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           bagId={bagId}
           analysis={analysis}
           listing={listing}
+          caseId={caseId}
         />
         <section className="case-cta">
           <div>
@@ -586,6 +624,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                     </p>
                   )}
                 </div>
+                <div className="dashboard-actions">
+                <Link className="secondary-button" href={`/woning/${bagId}/bezichtiging`}>
+                  Open op je telefoon
+                </Link>
                 <button
                   className="secondary-button"
                   type="button"
@@ -593,6 +635,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 >
                   <Printer size={14} /> Print / bewaar als PDF
                 </button>
+                </div>
               </div>
               <div className="checklist-list">
                 {checklist.map((item) => {

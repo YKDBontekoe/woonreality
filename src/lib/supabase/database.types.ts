@@ -219,6 +219,17 @@ export type CaseEventRow = {
   created_at: string;
 };
 
+export type UserListingRow = {
+  user_id: string;
+  bag_vbo_id: string;
+  source_url: string | null;
+  asking_price: number | null;
+  pasted_text: string | null;
+  extracted_json: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -242,6 +253,7 @@ export type Database = {
       bid_drafts: Table<BidDraftRow>;
       notification_preferences: Table<{ user_id: string; email_enabled: boolean; deadline_reminders: boolean; updated_at: string }>;
       case_events: Table<CaseEventRow>;
+      user_listings: Table<UserListingRow>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -263,3 +275,5 @@ export type PurchaseCase = PurchaseCaseRow;
 export type CaseTask = CaseTaskRow;
 export type CaseDocument = CaseDocumentRow;
 export type DocumentFinding = DocumentFindingRow;
+export type UserListing = UserListingRow;
+export type CaseEvent = CaseEventRow;

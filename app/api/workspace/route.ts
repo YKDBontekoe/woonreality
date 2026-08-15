@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
-import { DEFAULT_BUYER_PROFILE, PROPERTY_STAGE_LABELS, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
+import { EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
@@ -37,7 +37,7 @@ async function readWorkspace() {
   if (savedError) throw savedError;
   const profilePreferences = record(profile?.preferences_json);
   const savedProperties = (saved ?? []) as Array<{ bag_vbo_id: string; address_label: string; city: string; postcode: string; stage: string; saved_at: string }>;
-  const buyerProfile = { ...DEFAULT_BUYER_PROFILE, ...record(profilePreferences.buyerProfile) } as BuyerProfile;
+  const buyerProfile = normalizeBuyerProfile(profilePreferences.buyerProfile ?? EMPTY_BUYER_PROFILE);
   const preferences = { ...DEFAULT_PREFERENCES, ...record(profilePreferences.personalPreferences) } as PersonalPreferences;
   const propertyStages = Object.fromEntries(savedProperties.map((item) => [item.bag_vbo_id, isStage(item.stage) ? item.stage : "saved"]));
   return {

@@ -1,6 +1,6 @@
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
-import { DEFAULT_BUYER_PROFILE, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
+import { EMPTY_BUYER_PROFILE, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 
 export type WorkspaceData = {
   preferences: PersonalPreferences;
@@ -15,7 +15,7 @@ export type WorkspaceData = {
 export const emptyWorkspace = (): WorkspaceData => ({
   preferences: { ...DEFAULT_PREFERENCES },
   preferencesConfigured: false,
-  buyerProfile: { ...DEFAULT_BUYER_PROFILE },
+  buyerProfile: { ...EMPTY_BUYER_PROFILE },
   buyerProfileConfigured: false,
   saved: [],
   compare: [],
