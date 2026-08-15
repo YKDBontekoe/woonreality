@@ -20,3 +20,13 @@ export function checklistForAnalysis(analysis: Analysis): ChecklistItem[] {
     }));
   return [...signalItems, ...genericItems].filter((item, index, all) => all.findIndex((candidate) => candidate.label === item.label) === index);
 }
+
+export function mergeChecklistWithDefaults(defaults: ChecklistItem[], persisted: ChecklistItem[]) {
+  const persistedById = new Map(persisted.map((item) => [item.id, item]));
+  const currentItems = defaults.map((item) => {
+    const previous = persistedById.get(item.id);
+    return previous ? { ...item, checked: previous.checked, note: previous.note } : item;
+  });
+  const customItems = persisted.filter((item) => !defaults.some((candidate) => candidate.id === item.id));
+  return [...currentItems, ...customItems];
+}
