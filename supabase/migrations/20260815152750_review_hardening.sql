@@ -1,5 +1,11 @@
 do $$
 begin
+  if not exists (select 1 from pg_constraint where conname = 'property_bid_drafts_asking_price_non_negative') then
+    alter table public.property_bid_drafts add constraint property_bid_drafts_asking_price_non_negative check (asking_price is null or asking_price >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'property_bid_drafts_selected_scenario_valid') then
+    alter table public.property_bid_drafts add constraint property_bid_drafts_selected_scenario_valid check (selected_scenario in ('cautious', 'balanced', 'strong'));
+  end if;
   if not exists (select 1 from pg_constraint where conname = 'case_finance_financing_amount_non_negative') then
     alter table public.case_finance add constraint case_finance_financing_amount_non_negative check (financing_amount is null or financing_amount >= 0);
   end if;

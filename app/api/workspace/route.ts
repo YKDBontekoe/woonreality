@@ -22,7 +22,8 @@ function isBagId(value: unknown): value is string {
 async function currentUser() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
-  return { supabase, user: error ? null : data.user };
+  if (error) throw error;
+  return { supabase, user: data.user };
 }
 
 async function readWorkspace() {
