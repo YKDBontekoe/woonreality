@@ -9,10 +9,13 @@ import {
   defaultEmploymentSource,
   defaultPensionSource,
   defaultSelfEmployedSource,
+  buildSalaryBreakdown,
   emptyTriple,
   marketIndicativeRate,
   ownFundsTotal,
   type FixedPeriodYears,
+  type HolidayMode,
+  type IncomeEntry,
   type IncomeSource,
   type MortgageFinance,
   type MortgageMarketSnapshot,
@@ -40,6 +43,15 @@ const WORK_TYPES: { value: WorkType; label: string }[] = [
 type PersonForm = {
   workType: WorkType;
   reachedAow: boolean;
+  incomeEntry: IncomeEntry;
+  monthlyGross: number;
+  holidayMode: HolidayMode;
+  holidayCustom: number;
+  hasThirteenth: boolean;
+  yearEndPayout: number;
+  monthlyAllowances: number;
+  structuralBonus: number;
+  variableBonus: YearTriple;
   grossAnnual: number;
   thirteenthMonth: number;
   bonus: number;
@@ -87,6 +99,15 @@ function emptyPersonForm(): PersonForm {
   return {
     workType: "permanent",
     reachedAow: false,
+    incomeEntry: "monthly",
+    monthlyGross: 0,
+    holidayMode: "standard",
+    holidayCustom: 0,
+    hasThirteenth: false,
+    yearEndPayout: 0,
+    monthlyAllowances: 0,
+    structuralBonus: 0,
+    variableBonus: emptyTriple(),
     grossAnnual: 0,
     thirteenthMonth: 0,
     bonus: 0,
@@ -153,6 +174,15 @@ function restoreState(raw: unknown, defaults: CalculatorState): CalculatorState 
       ...fallback,
       workType,
       reachedAow: Boolean(row.reachedAow),
+      incomeEntry: row.incomeEntry === "annual" || (!asNumber(row.monthlyGross) && asNumber(row.grossAnnual) > 0) ? "annual" : "monthly",
+      monthlyGross: asNumber(row.monthlyGross),
+      holidayMode: row.holidayMode === "included" || row.holidayMode === "custom" ? row.holidayMode : "standard",
+      holidayCustom: asNumber(row.holidayCustom),
+      hasThirteenth: Boolean(row.hasThirteenth) || asNumber(row.thirteenthMonth) > 0,
+      yearEndPayout: asNumber(row.yearEndPayout),
+      monthlyAllowances: asNumber(row.monthlyAllowances),
+      structuralBonus: asNumber(row.structuralBonus, asNumber(row.bonus)),
+      variableBonus: asTriple(row.variableBonus),
       grossAnnual: asNumber(row.grossAnnual),
       thirteenthMonth: asNumber(row.thirteenthMonth),
       bonus: asNumber(row.bonus),
@@ -204,12 +234,14 @@ function employmentFrom(person: PersonForm): IncomeSource {
   const contract = person.workType === "temporary"
     ? person.intent ? "temporary_intent" : "temporary"
     : person.workType === "flex" ? "flex" : "permanent";
+  const monthly = person.incomeEntry === "monthly" ? buildSalaryBreakdown(person) : null;
+  const variable = monthly ? 0 : buildSalaryBreakdown({ ...person, monthlyGross: 0, holidayMode: "included", hasThirteenth: false, thirteenthMonth: 0, yearEndPayout: 0, monthlyAllowances: 0, structuralBonus: 0 }).variableBonus;
   return {
     ...base,
     contract,
-    grossAnnual: person.grossAnnual,
-    thirteenthMonth: person.thirteenthMonth,
-    bonus: person.bonus,
+    grossAnnual: monthly ? monthly.grossAnnual : Math.max(0, person.grossAnnual),
+    thirteenthMonth: monthly ? monthly.thirteenthMonth + monthly.yearEndPayout : Math.max(0, person.thirteenthMonth) + Math.max(0, person.yearEndPayout),
+    bonus: monthly ? monthly.structuralBonus + monthly.variableBonus : Math.max(0, person.structuralBonus || person.bonus) + variable,
     history: person.history,
     perspectief: person.workType === "flex" && person.perspectief,
   };
@@ -230,6 +262,23 @@ function sourcesFromPerson(person: PersonForm): IncomeSource[] {
 
 function personFinance(person: PersonForm): PersonFinance {
   return { reachedAow: person.reachedAow, sources: sourcesFromPerson(person) };
+}
+
+function switchIncomeEntry(person: PersonForm, mode: IncomeEntry): PersonForm {
+  if (mode === person.incomeEntry) return person;
+  if (mode === "annual") {
+    const pay = buildSalaryBreakdown(person);
+    return { ...person, incomeEntry: "annual", grossAnnual: pay.grossAnnual, thirteenthMonth: pay.thirteenthMonth, bonus: pay.structuralBonus };
+  }
+  if (!person.monthlyGross && person.grossAnnual > 0) {
+    return {
+      ...person,
+      incomeEntry: "monthly",
+      monthlyGross: Math.round(person.grossAnnual / 12),
+      holidayMode: "included",
+    };
+  }
+  return { ...person, incomeEntry: "monthly" };
 }
 
 function toFinance(state: CalculatorState, studentMode: "monthly" | "remaining" = "monthly"): MortgageFinance {
@@ -310,7 +359,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         if (debtSummary(restored).length) setOpenDebts(true);
         if (restored.studentLoanRemaining > 0 && restored.studentLoanMonthly <= 0) setStudentMode("remaining");
         if (EXTRA_WORK.includes(restored.applicant.workType) || EXTRA_WORK.includes(restored.partner.workType)) setShowMoreWork(true);
-        if (restored.applicant.thirteenthMonth || restored.applicant.bonus || restored.applicant.alimonyAnnual || restored.applicant.reachedAow) setShowIncomeExtras(true);
+        if (restored.applicant.alimonyAnnual || restored.applicant.reachedAow || restored.partner.alimonyAnnual || restored.partner.reachedAow) setShowIncomeExtras(true);
       }
     } catch { /* ignore */ }
     setReady(true);
@@ -375,7 +424,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
       <section className="mortgage-form-card">
         <div className="section-kicker">Stap 1 · inkomen</div>
         <h2>Wat is je inkomen?</h2>
-        <p className="mortgage-lead">Eén bedrag is genoeg voor een eerste schets. Partner, lasten en eigen geld kun je daarna toevoegen.</p>
+        <p className="mortgage-lead">Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee; 13e maand en bonus kun je erbij optellen.</p>
         <div className="work-chips" role="group" aria-label="Kopers">
           <button type="button" className={!state.withPartner ? "active" : undefined} onClick={() => patch("withPartner", false)}>Alleen</button>
           <button type="button" className={state.withPartner ? "active" : undefined} onClick={() => patch("withPartner", true)}>Met partner</button>
@@ -568,6 +617,12 @@ function PersonFields({
   const needsHistory = work === "temporary" && !person.intent || work === "flex" && !person.perspectief;
   const needsProfits = work === "self_employed" || work === "mix";
   const needsJob = work === "permanent" || work === "temporary" || work === "flex" || work === "mix";
+  const pay = buildSalaryBreakdown(person);
+  const hasPayExtras = person.hasThirteenth || person.yearEndPayout > 0 || person.monthlyAllowances > 0 || person.structuralBonus > 0 || person.variableBonus.some(Boolean);
+  const [openPay, setOpenPay] = useState(hasPayExtras);
+  useEffect(() => {
+    if (hasPayExtras) setOpenPay(true);
+  }, [hasPayExtras]);
 
   return <div className={title ? "mortgage-person" : "mortgage-person is-first"}>
     {title && <h3>{title}</h3>}
@@ -575,17 +630,50 @@ function PersonFields({
       {workOptions.map((item) => <button type="button" key={item.value} className={work === item.value ? "active" : undefined} onClick={() => onChange({ ...person, workType: item.value })}>{item.label}</button>)}
       {!showMoreWork && <button type="button" className="is-quiet" onClick={onMoreWork}>DGA, pensioen of mix</button>}
     </div>
-    {needsJob && <div className="form-grid">
-      <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Wat er op je jaaropgave staat, vóór belasting." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
+    {needsJob && <>
+      <div className="work-chips" role="group" aria-label="Invoeren als">
+        <button type="button" className={person.incomeEntry === "monthly" ? "active" : undefined} onClick={() => onChange(switchIncomeEntry(person, "monthly"))}>Maandsalaris</button>
+        <button type="button" className={person.incomeEntry === "annual" ? "active" : undefined} onClick={() => onChange(switchIncomeEntry(person, "annual"))}>Jaaropgave</button>
+      </div>
+      {person.incomeEntry === "monthly" ? <>
+        <div className="form-grid">
+          <MoneyField className="mortgage-income" label="Bruto maandsalaris" hint="Het bedrag vóór belasting, zoals op je loonstrook." value={person.monthlyGross} onChange={(monthlyGross) => onChange({ ...person, monthlyGross })} step={50} placeholder="3500" />
+        </div>
+        <div className="mortgage-subblock">
+          <span className="mortgage-subhead">Vakantiegeld</span>
+          <div className="work-chips" role="group" aria-label="Vakantiegeld">
+            <button type="button" className={person.holidayMode === "standard" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "standard" })}>8% wettelijk</button>
+            <button type="button" className={person.holidayMode === "included" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "included" })}>Al inbegrepen</button>
+            <button type="button" className={person.holidayMode === "custom" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "custom" })}>Ander bedrag</button>
+          </div>
+          {person.holidayMode === "custom" && <div className="form-grid"><MoneyField label="Vakantiegeld per jaar" value={person.holidayCustom} onChange={(holidayCustom) => onChange({ ...person, holidayCustom })} step={50} /></div>}
+        </div>
+      </> : <div className="form-grid">
+        <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Meestal inclusief vakantiegeld. 13e maand en bonus tel je hieronder apart." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
+      </div>}
+      <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenPay((value) => !value)}>
+        {openPay ? "Verberg 13e maand, toeslagen en bonus" : "13e maand, toeslagen of bonus toevoegen"}
+      </button>
+      {openPay && <div className="form-grid">
+        <label className="mortgage-span"><input type="checkbox" checked={person.hasThirteenth} onChange={(event) => onChange({ ...person, hasThirteenth: event.target.checked, thirteenthMonth: event.target.checked ? person.thirteenthMonth || person.monthlyGross : person.thirteenthMonth })} /> Ik krijg een 13e maand</label>
+        {person.hasThirteenth && <MoneyField label="13e maand" hint="Leeg laten = één maandsalaris." value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth, hasThirteenth: true })} step={50} />}
+        <MoneyField label="Eindejaarsuitkering per jaar" value={person.yearEndPayout} onChange={(yearEndPayout) => onChange({ ...person, yearEndPayout })} step={50} />
+        <MoneyField label="Vaste toeslag per maand" hint="Ploegen, overwerk of onregelmatig, als dat vast is." value={person.monthlyAllowances} onChange={(monthlyAllowances) => onChange({ ...person, monthlyAllowances })} step={25} />
+        <MoneyField label="Vaste bonus per jaar" value={person.structuralBonus} onChange={(structuralBonus) => onChange({ ...person, structuralBonus, bonus: structuralBonus })} step={100} />
+      </div>}
+      {openPay && <>
+        <p className="mortgage-hint">Variabele bonus: we nemen het 3-jaarsgemiddelde, gemaximeerd op het laatste jaar.</p>
+        <YearFields label="Variabele bonus per jaar" years={person.variableBonus} onChange={(variableBonus) => onChange({ ...person, variableBonus })} />
+      </>}
+      {pay.toetsinkomen > 0 && person.incomeEntry === "monthly" && <ul className="mortgage-pay-lines">
+        {pay.lines.map((line) => <li key={line.key}><span>{line.label}</span><strong>{formatEuro(line.amount)}</strong></li>)}
+        <li className="is-total"><span>Toetsinkomen</span><strong>{formatEuro(pay.toetsinkomen)}</strong></li>
+      </ul>}
       {work === "temporary" && <label className="mortgage-span"><input type="checkbox" checked={person.intent} onChange={(event) => onChange({ ...person, intent: event.target.checked })} /> Ik krijg een intentieverklaring voor vast werk</label>}
       {work === "flex" && <label className="mortgage-span"><input type="checkbox" checked={person.perspectief} onChange={(event) => onChange({ ...person, perspectief: event.target.checked })} /> Ik heb een perspectiefverklaring</label>}
-    </div>}
-    {!showExtras && <button className="text-link" type="button" onClick={onExtras}>{needsJob ? "13e maand, bonus, alimentatie of AOW" : "Alimentatie of AOW toevoegen"}</button>}
+    </>}
+    {!showExtras && <button className="text-link" type="button" onClick={onExtras}>Ontvangen alimentatie of AOW</button>}
     {showExtras && <div className="form-grid">
-      {needsJob && <>
-        <MoneyField label="13e maand per jaar" value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth })} step={100} />
-        <MoneyField label="Vaste bonus per jaar" value={person.bonus} onChange={(bonus) => onChange({ ...person, bonus })} step={100} />
-      </>}
       <MoneyField label="Alimentatie die je ontvangt, per jaar" value={person.alimonyAnnual} onChange={(alimonyAnnual) => onChange({ ...person, alimonyAnnual })} step={100} />
       <label className="mortgage-span"><input type="checkbox" checked={person.reachedAow} onChange={(event) => onChange({ ...person, reachedAow: event.target.checked })} /> AOW-leeftijd bereikt</label>
     </div>}
@@ -645,7 +733,7 @@ export function MortgagePageIntro() {
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
       <h1>Wat kun je lenen?</h1>
-      <p className="hero-copy">Vul je inkomen in. De maximale hypotheek volgt de leennormen {MORTGAGE_NORMS_YEAR} en telt mee terwijl je typt. Geen account, geen bankofferte.</p>
+      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. De maximale hypotheek volgt de leennormen {MORTGAGE_NORMS_YEAR} terwijl je typt.</p>
     </div>
     <div className="mortgage-heading-note"><Wallet size={16} /> Dit is een wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
   </div>;

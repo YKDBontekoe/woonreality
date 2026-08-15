@@ -18,6 +18,8 @@ import {
   studentLoanGrossFactor,
   threeYearToetsinkomen,
   toetsrenteFor,
+  buildSalaryBreakdown,
+  HOLIDAY_PAY_RATE,
   type IncomeSource,
   type MortgageFinance,
   type MortgageMarketSnapshot,
@@ -69,6 +71,54 @@ test("flex without perspectief uses the 3-year cap; intent uses current pay", ()
   assert.equal(incomeFromSource(flex), 38_000);
   assert.equal(incomeFromSource({ ...flex, perspectief: true }), 55_000);
   assert.equal(incomeFromSource({ ...flex, contract: "temporary_intent", perspectief: false }), 55_000);
+});
+
+test("salary breakdown adds 8% holiday pay, 13th month and variable bonus cap", () => {
+  const base = buildSalaryBreakdown({
+    monthlyGross: 3_500,
+    holidayMode: "standard",
+    holidayCustom: 0,
+    thirteenthMonth: 0,
+    hasThirteenth: false,
+    yearEndPayout: 0,
+    monthlyAllowances: 0,
+    structuralBonus: 0,
+    variableBonus: [0, 0, 0],
+  });
+  assert.equal(HOLIDAY_PAY_RATE, 0.08);
+  assert.equal(base.months, 42_000);
+  assert.equal(base.holiday, 3_360);
+  assert.equal(base.toetsinkomen, 45_360);
+
+  const included = buildSalaryBreakdown({
+    monthlyGross: 3_500,
+    holidayMode: "included",
+    holidayCustom: 0,
+    thirteenthMonth: 0,
+    hasThirteenth: false,
+    yearEndPayout: 0,
+    monthlyAllowances: 0,
+    structuralBonus: 0,
+    variableBonus: [0, 0, 0],
+  });
+  assert.equal(included.holiday, 0);
+  assert.equal(included.toetsinkomen, 42_000);
+
+  const withThirteenth = buildSalaryBreakdown({
+    monthlyGross: 3_500,
+    holidayMode: "standard",
+    holidayCustom: 0,
+    thirteenthMonth: 0,
+    hasThirteenth: true,
+    yearEndPayout: 0,
+    monthlyAllowances: 200,
+    structuralBonus: 1_000,
+    variableBonus: [2_000, 8_000, 8_000],
+  });
+  assert.equal(withThirteenth.thirteenthMonth, 3_500);
+  assert.equal(withThirteenth.allowances, 2_400);
+  assert.equal(withThirteenth.variableBonus, 2_000);
+  assert.equal(withThirteenth.toetsinkomen, 42_000 + 3_360 + 2_400 + 3_500 + 1_000 + 2_000);
 });
 
 test("partner income counts fully in the joint toetsinkomen", () => {
