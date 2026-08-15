@@ -12,11 +12,15 @@ import {
   incomeFromSource,
   NHG,
   normalizeEnergyLabel,
+  parseAfmToetsrente,
+  parseEcbMirObservation,
+  REVOLVING_MONTHLY_FACTOR,
   studentLoanGrossFactor,
   threeYearToetsinkomen,
   toetsrenteFor,
   type IncomeSource,
   type MortgageFinance,
+  type MortgageMarketSnapshot,
 } from "../src/lib/mortgage";
 
 function withJob(grossAnnual: number, extras: Partial<MortgageFinance> = {}): MortgageFinance {
@@ -134,6 +138,63 @@ test("asking price fit uses own funds and purchase extra", () => {
   assert.equal(result.fit, "fits");
   const over = calculateMortgageCapacity(withJob(28_000), { askingPrice: 900_000 });
   assert.equal(over.fit, "over");
+});
+
+test("private lease counts the full monthly contract as a BKR OA last", () => {
+  const clean = calculateMortgageCapacity(withJob(60_000));
+  const lease = calculateMortgageCapacity(withJob(60_000, { privateLeaseMonthly: 400 }));
+  assert.equal(lease.obligationBurden, 400 * 12);
+  assert.ok(lease.incomeLoan < clean.incomeLoan);
+});
+
+test("revolving credit is tested at 2% of the limit per month", () => {
+  const result = calculateMortgageCapacity(withJob(60_000, { revolvingCreditLimit: 10_000 }));
+  assert.equal(result.obligationBurden, Math.round(10_000 * REVOLVING_MONTHLY_FACTOR * 12));
+});
+
+test("spaargeld, schenking and overwaarde raise the max purchase price", () => {
+  const none = calculateMortgageCapacity(withJob(60_000));
+  const funded = calculateMortgageCapacity(withJob(60_000, { savings: 20_000, gift: 10_000, saleEquity: 20_000 }));
+  assert.equal(funded.ownFunds, 50_000);
+  assert.equal(funded.maxPurchasePrice, none.maxPurchasePrice + 50_000);
+});
+
+test("student remaining debt uses 0.35% SF35 when the DUO term is unknown", () => {
+  const remaining = calculateMortgageCapacity(withJob(60_000, { studentLoanRemaining: 20_000, studentLoanSf35: true }));
+  assert.equal(remaining.obligationBurden, Math.round(20_000 * 0.0035 * 12));
+  const monthly = calculateMortgageCapacity(withJob(60_000, { studentLoanMonthly: 80, studentLoanRemaining: 20_000, studentLoanSf35: true }));
+  assert.equal(monthly.obligationBurden, Math.round(80 * 12 * 1.2));
+});
+
+test("AFM HTML and ECB MIR parsers read official publications", () => {
+  const html = "<p>De toetsrente voor het <strong>derde</strong> kwartaal van 2026 bedraagt 5%.</p>";
+  assert.deepEqual(parseAfmToetsrente(html), { rate: 5, label: "derde kwartaal 2026", year: 2026 });
+  const payload = {
+    dataSets: [{ series: { "0:0": { observations: { "0": [3.74, 0, 0] } } } }],
+    structure: { dimensions: { observation: [{ values: [{ id: "2026-06" }] }] } },
+  };
+  assert.deepEqual(parseEcbMirObservation(payload), { rate: 3.74, period: "2026-06" });
+});
+
+test("live AFM toetsrente can raise the floor below 10 years fixed", () => {
+  const market: MortgageMarketSnapshot = {
+    fetchedAt: "2026-08-15T00:00:00Z",
+    toetsrente: { rate: 5.2, label: "testkwartaal", sourceUrl: "https://www.afm.nl", live: true },
+    indicativeRates: {
+      asOf: "2026-06",
+      source: "test",
+      sourceUrl: "https://data.ecb.europa.eu",
+      live: false,
+      byPeriod: {
+        5: { nhg: 3, other: 3.2 },
+        10: { nhg: 3, other: 3.2 },
+        20: { nhg: 3, other: 3.2 },
+        30: { nhg: 3, other: 3.2 },
+      },
+    },
+  };
+  const result = calculateMortgageCapacity({ ...withJob(60_000), interestRate: 3.5, fixedPeriodYears: 5 }, {}, market);
+  assert.equal(result.toetsrente, 5.2);
 });
 
 test("NHG fee is added to buyer costs when NHG is selected under the limit", () => {

@@ -3,7 +3,6 @@
 import { Calculator, CircleAlert, Landmark, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  INDICATIVE_RATES,
   MORTGAGE_NORMS_YEAR,
   calculateMortgageCapacity,
   defaultDgaSource,
@@ -11,10 +10,11 @@ import {
   defaultPensionSource,
   defaultSelfEmployedSource,
   emptyTriple,
-  indicativeRate,
+  marketIndicativeRate,
   type FixedPeriodYears,
   type IncomeSource,
   type MortgageFinance,
+  type MortgageMarketSnapshot,
   type PersonFinance,
   type RepaymentType,
   type WorkType,
@@ -22,7 +22,7 @@ import {
 } from "@/src/lib/mortgage";
 import { formatEuro } from "@/src/lib/purchase";
 
-const STORAGE_KEY = "woonreality.mortgage.v1";
+const STORAGE_KEY = "woonreality.mortgage.v2";
 
 const WORK_TYPES: { value: WorkType; label: string }[] = [
   { value: "permanent", label: "Loondienst" },
@@ -56,9 +56,17 @@ type CalculatorState = {
   applicant: PersonForm;
   partner: PersonForm;
   studentLoanMonthly: number;
+  studentLoanRemaining: number;
+  studentLoanSf35: boolean;
+  privateLeaseMonthly: number;
+  revolvingCreditLimit: number;
+  installmentLoanMonthly: number;
+  groundLeaseMonthly: number;
   otherMonthlyDebts: number;
   alimonyPaidMonthly: number;
-  ownFunds: number;
+  savings: number;
+  gift: number;
+  saleEquity: number;
   nhg: boolean;
   interestRate: number;
   rateTouched: boolean;
@@ -68,6 +76,8 @@ type CalculatorState = {
   askingPrice: number;
   includeEnergyMeasures: boolean;
   energyPerformanceGuarantee: boolean;
+  starterExemption: boolean;
+  buyerAge: number;
 };
 
 function emptyPersonForm(): PersonForm {
@@ -95,11 +105,19 @@ function defaultState(): CalculatorState {
     applicant: emptyPersonForm(),
     partner: emptyPersonForm(),
     studentLoanMonthly: 0,
+    studentLoanRemaining: 0,
+    studentLoanSf35: true,
+    privateLeaseMonthly: 0,
+    revolvingCreditLimit: 0,
+    installmentLoanMonthly: 0,
+    groundLeaseMonthly: 0,
     otherMonthlyDebts: 0,
     alimonyPaidMonthly: 0,
-    ownFunds: 0,
+    savings: 0,
+    gift: 0,
+    saleEquity: 0,
     nhg: true,
-    interestRate: indicativeRate(10, true),
+    interestRate: marketIndicativeRate(null, 10, true),
     rateTouched: false,
     fixedPeriodYears: 10,
     repayment: "annuity",
@@ -107,6 +125,8 @@ function defaultState(): CalculatorState {
     askingPrice: 0,
     includeEnergyMeasures: false,
     energyPerformanceGuarantee: false,
+    starterExemption: false,
+    buyerAge: 0,
   };
 }
 
@@ -151,9 +171,17 @@ function restoreState(raw: unknown, defaults: CalculatorState): CalculatorState 
     applicant: person(record.applicant, defaults.applicant),
     partner: person(record.partner, defaults.partner),
     studentLoanMonthly: asNumber(record.studentLoanMonthly),
+    studentLoanRemaining: asNumber(record.studentLoanRemaining),
+    studentLoanSf35: record.studentLoanSf35 === undefined ? defaults.studentLoanSf35 : Boolean(record.studentLoanSf35),
+    privateLeaseMonthly: asNumber(record.privateLeaseMonthly),
+    revolvingCreditLimit: asNumber(record.revolvingCreditLimit),
+    installmentLoanMonthly: asNumber(record.installmentLoanMonthly),
+    groundLeaseMonthly: asNumber(record.groundLeaseMonthly),
     otherMonthlyDebts: asNumber(record.otherMonthlyDebts),
     alimonyPaidMonthly: asNumber(record.alimonyPaidMonthly),
-    ownFunds: asNumber(record.ownFunds),
+    savings: asNumber(record.savings, asNumber(record.ownFunds)),
+    gift: asNumber(record.gift),
+    saleEquity: asNumber(record.saleEquity),
     nhg: record.nhg === undefined ? defaults.nhg : Boolean(record.nhg),
     interestRate: asNumber(record.interestRate, defaults.interestRate),
     rateTouched: Boolean(record.rateTouched),
@@ -163,6 +191,8 @@ function restoreState(raw: unknown, defaults: CalculatorState): CalculatorState 
     askingPrice: asNumber(record.askingPrice),
     includeEnergyMeasures: Boolean(record.includeEnergyMeasures),
     energyPerformanceGuarantee: Boolean(record.energyPerformanceGuarantee),
+    starterExemption: Boolean(record.starterExemption),
+    buyerAge: asNumber(record.buyerAge),
   };
 }
 
@@ -204,13 +234,24 @@ function toFinance(state: CalculatorState): MortgageFinance {
     applicant: personFinance(state.applicant),
     partner: state.withPartner ? personFinance(state.partner) : null,
     studentLoanMonthly: state.studentLoanMonthly,
+    studentLoanRemaining: state.studentLoanRemaining,
+    studentLoanSf35: state.studentLoanSf35,
+    privateLeaseMonthly: state.privateLeaseMonthly,
+    revolvingCreditLimit: state.revolvingCreditLimit,
+    installmentLoanMonthly: state.installmentLoanMonthly,
+    groundLeaseMonthly: state.groundLeaseMonthly,
     otherMonthlyDebts: state.otherMonthlyDebts,
     alimonyPaidMonthly: state.alimonyPaidMonthly,
+    savings: state.savings,
+    gift: state.gift,
+    saleEquity: state.saleEquity,
     interestRate: state.interestRate,
     fixedPeriodYears: state.fixedPeriodYears,
     repayment: state.repayment,
     energyPerformanceGuarantee: state.energyPerformanceGuarantee,
     includeEnergyMeasures: state.includeEnergyMeasures,
+    starterExemption: state.starterExemption,
+    buyerAge: state.buyerAge,
   };
 }
 
@@ -221,12 +262,12 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     if (initialAskingPrice && initialAskingPrice > 0) defaults.askingPrice = initialAskingPrice;
     if (initialNhg != null) {
       defaults.nhg = initialNhg;
-      defaults.interestRate = indicativeRate(defaults.fixedPeriodYears, initialNhg);
+      defaults.interestRate = marketIndicativeRate(null, defaults.fixedPeriodYears, initialNhg);
     }
     return defaults;
   });
   const [ready, setReady] = useState(false);
-  const [showDebts, setShowDebts] = useState(false);
+  const [market, setMarket] = useState<MortgageMarketSnapshot | null>(null);
   const [showIncomeExtras, setShowIncomeExtras] = useState(false);
 
   useEffect(() => {
@@ -237,9 +278,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         if (initialEnergyLabel) restored.energyLabel = initialEnergyLabel;
         if (initialAskingPrice && initialAskingPrice > 0) restored.askingPrice = initialAskingPrice;
         if (initialNhg != null) restored.nhg = initialNhg;
-        if (!restored.rateTouched) restored.interestRate = indicativeRate(restored.fixedPeriodYears, restored.nhg);
+        if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(null, restored.fixedPeriodYears, restored.nhg);
         setState(restored);
-        if (restored.studentLoanMonthly || restored.otherMonthlyDebts || restored.alimonyPaidMonthly) setShowDebts(true);
       }
     } catch { /* ignore */ }
     setReady(true);
@@ -250,12 +290,28 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }, [ready, state]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/mortgage/market")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((snapshot: MortgageMarketSnapshot | null) => {
+        if (cancelled || !snapshot?.indicativeRates) return;
+        setMarket(snapshot);
+        setState((current) => {
+          if (current.rateTouched) return current;
+          const next = marketIndicativeRate(snapshot, current.fixedPeriodYears, current.nhg);
+          return next === current.interestRate ? current : { ...current, interestRate: next };
+        });
+      })
+      .catch(() => { /* keep ingebouwde indicatie */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const result = useMemo(() => calculateMortgageCapacity(toFinance(state), {
     energyLabel: state.energyLabel,
     askingPrice: state.askingPrice,
-    ownFunds: state.ownFunds,
     nhg: state.nhg,
-  }), [state]);
+  }, market ?? undefined), [market, state]);
 
   function patch<K extends keyof CalculatorState>(key: K, value: CalculatorState[K]) {
     setState((current) => ({ ...current, [key]: value }));
@@ -265,7 +321,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     setState((current) => ({
       ...current,
       fixedPeriodYears: period,
-      interestRate: current.rateTouched ? current.interestRate : indicativeRate(period, current.nhg),
+      interestRate: current.rateTouched ? current.interestRate : marketIndicativeRate(market, period, current.nhg),
     }));
   }
 
@@ -273,7 +329,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     setState((current) => ({
       ...current,
       nhg,
-      interestRate: current.rateTouched ? current.interestRate : indicativeRate(current.fixedPeriodYears, nhg),
+      interestRate: current.rateTouched ? current.interestRate : marketIndicativeRate(market, current.fixedPeriodYears, nhg),
     }));
   }
 
@@ -290,12 +346,31 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
       <PersonFields title={state.withPartner ? "Jij" : "Inkomen"} person={state.applicant} showExtras={showIncomeExtras} onExtras={() => setShowIncomeExtras(true)} onChange={(applicant) => patch("applicant", applicant)} />
       {state.withPartner && <PersonFields title="Partner" person={state.partner} showExtras={showIncomeExtras} onExtras={() => setShowIncomeExtras(true)} onChange={(partner) => patch("partner", partner)} />}
 
-      <button className="text-link mortgage-toggle" type="button" onClick={() => setShowDebts((value) => !value)}>{showDebts ? "Verberg lasten" : "Schulden en alimentatie"}</button>
-      {showDebts && <div className="form-grid">
-        <MoneyField label="Studieschuld (DUO per maand)" value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
-        <MoneyField label="Overige maandlasten (BKR)" value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />
-        <MoneyField label="Alimentatie die je betaalt" value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
-      </div>}
+      <div className="mortgage-block">
+        <div className="section-kicker">Eigen geld</div>
+        <p className="mortgage-hint">Spaargeld, schenking of overwaarde. Dit telt mee voor de maximale koopsom en voor de kosten koper.</p>
+        <div className="form-grid">
+          <MoneyField label="Spaargeld" value={state.savings} onChange={(savings) => patch("savings", savings)} step={1000} />
+          <MoneyField label="Schenking" value={state.gift} onChange={(gift) => patch("gift", gift)} step={1000} />
+          <MoneyField label="Overwaarde / inbreng" value={state.saleEquity} onChange={(saleEquity) => patch("saleEquity", saleEquity)} step={1000} />
+        </div>
+      </div>
+
+      <div className="mortgage-block">
+        <div className="section-kicker">Lasten en verplichtingen</div>
+        <p className="mortgage-hint">Private lease telt voor 100% van de werkelijke maandlast (NHG/BKR-OA). Revolverend krediet: 2% van de limiet per maand. Studieschuld: DUO-termijn, of 0,35%/0,65% van de restschuld.</p>
+        <div className="form-grid">
+          <MoneyField label="Private lease (maand)" hint="Auto, fiets of andere OA-contracten." value={state.privateLeaseMonthly} onChange={(privateLeaseMonthly) => patch("privateLeaseMonthly", privateLeaseMonthly)} />
+          <MoneyField label="Aflopende leningen (maand)" hint="Persoonlijke lening of vaste kredietlast." value={state.installmentLoanMonthly} onChange={(installmentLoanMonthly) => patch("installmentLoanMonthly", installmentLoanMonthly)} />
+          <MoneyField label="Creditcard / RK-limiet" hint="Ook als je de limiet niet gebruikt." value={state.revolvingCreditLimit} onChange={(revolvingCreditLimit) => patch("revolvingCreditLimit", revolvingCreditLimit)} step={500} />
+          <MoneyField label="Erfpachtcanon (maand)" value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
+          <MoneyField label="Studieschuld, DUO per maand" hint="Heeft voorrang op de restschuldtoets." value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
+          <MoneyField label="Studieschuld, restant" hint="Alleen als je het termijnbedrag niet weet." value={state.studentLoanRemaining} onChange={(studentLoanRemaining) => patch("studentLoanRemaining", studentLoanRemaining)} step={500} />
+          <label className="mortgage-span"><input type="checkbox" checked={state.studentLoanSf35} onChange={(event) => patch("studentLoanSf35", event.target.checked)} /> SF35 / studieschuld vanaf 2024 (0,35% van restant)</label>
+          <MoneyField label="Alimentatie die je betaalt" hint="Partner- en kinderalimentatie per maand." value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
+          <MoneyField label="Overige maandlasten" hint="Andere BKR- of vaste verplichtingen." value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />
+        </div>
+      </div>
 
       <div className="mortgage-block">
         <div className="section-kicker">Hypotheek</div>
@@ -317,9 +392,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               <option value="linear">Lineair</option>
             </select>
           </label>
-          <MoneyField label="Eigen geld" value={state.ownFunds} onChange={(ownFunds) => patch("ownFunds", ownFunds)} step={5000} />
         </div>
-        <p className="mortgage-hint">Indicatie {INDICATIVE_RATES.asOf}: {indicativeRate(state.fixedPeriodYears, state.nhg).toLocaleString("nl-NL", { minimumFractionDigits: 2 })}% bij {state.fixedPeriodYears} jaar {state.nhg ? "met NHG" : "zonder NHG"}. Geen live bankrente.</p>
+        <p className="mortgage-hint">{rateHint(market, state.fixedPeriodYears, state.nhg)}</p>
         <div className="toggle-grid">
           <label><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG (grens 2026 € 470.000)</label>
           <label><input type="checkbox" checked={state.includeEnergyMeasures} onChange={(event) => patch("includeEnergyMeasures", event.target.checked)} /> Verduurzaming meefinancieren</label>
@@ -336,7 +410,11 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               {["A++++", "A+++", "A++", "A+", "A", "B", "C", "D", "E", "F", "G"].map((label) => <option value={label} key={label}>{label}</option>)}
             </select>
           </label>
+          <label>Leeftijd koper
+            <input type="number" min="0" max="120" value={state.buyerAge || ""} onChange={(event) => patch("buyerAge", Number(event.target.value) || 0)} />
+          </label>
         </div>
+        <label className="mortgage-check"><input type="checkbox" checked={state.starterExemption} onChange={(event) => patch("starterExemption", event.target.checked)} /> Startersvrijstelling overdrachtsbelasting (indicatie tot € 555.000, leeftijd 18–35)</label>
         {state.energyLabel.startsWith("A++++") && <label className="mortgage-check"><input type="checkbox" checked={state.energyPerformanceGuarantee} onChange={(event) => patch("energyPerformanceGuarantee", event.target.checked)} /> Energieprestatiegarantie ≥ 10 jaar (€ 40.000 extra)</label>}
       </div>
       {youngSelfEmployed && <p className="mortgage-warning"><CircleAlert size={14} /> Onder 12 maanden ondernemerschap nemen de meeste banken dit inkomen niet of nauwelijks mee.</p>}
@@ -349,7 +427,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
       </div>
       {!result.available ? <>
         <h2>Vul je inkomen in</h2>
-        <p>De maximale hypotheek verschijnt hier direct, inclusief partner, schulden, rente en energielabel.</p>
+        <p>De maximale hypotheek verschijnt hier direct, inclusief partner, lasten, eigen geld, rente en energielabel.</p>
       </> : <>
         <p className="mortgage-kicker">Maximale hypotheek</p>
         <div className="mortgage-amount">{formatEuro(result.maxLoan)}</div>
@@ -358,6 +436,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           <div><small>{state.repayment === "linear" ? "1e maand (lineair)" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
           <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
           <div><small>Toetsrente</small><strong>{result.toetsrente.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}%</strong></div>
+          {result.ownFunds > 0 && <div><small>Eigen geld</small><strong>{formatEuro(result.ownFunds)}</strong></div>}
+          {result.buyerCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(result.buyerCosts)}</strong></div>}
         </div>
         {result.fit !== "unknown" && <div className={`mortgage-fit ${result.fit}`}>{result.fit === "fits" ? "Deze woning past binnen de berekende leenruimte." : result.fit === "tight" ? "Krap: de vraagprijs ligt boven de koopsom, verduurzaming of extra eigen geld kan het gat dichten." : "De vraagprijs ligt boven wat deze rekenschets toelaat."}</div>}
         <ul className="mortgage-lines">
@@ -367,6 +447,12 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         </ul>
       </>}
       <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>
+      {market && <p className="mortgage-sources">
+        {market.toetsrente.live ? <>AFM-toetsrente {market.toetsrente.rate.toLocaleString("nl-NL")}% ({market.toetsrente.label}). </> : "AFM-toetsrente: wettelijk minimum 5%. "}
+        {market.indicativeRates.live
+          ? <>Indicatieve rente uit {market.indicativeRates.source}, periode {market.indicativeRates.asOf}. NHG-voordeel is een vaste 0,2%-punt, geen bankvergelijking.</>
+          : "Indicatieve rente is een ingebouwde fallback tot DNB/ECB bereikbaar is."}
+      </p>}
     </aside>
   </div>;
 }
@@ -387,10 +473,13 @@ function PersonFields({ title, person, showExtras, onExtras, onChange }: { title
       {work === "temporary" && <label className="mortgage-span"><input type="checkbox" checked={person.intent} onChange={(event) => onChange({ ...person, intent: event.target.checked })} /> Intentieverklaring voor onbepaalde tijd</label>}
       {work === "flex" && <label className="mortgage-span"><input type="checkbox" checked={person.perspectief} onChange={(event) => onChange({ ...person, perspectief: event.target.checked })} /> Perspectiefverklaring</label>}
     </div>}
-    {needsJob && !showExtras && <button className="text-link" type="button" onClick={onExtras}>13e maand of bonus</button>}
-    {needsJob && showExtras && <div className="form-grid">
-      <MoneyField label="13e maand (jaar)" value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth })} step={100} />
-      <MoneyField label="Structurele bonus (jaar)" value={person.bonus} onChange={(bonus) => onChange({ ...person, bonus })} step={100} />
+    {!showExtras && <button className="text-link" type="button" onClick={onExtras}>{needsJob ? "13e maand, bonus of alimentatie" : "Ontvangen alimentatie"}</button>}
+    {showExtras && <div className="form-grid">
+      {needsJob && <>
+        <MoneyField label="13e maand (jaar)" value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth })} step={100} />
+        <MoneyField label="Structurele bonus (jaar)" value={person.bonus} onChange={(bonus) => onChange({ ...person, bonus })} step={100} />
+      </>}
+      <MoneyField label="Ontvangen alimentatie (jaar)" value={person.alimonyAnnual} onChange={(alimonyAnnual) => onChange({ ...person, alimonyAnnual })} step={100} />
     </div>}
     {needsHistory && <YearFields label="Bruto inkomen per jaar" years={person.history} onChange={(history) => onChange({ ...person, history })} />}
     {needsProfits && <>
@@ -415,8 +504,19 @@ function YearFields({ label, years, onChange }: { label: string; years: YearTrip
   }} step={1000} />)}</div></div>;
 }
 
-function MoneyField({ label, value, onChange, step = 50 }: { label: string; value: number; onChange: (value: number) => void; step?: number }) {
-  return <label>{label}<input type="number" min="0" step={step} value={value || ""} onChange={(event) => onChange(Number(event.target.value) || 0)} /></label>;
+function MoneyField({ label, value, onChange, step = 50, hint }: { label: string; value: number; onChange: (value: number) => void; step?: number; hint?: string }) {
+  return <label>{label}{hint ? <small className="mortgage-field-hint">{hint}</small> : null}<input type="number" min="0" step={step} value={value || ""} onChange={(event) => onChange(Number(event.target.value) || 0)} /></label>;
+}
+
+function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean) {
+  const rate = marketIndicativeRate(market, period, nhg).toLocaleString("nl-NL", { minimumFractionDigits: 2 });
+  const afm = market?.toetsrente.live
+    ? `Bij rentevast onder 10 jaar toetsen we op de AFM-toetsrente (${market.toetsrente.rate.toLocaleString("nl-NL")}%, ${market.toetsrente.label}).`
+    : "Bij rentevast onder 10 jaar toetsen we wettelijk op minimaal 5%.";
+  if (market?.indicativeRates.live) {
+    return `Startwaarde ${rate}% uit ${market.indicativeRates.source} (${market.indicativeRates.asOf}, ${period} jaar ${nhg ? "met NHG-indicatie" : "zonder NHG"}). Geen bankvergelijking. ${afm}`;
+  }
+  return `Indicatie ${rate}% bij ${period} jaar ${nhg ? "met NHG" : "zonder NHG"}. Vul de rente in die je bij je adviseur of bank ziet. ${afm}`;
 }
 
 export function MortgagePageIntro() {
@@ -424,8 +524,8 @@ export function MortgagePageIntro() {
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
       <h1>Wat kun je lenen — volgens de wet, niet volgens een folder.</h1>
-      <p className="hero-copy">Inkomen, partner, zelfstandige winst, schulden, toetsrente, NHG en energielabel. Het resultaat volgt de leennormen {MORTGAGE_NORMS_YEAR} en herberekent terwijl je typt.</p>
+      <p className="hero-copy">Inkomen, partner, zelfstandige winst, private lease, studieschuld, eigen geld, toetsrente, NHG en energielabel. Het resultaat volgt de leennormen {MORTGAGE_NORMS_YEAR} en herberekent terwijl je typt.</p>
     </div>
-    <div className="mortgage-heading-note"><Wallet size={16} /> Geen account nodig. Geen bankofferte. Wel de officiële woonquotes en energietabel.</div>
+    <div className="mortgage-heading-note"><Wallet size={16} /> Geen account nodig. Geen bankofferte. Wel AFM-toetsrente, DNB/ECB-indicatie en de officiële woonquotes.</div>
   </div>;
 }
