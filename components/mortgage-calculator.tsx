@@ -27,6 +27,17 @@ import {
 import { formatEuro } from "@/src/lib/purchase";
 
 const STORAGE_KEY = "woonreality.mortgage.v2";
+const DEBT_FIELDS: { key: DebtKey; label: string; add: string; hint?: string }[] = [
+  { key: "lease", label: "Private lease per maand", add: "Private lease", hint: "De hele maandlast telt mee." },
+  { key: "student", label: "Studieschuld", add: "Studieschuld" },
+  { key: "installment", label: "Andere lening per maand", add: "Lening" },
+  { key: "revolving", label: "Creditcard- of kredietlimiet", add: "Creditcardlimiet", hint: "Ook als je die niet gebruikt." },
+  { key: "erfpacht", label: "Erfpacht per maand", add: "Erfpacht" },
+  { key: "alimony", label: "Alimentatie die je betaalt", add: "Alimentatie" },
+  { key: "other", label: "Overige maandlasten", add: "Overige last" },
+];
+
+type DebtKey = "lease" | "student" | "installment" | "revolving" | "erfpacht" | "alimony" | "other";
 const PRIMARY_WORK: WorkType[] = ["permanent", "temporary", "flex", "self_employed"];
 const EXTRA_WORK: WorkType[] = ["dga", "pension", "mix"];
 
@@ -314,14 +325,50 @@ function fundsTotal(state: CalculatorState) {
 function debtSummary(state: CalculatorState) {
   const parts: string[] = [];
   if (state.privateLeaseMonthly) parts.push(`lease ${formatEuro(state.privateLeaseMonthly)}/mnd`);
-  if (state.studentLoanMonthly) parts.push("studieschuld");
-  else if (state.studentLoanRemaining) parts.push("studieschuld");
+  if (state.studentLoanMonthly || state.studentLoanRemaining) parts.push("studieschuld");
   if (state.revolvingCreditLimit) parts.push("kredietlimiet");
   if (state.installmentLoanMonthly) parts.push("leningen");
   if (state.groundLeaseMonthly) parts.push("erfpacht");
   if (state.alimonyPaidMonthly) parts.push("alimentatie");
   if (state.otherMonthlyDebts) parts.push("overig");
   return parts;
+}
+
+function filledDebtKeys(state: CalculatorState): DebtKey[] {
+  const keys: DebtKey[] = [];
+  if (state.privateLeaseMonthly) keys.push("lease");
+  if (state.studentLoanMonthly || state.studentLoanRemaining) keys.push("student");
+  if (state.installmentLoanMonthly) keys.push("installment");
+  if (state.revolvingCreditLimit) keys.push("revolving");
+  if (state.groundLeaseMonthly) keys.push("erfpacht");
+  if (state.alimonyPaidMonthly) keys.push("alimony");
+  if (state.otherMonthlyDebts) keys.push("other");
+  return keys;
+}
+
+function clearDebt(state: CalculatorState, key: DebtKey): CalculatorState {
+  if (key === "lease") return { ...state, privateLeaseMonthly: 0 };
+  if (key === "student") return { ...state, studentLoanMonthly: 0, studentLoanRemaining: 0 };
+  if (key === "installment") return { ...state, installmentLoanMonthly: 0 };
+  if (key === "revolving") return { ...state, revolvingCreditLimit: 0 };
+  if (key === "erfpacht") return { ...state, groundLeaseMonthly: 0 };
+  if (key === "alimony") return { ...state, alimonyPaidMonthly: 0 };
+  return { ...state, otherMonthlyDebts: 0 };
+}
+
+function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurchasePrice: number; askingPrice: number }) {
+  if (result.fit === "unknown") return null;
+  const gap = Math.round(result.askingPrice - result.maxPurchasePrice);
+  if (result.fit === "fits") {
+    const room = Math.max(0, -gap);
+    return room > 0
+      ? `Deze vraagprijs past. Je hebt ongeveer ${formatEuro(room)} speelruimte tot je maximale koopsom.`
+      : "Deze vraagprijs past binnen de berekende leenruimte.";
+  }
+  if (result.fit === "tight") {
+    return `Krap: je komt ongeveer ${formatEuro(gap)} tekort. Extra eigen geld of een lager bod kan het gat dichten. Maximale koopsom: ${formatEuro(result.maxPurchasePrice)}.`;
+  }
+  return `Dit huis kost ${formatEuro(result.askingPrice)}. Volgens deze schets kun je tot ${formatEuro(result.maxPurchasePrice)} gaan — ${formatEuro(gap)} tekort.`;
 }
 
 export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, initialNhg }: { initialEnergyLabel?: string; initialAskingPrice?: number; initialNhg?: boolean }) {
@@ -341,6 +388,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const [showMoreWork, setShowMoreWork] = useState(false);
   const [openFunds, setOpenFunds] = useState(false);
   const [openDebts, setOpenDebts] = useState(false);
+  const [addedDebts, setAddedDebts] = useState<DebtKey[]>([]);
   const [openLoan, setOpenLoan] = useState(false);
   const [openExplain, setOpenExplain] = useState(false);
   const [studentMode, setStudentMode] = useState<"monthly" | "remaining">("monthly");
@@ -356,7 +404,10 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(null, restored.fixedPeriodYears, restored.nhg);
         setState(restored);
         if (fundsTotal(restored) > 0) setOpenFunds(true);
-        if (debtSummary(restored).length) setOpenDebts(true);
+        if (filledDebtKeys(restored).length) {
+          setOpenDebts(true);
+          setAddedDebts(filledDebtKeys(restored));
+        }
         if (restored.studentLoanRemaining > 0 && restored.studentLoanMonthly <= 0) setStudentMode("remaining");
         if (EXTRA_WORK.includes(restored.applicant.workType) || EXTRA_WORK.includes(restored.partner.workType)) setShowMoreWork(true);
         if (restored.applicant.alimonyAnnual || restored.applicant.reachedAow || restored.partner.alimonyAnnual || restored.partner.reachedAow) setShowIncomeExtras(true);
@@ -416,6 +467,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const youngSelfEmployed = [state.applicant, state.withPartner ? state.partner : null].some((person) => person && (person.workType === "self_employed" || person.workType === "dga" || person.workType === "mix") && person.monthsActive < 12);
   const funds = fundsTotal(state);
   const debts = debtSummary(state);
+  const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
+  const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
   const highlightKeys = new Set(["max-loan", "max-price", "lease", "student", "revolving", "funds-gap"]);
 
@@ -460,7 +513,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} onClick={() => setPeriod(period)}>{period} jaar</button>
             ))}
           </div>
-          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG meenemen (grens € 470.000). Vaak iets lagere rente, soms een lager maximum.</label>
+          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot € 470.000</label>
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenLoan((value) => !value)}>{openLoan ? "Verberg extra hypotheekopties" : "Rente, aflosvorm of verduurzaming aanpassen"}</button>
           {openLoan && <div className="form-grid">
             <label>Rente (%)
@@ -497,28 +550,42 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           open={openDebts}
           onToggle={() => setOpenDebts((value) => !value)}
         >
-          <p className="mortgage-hint">Alleen invullen wat je hebt. Lege velden tellen niet mee.</p>
-          <div className="form-grid">
-            <MoneyField label="Private lease per maand" hint="De hele maandlast telt mee." value={state.privateLeaseMonthly} onChange={(privateLeaseMonthly) => patch("privateLeaseMonthly", privateLeaseMonthly)} />
-            <MoneyField label="Andere leningen per maand" value={state.installmentLoanMonthly} onChange={(installmentLoanMonthly) => patch("installmentLoanMonthly", installmentLoanMonthly)} />
-            <MoneyField label="Creditcard- of kredietlimiet" hint="Ook als je die niet gebruikt." value={state.revolvingCreditLimit} onChange={(revolvingCreditLimit) => patch("revolvingCreditLimit", revolvingCreditLimit)} step={500} />
-            <MoneyField label="Erfpacht per maand" value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
-            <MoneyField label="Alimentatie die je betaalt" value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
-            <MoneyField label="Overige maandlasten" value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />
-          </div>
-          <div className="mortgage-subblock">
-            <span className="mortgage-subhead">Studieschuld</span>
-            <div className="work-chips" role="group" aria-label="Studieschuld invoer">
-              <button type="button" className={studentMode === "monthly" ? "active" : undefined} onClick={() => setStudentMode("monthly")}>Maandbedrag DUO</button>
-              <button type="button" className={studentMode === "remaining" ? "active" : undefined} onClick={() => setStudentMode("remaining")}>Ik ken alleen het restant</button>
-            </div>
-            {studentMode === "monthly"
-              ? <div className="form-grid"><MoneyField label="DUO-termijn per maand" value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} /></div>
-              : <div className="form-grid">
-                <MoneyField label="Openstaande studieschuld" value={state.studentLoanRemaining} onChange={(studentLoanRemaining) => patch("studentLoanRemaining", studentLoanRemaining)} step={500} />
-                <label className="mortgage-span"><input type="checkbox" checked={state.studentLoanSf35} onChange={(event) => patch("studentLoanSf35", event.target.checked)} /> Nieuwe studieschuld (vanaf 2024) — telt minder zwaar</label>
-              </div>}
-          </div>
+          <p className="mortgage-hint">Voeg alleen toe wat je hebt. Een lease van een paar honderd euro per maand kan tienduizenden euro’s leenruimte kosten.</p>
+          {shownDebts.map((key) => {
+            const field = DEBT_FIELDS.find((item) => item.key === key);
+            if (!field) return null;
+            return <div className="mortgage-debt-row" key={key}>
+              {key === "student" ? <>
+                <div className="work-chips" role="group" aria-label="Studieschuld invoer">
+                  <button type="button" className={studentMode === "monthly" ? "active" : undefined} onClick={() => setStudentMode("monthly")}>Maandbedrag DUO</button>
+                  <button type="button" className={studentMode === "remaining" ? "active" : undefined} onClick={() => setStudentMode("remaining")}>Ik ken alleen het restant</button>
+                </div>
+                {studentMode === "monthly"
+                  ? <MoneyField label="DUO-termijn per maand" value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
+                  : <>
+                    <MoneyField label="Openstaande studieschuld" value={state.studentLoanRemaining} onChange={(studentLoanRemaining) => patch("studentLoanRemaining", studentLoanRemaining)} step={500} />
+                    <label className="mortgage-span"><input type="checkbox" checked={state.studentLoanSf35} onChange={(event) => patch("studentLoanSf35", event.target.checked)} /> Studieschuld vanaf 2024 (telt minder zwaar)</label>
+                  </>}
+              </> : key === "lease" ? <MoneyField label={field.label} hint={field.hint} value={state.privateLeaseMonthly} onChange={(privateLeaseMonthly) => patch("privateLeaseMonthly", privateLeaseMonthly)} />
+              : key === "installment" ? <MoneyField label={field.label} value={state.installmentLoanMonthly} onChange={(installmentLoanMonthly) => patch("installmentLoanMonthly", installmentLoanMonthly)} />
+              : key === "revolving" ? <MoneyField label={field.label} hint={field.hint} value={state.revolvingCreditLimit} onChange={(revolvingCreditLimit) => patch("revolvingCreditLimit", revolvingCreditLimit)} step={500} />
+              : key === "erfpacht" ? <MoneyField label={field.label} value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
+              : key === "alimony" ? <MoneyField label={field.label} value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
+              : <MoneyField label={field.label} value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />}
+              <button type="button" className="text-link" onClick={() => {
+                setState((current) => clearDebt(current, key));
+                setAddedDebts((current) => current.filter((item) => item !== key));
+              }}>Verwijder</button>
+            </div>;
+          })}
+          {unusedDebts.length > 0 && <div className="work-chips mortgage-add-debts" role="group" aria-label="Last toevoegen">
+            {unusedDebts.map((item) => (
+              <button type="button" key={item.key} onClick={() => {
+                setAddedDebts((current) => current.includes(item.key) ? current : [...current, item.key]);
+                setOpenDebts(true);
+              }}>+ {item.add}</button>
+            ))}
+          </div>}
         </Foldable>
 
         <div className="mortgage-block">
@@ -549,19 +616,19 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           <span className="coverage-pill"><ShieldCheck size={12} /> geen advies</span>
         </div>
         {!result.available ? <>
-          <h2>Vul je inkomen in</h2>
-          <p>Het maximum verschijnt hier meteen. Je hoeft nog geen lasten of eigen geld in te vullen.</p>
+          <h2>Jouw maximum verschijnt hier</h2>
+          <p>Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee.</p>
         </> : <>
           <p className="mortgage-kicker">Je kunt volgens deze schets lenen</p>
           <div className="mortgage-amount">{formatEuro(result.maxLoan)}</div>
           <p className="mortgage-result-note">Maximale koopsom {formatEuro(result.maxPurchasePrice)}{funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.</p>
           <div className="mortgage-result-grid">
-            <div><small>{state.repayment === "linear" ? "Eerste maand" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
+            <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
             <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
             {result.obligationBurden > 0 && <div><small>Lasten in de toets</small><strong>−{formatEuro(result.obligationBurden)}</strong></div>}
             {result.buyerCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(result.buyerCosts)}</strong></div>}
           </div>
-          {result.fit !== "unknown" && <div className={`mortgage-fit ${result.fit}`}>{result.fit === "fits" ? "Deze vraagprijs past binnen de berekende leenruimte." : result.fit === "tight" ? "Krap: de vraagprijs ligt boven de koopsom. Extra eigen geld of een lager bod kan het gat dichten." : "Deze vraagprijs ligt boven wat deze rekenschets toelaat."}</div>}
+          {fitCopy(result) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result)}</div>}
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenExplain((value) => !value)} aria-expanded={openExplain}>
             {openExplain ? "Verberg rekenregels" : "Hoe komen we op dit bedrag?"}
           </button>
@@ -575,8 +642,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
             ))}
           </ul>}
         </>}
-        <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>
-        {market && <p className="mortgage-sources">
+        {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
+        {result.available && market && <p className="mortgage-sources">
           {market.toetsrente.live ? <>Toetsrente AFM {market.toetsrente.rate.toLocaleString("nl-NL")}% ({market.toetsrente.label}). </> : "Toetsrente: wettelijk minimum 5%. "}
           {market.indicativeRates.live
             ? <>Startrente uit {market.indicativeRates.source}, {market.indicativeRates.asOf}. Geen bankvergelijking.</>
@@ -589,7 +656,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         <small>Maximale hypotheek</small>
         <strong>{formatEuro(result.maxLoan)}</strong>
       </span>
-      <em>Bekijk uitleg</em>
+      <em>Zie details</em>
     </a>}
   </>;
 }
@@ -679,7 +746,7 @@ function PersonFields({
     </div>}
     {needsHistory && <YearFields label="Bruto inkomen van de afgelopen jaren" years={person.history} onChange={(history) => onChange({ ...person, history })} />}
     {needsProfits && <>
-      <label className="mortgage-plain">Hoeveel maanden onderneem je al?<input type="number" min="0" max="600" value={person.monthsActive || ""} onChange={(event) => onChange({ ...person, monthsActive: Number(event.target.value) || 0 })} /></label>
+      <label className="mortgage-plain">Hoe lang onderneem je al (jaren)?<input type="number" min="0" max="50" step="0.5" value={person.monthsActive ? person.monthsActive / 12 : ""} onChange={(event) => onChange({ ...person, monthsActive: Math.round((Number(event.target.value) || 0) * 12) })} /></label>
       <YearFields label="Fiscale winst (IB) per jaar" years={person.profits} onChange={(profits) => onChange({ ...person, profits })} />
     </>}
     {work === "dga" && <>
