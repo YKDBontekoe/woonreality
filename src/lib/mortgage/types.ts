@@ -3,6 +3,14 @@ export type WorkType = "permanent" | "temporary" | "flex" | "self_employed" | "d
 export type RepaymentType = "annuity" | "linear";
 export type FixedPeriodYears = 5 | 10 | 20 | 30;
 export type EnergyBand = "none" | "efg" | "cd" | "ab" | "ap" | "appp" | "apppp";
+export const ENERGY_LABELS = ["A++++", "A+++", "A++", "A+", "A", "B", "C", "D", "E", "F", "G"] as const;
+export type EnergyLabel = (typeof ENERGY_LABELS)[number];
+
+export function parseCanonicalEnergyLabel(raw?: string | null): EnergyLabel | undefined {
+  if (!raw) return undefined;
+  const label = raw.trim();
+  return (ENERGY_LABELS as readonly string[]).includes(label) ? label as EnergyLabel : undefined;
+}
 
 export type YearTriple = [number, number, number];
 
@@ -25,6 +33,7 @@ export type IncomeSource =
     kind: "dga";
     box1: YearTriple;
     dividend: YearTriple;
+    monthsActive?: number;
   }
   | { kind: "pension"; annual: number }
   | { kind: "alimony"; annual: number };

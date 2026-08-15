@@ -1,9 +1,11 @@
 "use client";
 
 import { Calculator, ChevronDown, CircleAlert, Landmark, ShieldCheck, Sparkles, Wallet } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
+  NHG,
   calculateMortgageCapacity,
   defaultDgaSource,
   defaultEmploymentSource,
@@ -13,6 +15,7 @@ import {
   emptyTriple,
   marketIndicativeRate,
   ownFundsTotal,
+  parseCanonicalEnergyLabel,
   type FixedPeriodYears,
   type HolidayMode,
   type IncomeEntry,
@@ -261,7 +264,7 @@ function employmentFrom(person: PersonForm): IncomeSource {
 function sourcesFromPerson(person: PersonForm): IncomeSource[] {
   const sources: IncomeSource[] = [];
   if (person.workType === "self_employed") sources.push({ ...defaultSelfEmployedSource(), monthsActive: person.monthsActive, profits: person.profits });
-  else if (person.workType === "dga") sources.push({ ...defaultDgaSource(), box1: person.box1, dividend: person.dividend });
+  else if (person.workType === "dga") sources.push({ ...defaultDgaSource(), box1: person.box1, dividend: person.dividend, monthsActive: person.monthsActive });
   else if (person.workType === "pension") sources.push({ ...defaultPensionSource(), annual: person.pensionAnnual });
   else if (person.workType === "mix") {
     sources.push(employmentFrom({ ...person, workType: "permanent" }));
@@ -374,7 +377,8 @@ function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurcha
 export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, initialNhg }: { initialEnergyLabel?: string; initialAskingPrice?: number; initialNhg?: boolean }) {
   const [state, setState] = useState<CalculatorState>(() => {
     const defaults = defaultState();
-    if (initialEnergyLabel) defaults.energyLabel = initialEnergyLabel;
+    const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
+    if (energyLabel) defaults.energyLabel = energyLabel;
     if (initialAskingPrice && initialAskingPrice > 0) defaults.askingPrice = initialAskingPrice;
     if (initialNhg != null) {
       defaults.nhg = initialNhg;
@@ -384,6 +388,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   });
   const [ready, setReady] = useState(false);
   const [market, setMarket] = useState<MortgageMarketSnapshot | null>(null);
+  const marketRef = useRef<MortgageMarketSnapshot | null>(null);
+  marketRef.current = market;
   const [showIncomeExtras, setShowIncomeExtras] = useState(false);
   const [showMoreWork, setShowMoreWork] = useState(false);
   const [openFunds, setOpenFunds] = useState(false);
@@ -398,10 +404,11 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const restored = restoreState(JSON.parse(raw), defaultState());
-        if (initialEnergyLabel) restored.energyLabel = initialEnergyLabel;
+        const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
+        if (energyLabel) restored.energyLabel = energyLabel;
         if (initialAskingPrice && initialAskingPrice > 0) restored.askingPrice = initialAskingPrice;
         if (initialNhg != null) restored.nhg = initialNhg;
-        if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(null, restored.fixedPeriodYears, restored.nhg);
+        if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(marketRef.current, restored.fixedPeriodYears, restored.nhg);
         setState(restored);
         if (fundsTotal(restored) > 0) setOpenFunds(true);
         if (filledDebtKeys(restored).length) {
@@ -422,8 +429,9 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   }, [ready, state]);
 
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
-    fetch("/api/mortgage/market")
+    fetch("/api/mortgage/market", { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((snapshot: MortgageMarketSnapshot | null) => {
         if (cancelled || !snapshot?.indicativeRates) return;
@@ -435,7 +443,10 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         });
       })
       .catch(() => { /* keep ingebouwde indicatie */ });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const result = useMemo(() => calculateMortgageCapacity(toFinance(state, studentMode), {
@@ -513,8 +524,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} onClick={() => setPeriod(period)}>{period} jaar</button>
             ))}
           </div>
-          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot € 470.000</label>
-          <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenLoan((value) => !value)}>{openLoan ? "Verberg extra hypotheekopties" : "Rente, aflosvorm of verduurzaming aanpassen"}</button>
+          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot {formatEuro(NHG.limit)}</label>
+          <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenLoan((value) => !value)} aria-expanded={openLoan}>{openLoan ? "Verberg extra hypotheekopties" : "Rente, aflosvorm of verduurzaming aanpassen"}</button>
           {openLoan && <div className="form-grid">
             <label>Rente (%)
               <input type="number" min="0" max="15" step="0.01" value={state.interestRate || ""} onChange={(event) => setState((current) => ({ ...current, interestRate: Number(event.target.value) || 0, rateTouched: true }))} />
@@ -596,7 +607,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
             <label>Energielabel
               <select value={state.energyLabel} onChange={(event) => patch("energyLabel", event.target.value)}>
                 <option value="">Nog niet bekend</option>
-                {["A++++", "A+++", "A++", "A+", "A", "B", "C", "D", "E", "F", "G"].map((label) => <option value={label} key={label}>{label}</option>)}
+                {ENERGY_LABELS.map((label) => <option value={label} key={label}>{label}</option>)}
               </select>
             </label>
           </div>
@@ -718,7 +729,7 @@ function PersonFields({
       </> : <div className="form-grid">
         <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Meestal inclusief vakantiegeld. 13e maand en bonus tel je hieronder apart." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
       </div>}
-      <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenPay((value) => !value)}>
+      <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenPay((value) => !value)} aria-expanded={openPay}>
         {openPay ? "Verberg 13e maand, toeslagen en bonus" : "13e maand, toeslagen of bonus toevoegen"}
       </button>
       {openPay && <div className="form-grid">
@@ -780,7 +791,10 @@ function YearFields({ label, years, onChange }: { label: string; years: YearTrip
 }
 
 function MoneyField({ label, value, onChange, step = 50, hint, className, placeholder = "0" }: { label: string; value: number; onChange: (value: number) => void; step?: number; hint?: string; className?: string; placeholder?: string }) {
-  return <label className={className}>{label}{hint ? <small className="mortgage-field-hint">{hint}</small> : null}<input type="number" min="0" step={step} inputMode="numeric" placeholder={placeholder} value={value || ""} onChange={(event) => onChange(Number(event.target.value) || 0)} /></label>;
+  return <label className={className}>{label}{hint ? <small className="mortgage-field-hint">{hint}</small> : null}<input type="number" min="0" step={step} inputMode="numeric" placeholder={placeholder} value={value || ""} onChange={(event) => {
+    const parsed = Number(event.target.value);
+    onChange(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+  }} /></label>;
 }
 
 function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean) {

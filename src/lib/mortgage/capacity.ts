@@ -14,6 +14,8 @@ import {
   SINGLE_INCOME_THRESHOLD,
   energyMeasureExtra,
   energyPurchaseExtra,
+  isNhgEligible,
+  nhgKostengrens,
   normalizeEnergyLabel,
   toetsrenteFor,
 } from "@/src/lib/mortgage/norms-2026";
@@ -58,12 +60,12 @@ function euro(value: number) {
 }
 
 export function calculateMortgageCapacity(finance: MortgageFinance, property: MortgagePropertyContext = {}, market?: MortgageMarketSnapshot): MortgageCapacity {
-  const applicantIncome = incomeFromPerson(finance.applicant);
-  const partnerIncome = finance.partner ? incomeFromPerson(finance.partner) : 0;
+  const nhg = Boolean(property.nhg);
+  const applicantIncome = incomeFromPerson(finance.applicant, { nhg });
+  const partnerIncome = finance.partner ? incomeFromPerson(finance.partner, { nhg }) : 0;
   const toetsinkomen = applicantIncome + partnerIncome;
   const ownFunds = property.ownFunds != null ? Math.max(0, property.ownFunds) : ownFundsTotal(finance);
   const askingPrice = Math.max(0, property.askingPrice ?? 0);
-  const nhg = Boolean(property.nhg);
   const { band, label } = normalizeEnergyLabel(property.energyLabel);
   const empty: Omit<MortgageCapacity, "available" | "reason" | "lines"> = {
     year: MORTGAGE_NORMS_YEAR,
@@ -119,10 +121,11 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
 
   let maxLoanForPurchase = incomeLoan + purchaseExtra + singleExtra;
   let maxLoan = maxLoanForPurchase + measureExtra;
-  if (nhg) {
-    const cap = finance.includeEnergyMeasures ? NHG.energyLimit : NHG.limit;
+  const nhgLimit = nhgKostengrens(finance.includeEnergyMeasures);
+  const nhgApplies = nhg && (askingPrice <= 0 || isNhgEligible(askingPrice, finance.includeEnergyMeasures));
+  if (nhgApplies) {
     maxLoanForPurchase = Math.min(maxLoanForPurchase, NHG.limit);
-    maxLoan = Math.min(maxLoan, cap);
+    maxLoan = Math.min(maxLoan, nhgLimit);
   }
 
   const maxPurchasePrice = maxLoanForPurchase + ownFunds;
@@ -134,7 +137,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     else fit = "over";
   }
 
-  const displayLoan = askingPrice > 0 ? Math.min(financingNeeded || maxLoanForPurchase, maxLoan) : maxLoanForPurchase;
+  const displayLoan = askingPrice > 0 ? Math.min(financingNeeded, maxLoan) : maxLoanForPurchase;
   const monthlyPayment = roundEuro(
     finance.repayment === "linear"
       ? linearFirstMonth(displayLoan, finance.interestRate)
@@ -154,7 +157,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
   if (finance.fixedPeriodYears < 10 && toetsrente > finance.interestRate) {
     lines.push({ key: "toetsrente", label: "AFM-toetsrente", amount: 0, note: `Rentevast onder 10 jaar: getoetst tegen ${toetsrente.toLocaleString("nl-NL", { maximumFractionDigits: 2 })}% (${market?.toetsrente.live ? market.toetsrente.label : `minimaal ${AFM_TOETSRENTE_FLOOR}%`}).` });
   }
-  if (nhg) lines.push({ key: "nhg", label: "NHG-plafond", amount: finance.includeEnergyMeasures ? NHG.energyLimit : NHG.limit, note: `Kostengrens 2026 ${euro(NHG.limit)}${finance.includeEnergyMeasures ? `, met EBV ${euro(NHG.energyLimit)}` : ""}.` });
+  if (nhgApplies) lines.push({ key: "nhg", label: "NHG-plafond", amount: nhgLimit, note: `Kostengrens 2026 ${euro(NHG.limit)}${finance.includeEnergyMeasures ? `, met EBV ${euro(NHG.energyLimit)}` : ""}.` });
   lines.push({ key: "max-loan", label: "Maximale hypotheek", amount: roundEuro(maxLoan), note: "Som van inkomenslening en extra’s, na NHG-plafond." });
   lines.push({ key: "max-price", label: "Maximale koopsom", amount: roundEuro(maxPurchasePrice), note: ownFunds > 0 ? `Hypotheek voor aankoop ${euro(maxLoanForPurchase)} + eigen geld ${euro(ownFunds)}.` : "Zonder eigen geld is de maximale koopsom gelijk aan de maximale hypotheek (LTV 100%)." });
 
@@ -167,7 +170,8 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
       ownFunds,
       budget: askingPrice,
       nhg,
-    }, Math.min(financingNeeded || maxLoanForPurchase, maxLoanForPurchase))
+      energySavingMeasures: finance.includeEnergyMeasures,
+    }, Math.min(financingNeeded, maxLoanForPurchase))
     : null;
   const buyerCosts = costs?.total ?? null;
   const ownFundsGap = costs && ownFunds >= 0 ? roundEuro(costs.ownFundsNeeded - ownFunds) : ownFunds > 0 && askingPrice > 0 ? roundEuro(financingNeeded - maxLoanForPurchase) : null;

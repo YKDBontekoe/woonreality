@@ -1,6 +1,8 @@
 "use client";
 
 import { ArrowUpRight, FileCheck2, Landmark, Leaf, LocateFixed, Map, ShieldCheck, SunMedium } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { AddressSearch } from "@/components/address-search";
 import { ListingIntake } from "@/components/listing-intake";
 import { SiteHeader } from "@/components/site-header";
@@ -29,8 +31,8 @@ export function LandingPage() {
 }
 
 function Proof({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="proof-item"><span className="proof-item-icon">{icon}</span><span><strong>{title}</strong><span>{text}</span></span></div>; }
-function Feature({ icon, title, text, href }: { icon: React.ReactNode; title: string; text: string; href?: string }) {
+function Feature({ icon, title, text, href }: { icon: React.ReactNode; title: string; text: string; href?: Route }) {
   const inner = <><span className="feature-card-icon">{icon}</span><h3>{title}</h3><p>{text}</p></>;
-  return href ? <a className="feature-card" href={href}>{inner}</a> : <div className="feature-card">{inner}</div>;
+  return href ? <Link className="feature-card" href={href}>{inner}</Link> : <div className="feature-card">{inner}</div>;
 }
 function MapPinIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>; }

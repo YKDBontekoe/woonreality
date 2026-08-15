@@ -11,7 +11,11 @@ export function threeYearToetsinkomen(years: YearTriple) {
   return Math.max(0, Math.min(avg, last));
 }
 
-export function incomeFromSource(source: IncomeSource) {
+export function incomeFromSource(source: IncomeSource, options?: { nhg?: boolean }) {
+  if (options?.nhg && (source.kind === "self_employed" || source.kind === "dga")) {
+    const months = source.monthsActive ?? 36;
+    if (months < 12) return 0;
+  }
   if (source.kind === "employment") {
     const current = Math.max(0, source.grossAnnual) + Math.max(0, source.thirteenthMonth) + Math.max(0, source.bonus);
     const stable = source.contract === "permanent" || source.contract === "temporary_intent" || source.perspectief;
@@ -34,9 +38,9 @@ export function incomeFromSource(source: IncomeSource) {
   return 0;
 }
 
-export function incomeFromPerson(person: PersonFinance | null | undefined) {
+export function incomeFromPerson(person: PersonFinance | null | undefined, options?: { nhg?: boolean }) {
   if (!person) return 0;
-  return person.sources.reduce((sum, source) => sum + incomeFromSource(source), 0);
+  return person.sources.reduce((sum, source) => sum + incomeFromSource(source, options), 0);
 }
 
 export function emptyPerson(): PersonFinance {
@@ -60,7 +64,7 @@ export function defaultSelfEmployedSource(): Extract<IncomeSource, { kind: "self
 }
 
 export function defaultDgaSource(): Extract<IncomeSource, { kind: "dga" }> {
-  return { kind: "dga", box1: emptyTriple(), dividend: emptyTriple() };
+  return { kind: "dga", box1: emptyTriple(), dividend: emptyTriple(), monthsActive: 36 };
 }
 
 export function defaultPensionSource(): Extract<IncomeSource, { kind: "pension" }> {

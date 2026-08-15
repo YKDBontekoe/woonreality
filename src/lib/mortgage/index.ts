@@ -14,6 +14,8 @@ export {
   energyMeasureExtra,
   energyPurchaseExtra,
   indicativeRate,
+  isNhgEligible,
+  nhgKostengrens,
   normalizeEnergyLabel,
   studentLoanGrossFactor,
   toetsrenteFor,
@@ -55,6 +57,7 @@ export {
 export type {
   EmploymentContract,
   EnergyBand,
+  EnergyLabel,
   FixedPeriodYears,
   IncomeSource,
   MortgageCapacity,
@@ -67,6 +70,7 @@ export type {
   WorkType,
   YearTriple,
 } from "@/src/lib/mortgage/types";
+export { ENERGY_LABELS, parseCanonicalEnergyLabel } from "@/src/lib/mortgage/types";
 
 export function defaultMortgageFinance(nhg = false): MortgageFinance {
   return {

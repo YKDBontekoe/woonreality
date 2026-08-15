@@ -2,7 +2,7 @@ import { pdokUrls } from "@/src/lib/sources/pdok/client";
 import { cbsBuurtenUrl } from "@/src/lib/sources/cbs";
 import { rivmUrls } from "@/src/lib/sources/rivm";
 import { ndovHaltesUrl } from "@/src/lib/sources/ndov";
-import { AFM_TOETSRENTE_URL, parseAfmToetsrente } from "@/src/lib/mortgage/market";
+import { AFM_TOETSRENTE_URL, parseAfmToetsrente, parseEcbMirObservation } from "@/src/lib/mortgage/market";
 
 export type SourceHealth = {
   source: string;
@@ -25,25 +25,36 @@ const checks = [
   { source: "ECB/DNB hypotheekrente", url: "https://data-api.ecb.europa.eu/service/data/MIR/M.NL.B.A2C.O.R.A.2250.EUR.N?lastNObservations=1&format=jsondata" },
 ];
 
+export function sampleRecordValid(check: { source: string; url: string }, body: string) {
+  if (body.includes("WMS_Capabilities") || body.includes("ExportCHB_")) return true;
+  if (check.source.startsWith("AFM") || check.url.includes("afm.nl")) return Boolean(parseAfmToetsrente(body));
+
+  const trimmed = body.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return false;
+  }
+  if (check.url.includes("data-api.ecb.europa.eu") || /ECB/i.test(check.source)) {
+    return parseEcbMirObservation(parsed) != null;
+  }
+  return parsed !== null && typeof parsed === "object";
+}
+
 export async function checkSources(): Promise<SourceHealth[]> {
   return Promise.all(checks.map(async ({ source, url }) => {
     const started = performance.now();
     try {
       const response = await fetch(url, { cache: "no-store" });
       const body = await response.text();
-      const sampleRecordValid = response.ok && body.length > 30 && (
-        body.trim().startsWith("{")
-        || body.includes("WMS_Capabilities")
-        || body.includes("ExportCHB_")
-        || Boolean(parseAfmToetsrente(body))
-        || body.includes("dataSets")
-      );
       return {
         source,
         ok: response.ok,
         checkedAt: new Date().toISOString(),
         latencyMs: Math.round(performance.now() - started),
-        sampleRecordValid,
+        sampleRecordValid: response.ok && body.length > 30 && sampleRecordValid({ source, url }, body),
         ...(response.ok ? {} : { error: `HTTP ${response.status}` }),
       };
     } catch (error) {
