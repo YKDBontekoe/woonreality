@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, CircleAlert, FileText, Home, MapPin, Pencil, PiggyBank, Plus, Search, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, FileText, Home, Landmark, MapPin, Pencil, PiggyBank, Plus, Search, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
@@ -100,7 +100,7 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
 
     {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> stap 03 · koopdossier</div><h2>Actieve dossiers</h2><p>Documenten, taken en deadlines op één plek.</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{purchaseCase.stage}</span><strong>{purchaseCase.title}</strong><span>Open dossier <ArrowRight size={13} /></span></Link>)}</div></section>}
 
-    <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> de aankoopcockpit</div><h2>Alles wat je nodig hebt na de advertentie</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title="Woningcheck" text="Feiten, bronnen, omgeving en risico's per adres." href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title="Documentdossier" text="Uploaden, lezen en tegenstrijdigheden vinden." href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : "/login"} /><Module icon={<WalletCards size={17} />} number="03" title="Waarde & bod" text="Vraagprijs, risico's, voorwaarden en je maximum — geen neptaxatie." href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#waarde-bod` : "/#zoek-adres"} /></div></section>
+    <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> de aankoopcockpit</div><h2>Alles wat je nodig hebt na de advertentie</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title="Woningcheck" text="Feiten, bronnen, omgeving en risico's per adres." href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title="Documentdossier" text="Uploaden, lezen en tegenstrijdigheden vinden." href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : "/login"} /><Module icon={<WalletCards size={17} />} number="03" title="Waarde & bod" text="Vraagprijs, risico's, voorwaarden en je maximum — geen neptaxatie." href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#waarde-bod` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title="Hypotheek" text="Maximale lening op de leennormen 2026, ook als zelfstandige." href="/hypotheek" /></div></section>
   </div></main>;
 }
 

@@ -1,0 +1,144 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { estimateBuyerCosts } from "../src/lib/costs";
+import {
+  calculateMortgageCapacity,
+  defaultEmploymentSource,
+  defaultMortgageFinance,
+  defaultSelfEmployedSource,
+  emptyPerson,
+  emptyTriple,
+  financieringslastPercentage,
+  incomeFromSource,
+  NHG,
+  normalizeEnergyLabel,
+  studentLoanGrossFactor,
+  threeYearToetsinkomen,
+  toetsrenteFor,
+  type IncomeSource,
+  type MortgageFinance,
+} from "../src/lib/mortgage";
+
+function withJob(grossAnnual: number, extras: Partial<MortgageFinance> = {}): MortgageFinance {
+  const finance = defaultMortgageFinance(false);
+  finance.interestRate = 4;
+  finance.applicant = {
+    reachedAow: false,
+    sources: [{ ...defaultEmploymentSource(), grossAnnual }],
+  };
+  return { ...finance, ...extras, applicant: extras.applicant ?? finance.applicant };
+}
+
+test("woonquote lookup follows Bijlage 1 income and rate staffels", () => {
+  assert.equal(financieringslastPercentage(60_000, 4, false), 0.226);
+  assert.equal(financieringslastPercentage(80_000, 4, false), 0.253);
+  assert.equal(financieringslastPercentage(50_000, 4, true), 0.286);
+  assert.ok(financieringslastPercentage(200_000, 4, false) > 0.2);
+});
+
+test("toetsrente uses the AFM 5% floor below 10 years fixed", () => {
+  assert.equal(toetsrenteFor(3.5, 10), 3.5);
+  assert.equal(toetsrenteFor(3.5, 5), 5);
+  assert.equal(toetsrenteFor(5.4, 5), 5.4);
+});
+
+test("three-year ondernemersinkomen is the average capped at last year", () => {
+  assert.equal(threeYearToetsinkomen([80_000, 70_000, 60_000]), 70_000);
+  assert.equal(threeYearToetsinkomen([50_000, 80_000, 80_000]), 50_000);
+  assert.equal(threeYearToetsinkomen([90_000, 0, 0]), 30_000);
+  assert.equal(threeYearToetsinkomen([0, 80_000, 80_000]), 0);
+});
+
+test("self-employed last-year loss counts as zero ondernemersinkomen", () => {
+  const source: IncomeSource = { ...defaultSelfEmployedSource(), profits: [-12_000, 70_000, 65_000] };
+  assert.equal(incomeFromSource(source), 0);
+});
+
+test("flex without perspectief uses the 3-year cap; intent uses current pay", () => {
+  const flex: IncomeSource = {
+    ...defaultEmploymentSource(),
+    contract: "flex",
+    grossAnnual: 55_000,
+    history: [40_000, 38_000, 36_000],
+    perspectief: false,
+  };
+  assert.equal(incomeFromSource(flex), 38_000);
+  assert.equal(incomeFromSource({ ...flex, perspectief: true }), 55_000);
+  assert.equal(incomeFromSource({ ...flex, contract: "temporary_intent", perspectief: false }), 55_000);
+});
+
+test("partner income counts fully in the joint toetsinkomen", () => {
+  const finance = withJob(40_000, {
+    partner: { reachedAow: false, sources: [{ ...defaultEmploymentSource(), grossAnnual: 40_000 }] },
+  });
+  const result = calculateMortgageCapacity(finance);
+  assert.equal(result.toetsinkomen, 80_000);
+  assert.equal(result.woonquote, financieringslastPercentage(80_000, 4, false));
+});
+
+test("single extra is added only above the 2026 income threshold", () => {
+  const low = calculateMortgageCapacity(withJob(28_000));
+  const high = calculateMortgageCapacity(withJob(60_000));
+  assert.equal(low.singleExtra, 0);
+  assert.equal(high.singleExtra, 17_000);
+  assert.equal(high.maxLoan, high.incomeLoan + 17_000);
+});
+
+test("energy label A adds 10k purchase extra versus G", () => {
+  const g = calculateMortgageCapacity(withJob(60_000), { energyLabel: "G" });
+  const a = calculateMortgageCapacity(withJob(60_000), { energyLabel: "A" });
+  assert.equal(g.energyPurchaseExtra, 0);
+  assert.equal(a.energyPurchaseExtra, 10_000);
+  assert.equal(a.maxLoan - g.maxLoan, 10_000);
+  assert.equal(normalizeEnergyLabel("A++++").band, "apppp");
+  const guaranteed = calculateMortgageCapacity(
+    { ...withJob(60_000), energyPerformanceGuarantee: true },
+    { energyLabel: "A++++" },
+  );
+  assert.equal(guaranteed.energyPurchaseExtra, 40_000);
+});
+
+test("student loan is grossed up and lowers income-based loan", () => {
+  assert.equal(studentLoanGrossFactor(4), 1.2);
+  const clean = calculateMortgageCapacity(withJob(60_000));
+  const debt = calculateMortgageCapacity(withJob(60_000, { studentLoanMonthly: 200 }));
+  assert.ok(debt.incomeLoan < clean.incomeLoan);
+  assert.equal(debt.obligationBurden, Math.round(200 * 12 * 1.2));
+});
+
+test("NHG caps the maximum loan at the 2026 kostengrens", () => {
+  const finance = withJob(200_000);
+  const open = calculateMortgageCapacity(finance, { nhg: false });
+  const capped = calculateMortgageCapacity(finance, { nhg: true });
+  assert.ok(open.maxLoan > NHG.limit);
+  assert.equal(capped.maxLoan, NHG.limit);
+});
+
+test("mix of salary and winst stacks toetsinkomen", () => {
+  const finance = withJob(40_000);
+  finance.applicant.sources.push({ ...defaultSelfEmployedSource(), profits: [30_000, 24_000, 21_000] });
+  const result = calculateMortgageCapacity(finance);
+  assert.equal(result.toetsinkomen, 40_000 + 25_000);
+});
+
+test("capacity stays unavailable without income", () => {
+  const result = calculateMortgageCapacity(defaultMortgageFinance());
+  assert.equal(result.available, false);
+  assert.equal(emptyPerson().sources.length, 0);
+  assert.deepEqual(emptyTriple(), [0, 0, 0]);
+});
+
+test("asking price fit uses own funds and purchase extra", () => {
+  const result = calculateMortgageCapacity(withJob(60_000), { askingPrice: 200_000, ownFunds: 50_000, energyLabel: "A" });
+  assert.equal(result.financingNeeded, 150_000);
+  assert.equal(result.fit, "fits");
+  const over = calculateMortgageCapacity(withJob(28_000), { askingPrice: 900_000 });
+  assert.equal(over.fit, "over");
+});
+
+test("NHG fee is added to buyer costs when NHG is selected under the limit", () => {
+  const withNhg = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000, nhg: true }, 360_000);
+  assert.ok(withNhg?.lines.some((line) => line.key === "nhg" && line.amount === Math.round(360_000 * 0.004)));
+  const without = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000, nhg: false }, 360_000);
+  assert.ok(without && !without.lines.some((line) => line.key === "nhg"));
+});

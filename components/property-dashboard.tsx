@@ -8,6 +8,7 @@ import {
   Database,
   GitCompare,
   Heart,
+  Landmark,
   MapPinned,
   Printer,
   RefreshCw,
@@ -302,6 +303,13 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     .filter((item) => item.type === "positive")
     .slice(0, 3);
   const nearbyProperties = analysis.nearbyProperties ?? [];
+  const energySignal = analysis.signals.find((signal) => signal.key === "energy")?.value;
+  const energyLabel = typeof energySignal === "string" && energySignal !== "Geen data"
+    ? energySignal
+    : listing?.energyLabel;
+  const hypotheekQuery = new URLSearchParams();
+  if (energyLabel) hypotheekQuery.set("label", energyLabel);
+  if (listing?.askingPrice) hypotheekQuery.set("price", String(Math.round(listing.askingPrice)));
 
   return (
     <main className="site-shell">
@@ -417,6 +425,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         {listingStatus !== "unavailable" && (
           <ListingSection listing={listing} status={listingStatus} />
         )}
+        <section className="mortgage-cta">
+          <div>
+            <div className="section-kicker"><Landmark size={13} /> hypotheek</div>
+            <h2>Wat kun jij hier lenen?</h2>
+            <p>Open de hypotheekcheck met {energyLabel ? `energielabel ${energyLabel}` : "het energielabel"}{listing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld. Loondienst, zelfstandig, schulden en NHG reken je daar zelf.</p>
+          </div>
+          <Link className="primary-button" href={`/hypotheek?${hypotheekQuery.toString()}` as never}>Bereken je hypotheek</Link>
+        </section>
         <ValuationBidPanel
           bagId={bagId}
           analysis={analysis}
