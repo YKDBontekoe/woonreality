@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
-import { DEFAULT_BUYER_PROFILE, PROPERTY_STAGE_LABELS, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
+import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
@@ -37,7 +37,7 @@ async function readWorkspace() {
   if (savedError) throw savedError;
   const profilePreferences = record(profile?.preferences_json);
   const savedProperties = (saved ?? []) as Array<{ bag_vbo_id: string; address_label: string; city: string; postcode: string; stage: string; saved_at: string }>;
-  const buyerProfile = { ...DEFAULT_BUYER_PROFILE, ...record(profilePreferences.buyerProfile) } as BuyerProfile;
+  const buyerProfile = normalizeBuyerProfile(profilePreferences.buyerProfile ?? EMPTY_BUYER_PROFILE);
   const preferences = { ...DEFAULT_PREFERENCES, ...record(profilePreferences.personalPreferences) } as PersonalPreferences;
   const propertyStages = Object.fromEntries(savedProperties.map((item) => [item.bag_vbo_id, isStage(item.stage) ? item.stage : "saved"]));
   return {
@@ -47,7 +47,7 @@ async function readWorkspace() {
       preferences,
       preferencesConfigured: Boolean(profilePreferences.personalPreferences),
       buyerProfile,
-      buyerProfileConfigured: Boolean(profilePreferences.buyerProfile),
+      buyerProfileConfigured: buyerProfileIsConfigured(buyerProfile, profilePreferences.buyerProfile),
       saved: savedProperties.map((item): SavedProperty => ({ bagVboId: item.bag_vbo_id, addressLabel: item.address_label, city: item.city, postcode: item.postcode, savedAt: item.saved_at })),
       compare: Array.isArray(profile?.compare_ids) ? profile.compare_ids.filter(isBagId).slice(0, 4) : [],
       propertyStages,

@@ -7,7 +7,7 @@ import type { AddressSearchResult } from "@/src/lib/types";
 
 const quickAddresses = ["Korenstraat 18, Epe", "Witte de Withstraat 42, Rotterdam", "Biltstraat 65, Utrecht"];
 
-export function AddressSearch() {
+export function AddressSearch({ onSelect, submitLabel = "Bekijk adres", id = "zoek-adres" }: { onSelect?: (result: AddressSearchResult) => void; submitLabel?: string; id?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AddressSearchResult[]>([]);
@@ -34,14 +34,15 @@ export function AddressSearch() {
   }, [query]);
 
   function openResult(result: AddressSearchResult) {
-    router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
+    if (onSelect) onSelect(result);
+    else router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
   }
 
-  return <div className="search-wrap" id="zoek-adres">
+  return <div className="search-wrap" id={id}>
     <form className="search-box" onSubmit={(event) => { event.preventDefault(); if (results[0]) openResult(results[0]); }}>
       <Search size={19} />
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Bijv. Korenstraat 18, Epe" aria-label="Zoek een Nederlands adres" />
-      <button className="search-button" type="submit">{searching ? "Zoeken…" : "Bekijk adres"}</button>
+      <button className="search-button" type="submit">{searching ? "Zoeken…" : submitLabel}</button>
     </form>
     {results.length > 0 && <div className="suggestions">{results.map((result) => <button type="button" className="suggestion" key={result.id} onClick={() => openResult(result)}><span className="suggestion-icon"><MapPin size={15} /></span><span className="suggestion-text"><span>{result.displayName}</span><small>BAG-adres gevonden · open data</small></span></button>)}</div>}
     {error && <div className="search-hint" role="alert">{error}</div>}

@@ -2,27 +2,29 @@
 
 import { ArrowUpRight, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, SunMedium } from "lucide-react";
 import { AddressSearch } from "@/components/address-search";
+import { ListingIntake } from "@/components/listing-intake";
 import { SiteHeader } from "@/components/site-header";
 
 export function LandingPage() {
   return <main className="site-shell">
-    <div className="container"><SiteHeader /></div>
+    <div className="container"><SiteHeader current="home" /></div>
     <section className="container hero">
       <div>
-        <div className="eyebrow"><span className="eyebrow-dot" /> voor de werkelijkheid achter de advertentie</div>
-        <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
-        <p className="hero-copy">Een woning vertelt wat er ín zit. WoonReality laat zien wat je tijdens een bezichtiging moeilijk ziet — met openbare data, duidelijke uitleg en altijd de bron erbij.</p>
+        <div className="eyebrow"><span className="eyebrow-dot" /> AI-aankoopbegeleider voor gewone kopers</div>
+        <h1>Koop een huis <em>zonder</em> makelaar ernaast.</h1>
+        <p className="hero-copy">WoonReality doet het voorbereidende werk van een aankoopmakelaar: onderzoek, documenten, bezichtiging en een bodconcept. Jij blijft degene die belt, biedt en tekent.</p>
         <AddressSearch />
-        <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen AI-score. Wel signalen die je kunt controleren.</div>
+        <ListingIntake />
+        <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen AI-score. Wel signalen, stukken en volgende stappen die je kunt controleren.</div>
       </div>
       <div className="hero-visual" aria-label="Voorbeeld van een WoonReality analyse">
         <div className="visual-card"><div className="visual-map" /><div className="visual-top"><span className="visual-label">Live reality check</span><span className="visual-time">09:42 · BAG + BGT</span></div><div className="visual-building" /><div className="visual-pin"><MapPinIcon /></div><div className="visual-score"><div className="visual-score-label">Reality score</div><div className="visual-score-number">7,8<span>/ 10</span></div><div className="visual-score-meta">sterke basis, let op geluid</div></div></div>
         <div className="floating-tag"><span className="tag-icon"><Leaf size={15} /></span><span><strong>Groen 8,7</strong>binnen 250 m</span></div>
       </div>
     </section>
-    <div className="container proof-strip" id="bronnen"><Proof icon={<LocateFixed size={17} />} title="Adresgericht" text="BAG als vaste woningidentiteit" /><Proof icon={<FileCheck2 size={17} />} title="Herleidbaar" text="Bron en caveat bij elk signaal" /><Proof icon={<Map size={17} />} title="Open data" text="Gebouwd op Nederlandse bronnen" /></div>
-    <section className="container section" id="werkwijze"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-dot" /> niet meer data, betere vragen</div><h2>De dingen die je pas merkt als je er woont.</h2><p>WoonReality vertaalt ruwe overheidsdata naar drie simpele lagen: wat zien we, waarom denken we dat, en wat kun je tijdens je bezichtiging checken?</p></div><div className="feature-grid"><Feature icon={<LocateFixed size={18} />} title="De plek" text="BAG, gebouw, groen en lokale topografie op het exacte woonadres." /><Feature icon={<SunMedium size={18} />} title="De leefomgeving" text="Van geluid en verstening tot wat er in de buurt kan veranderen." /><Feature icon={<ArrowUpRight size={18} />} title="De volgende stap" text="Geen stellige conclusie, maar een concrete tip voor je bezichtiging." /></div></section>
-    <footer className="container footer"><span><strong>WoonReality</strong> · concept / MVP</span><span>Open data, menselijke uitleg.</span></footer>
+    <div className="container proof-strip" id="bronnen"><Proof icon={<LocateFixed size={17} />} title="Adresgericht" text="BAG als vaste woningidentiteit" /><Proof icon={<FileCheck2 size={17} />} title="Herleidbaar" text="Bron en caveat bij elk signaal" /><Proof icon={<Map size={17} />} title="Jij houdt controle" text="Geen bod of mail zonder jouw actie" /></div>
+    <section className="container section" id="werkwijze"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-dot" /> wat een makelaar ook zou doen</div><h2>Van eerste twijfel tot sleutel.</h2><p>Eerst de plek checken met open data. Daarna stukken lezen, een bezichtiging voorbereiden en pas dan een bodconcept — met ontbindende voorwaarden, geen winkans-theater.</p></div><div className="feature-grid"><Feature icon={<LocateFixed size={18} />} title="De plek" text="BAG, gebouw, groen en lokale topografie op het exacte woonadres." /><Feature icon={<SunMedium size={18} />} title="De stukken" text="Brochure, vragenlijst en VvE naast de feiten. Tegenstrijdigheden worden zichtbaar." /><Feature icon={<ArrowUpRight size={18} />} title="De volgende stap" text="Geen stellige conclusie, maar één actie: bezichtigen, doorvragen of laten vallen." /></div></section>
+    <footer className="container footer"><span><strong>WoonReality</strong> · AI-aankoopbegeleider</span><span>Open data, menselijke uitleg, jij tekent.</span></footer>
   </main>;
 }
 

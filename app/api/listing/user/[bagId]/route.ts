@@ -1,0 +1,63 @@
+import { NextResponse } from "next/server";
+import { extractListingFacts, isHttpUrl } from "@/src/lib/listing-intake";
+import { createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { userListingBodySchema } from "@/src/lib/validation/workspace";
+
+export const runtime = "nodejs";
+
+async function currentUser() {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.getUser();
+  return { supabase, user: error ? null : data.user };
+}
+
+export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const { bagId } = await context.params;
+  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  try {
+    const { supabase, user } = await currentUser();
+    if (!user) return NextResponse.json({ listing: null }, { status: 401 });
+    const { data, error } = await supabase.from("user_listings").select("*").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
+    if (error) throw error;
+    return NextResponse.json({ listing: data });
+  } catch {
+    return NextResponse.json({ error: "Advertentiegegevens konden niet worden geladen." }, { status: 502 });
+  }
+}
+
+export async function PUT(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const { bagId } = await context.params;
+  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  try {
+    const { supabase, user } = await currentUser();
+    if (!user) return NextResponse.json({ error: "Log in om advertentiegegevens te bewaren." }, { status: 401 });
+    const raw = await request.json() as unknown;
+    const parsed = userListingBodySchema.safeParse(raw);
+    if (!parsed.success) return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400 });
+    if (parsed.data.sourceUrl && !isHttpUrl(parsed.data.sourceUrl)) return NextResponse.json({ error: "De bronlink is geen geldige URL." }, { status: 400 });
+    const keys = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+    const facts = Object.prototype.hasOwnProperty.call(keys, "pastedText") ? extractListingFacts(parsed.data.pastedText ?? "") : undefined;
+    const payload: Record<string, unknown> = {
+      user_id: user.id,
+      bag_vbo_id: bagId,
+      updated_at: new Date().toISOString(),
+    };
+    if (Object.prototype.hasOwnProperty.call(keys, "askingPrice")) {
+      payload.asking_price = parsed.data.askingPrice ?? facts?.askingPrice ?? null;
+    } else if (facts?.askingPrice != null) {
+      payload.asking_price = facts.askingPrice;
+    }
+    if (Object.prototype.hasOwnProperty.call(keys, "sourceUrl")) {
+      payload.source_url = parsed.data.sourceUrl ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(keys, "pastedText")) {
+      payload.pasted_text = parsed.data.pastedText ?? null;
+      payload.extracted_json = facts ?? {};
+    }
+    const { data, error } = await supabase.from("user_listings").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("*").single();
+    if (error) throw error;
+    return NextResponse.json({ listing: data, facts: facts ?? data.extracted_json });
+  } catch {
+    return NextResponse.json({ error: "Advertentiegegevens konden niet worden opgeslagen." }, { status: 502 });
+  }
+}
