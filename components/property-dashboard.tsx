@@ -2,11 +2,12 @@
 
 import { ArrowLeft, Check, ChevronDown, Clock3, Database, GitCompare, Heart, MapPinned, Printer, RefreshCw, Settings2, Share2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "@/components/property-map";
 import { SignalCard } from "@/components/signal-card";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { StartCaseButton } from "@/components/start-case-button";
+import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { calculatePersonalFit, DEFAULT_PREFERENCES, preferenceLabel } from "@/src/lib/personalization";
 import { checklistForAnalysis } from "@/src/lib/checklist";
 import type { AiPropertyReport, AiReportStatus, Analysis, ChecklistItem, EverydayInsight, PersonalPreferences, PropertyListing } from "@/src/lib/types";
@@ -26,6 +27,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const { workspace, toggleSaved, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] = useState<PersonalPreferences>(DEFAULT_PREFERENCES);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklistError, setChecklistError] = useState("");
+  const checklistWriteQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -83,16 +86,35 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   }, [workspace.preferences]);
 
   useEffect(() => {
-    if (!analysis || typeof window === "undefined") return;
-    try {
-      const stored = JSON.parse(window.localStorage.getItem(`woonreality:checklist:${bagId}`) ?? "null") as ChecklistItem[] | null;
-      setChecklist(Array.isArray(stored) ? stored : checklistForAnalysis(analysis));
-    } catch { setChecklist(checklistForAnalysis(analysis)); }
+    if (!analysis) return;
+    const controller = new AbortController();
+    fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        const body = await response.json() as { items?: ChecklistItem[] | null; error?: string };
+        if (response.status === 401) { setChecklist(checklistForAnalysis(analysis)); setChecklistError("Log in om je checklist te bewaren."); return; }
+        if (!response.ok) throw new Error(body.error ?? "Checklist kon niet worden geladen.");
+        setChecklist(Array.isArray(body.items) ? body.items : checklistForAnalysis(analysis));
+        setChecklistError("");
+      })
+      .catch((caught) => { if (!(caught instanceof DOMException && caught.name === "AbortError")) { setChecklist(checklistForAnalysis(analysis)); setChecklistError(caught instanceof Error ? caught.message : "Checklist kon niet worden geladen."); } });
+    return () => controller.abort();
   }, [analysis, bagId]);
 
-  function saveChecklist(next: ChecklistItem[]) {
+  async function saveChecklist(next: ChecklistItem[]) {
     setChecklist(next);
-    window.localStorage.setItem(`woonreality:checklist:${bagId}`, JSON.stringify(next));
+    const write = checklistWriteQueue.current.catch(() => undefined).then(async () => {
+      const response = await fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: next }) });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Checklist kon niet worden opgeslagen.");
+      setChecklistError("");
+    });
+    checklistWriteQueue.current = write.catch(() => undefined);
+    try { await write; } catch (caught) { setChecklistError(caught instanceof Error ? caught.message : "Checklist kon niet worden opgeslagen."); }
+  }
+
+  async function savePreferences() {
+    const result = await setPreferences(preferences);
+    if (result.ok) setShowPreferences(false);
   }
 
   async function share() {
@@ -113,20 +135,21 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const nearbyProperties = analysis.nearbyProperties ?? [];
 
   return <main className="site-shell"><div className="container">
-    <header className="dashboard-header"><Link className="back-link" href="/"><ArrowLeft size={14} /> Ander adres</Link><div className="dashboard-top"><div><div className="eyebrow"><span className="eyebrow-dot" /> woningcheck</div><h1>{property.street} {property.houseNumber}{property.houseLetter ?? ""}</h1><div className="address-meta"><MapPinned size={16} /> {property.postcode} {property.city}</div></div><div className="dashboard-actions"><button className={`secondary-button ${isSaved ? "selected" : ""}`} type="button" onClick={() => toggleSaved(property)}>{isSaved ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}{isSaved ? "Bewaard" : "Bewaar"}</button><button className="secondary-button share-button" type="button" onClick={share}>{copied ? <Check size={14} /> : <Share2 size={14} />}{copied ? "Gekopieerd" : "Deel"}</button></div></div></header>
+    <header className="dashboard-header"><Link className="back-link" href="/"><ArrowLeft size={14} /> Ander adres</Link><div className="dashboard-top"><div><div className="eyebrow"><span className="eyebrow-dot" /> woningcheck</div><h1>{property.street} {property.houseNumber}{property.houseLetter ?? ""}</h1><div className="address-meta"><MapPinned size={16} /> {property.postcode} {property.city}</div></div><div className="dashboard-actions"><button className={`secondary-button ${isSaved ? "selected" : ""}`} type="button" onClick={async () => { await toggleSaved(property); }}>{isSaved ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}{isSaved ? "Bewaard" : "Bewaar"}</button><button className="secondary-button share-button" type="button" onClick={share}>{copied ? <Check size={14} /> : <Share2 size={14} />}{copied ? "Gekopieerd" : "Deel"}</button></div></div></header>
     {showDetails && workspace.compare.length >= 2 && <div className="compare-banner"><span><GitCompare size={15} /> {workspace.compare.length} woningen geselecteerd om te vergelijken</span><Link className="primary-button" href={`/vergelijken?ids=${workspace.compare.join(",")}`}>Open vergelijking</Link></div>}
     <section className="simple-overview" id="overzicht"><SimpleVerdict analysis={analysis} /><div id="kaart"><PropertyMap property={property} nearbyProperties={nearbyProperties} /></div></section>
     <section className="simple-reasons"><div className="section-kicker">Waarom dit oordeel?</div><h2>Dit zijn de drie dingen die ertoe doen</h2><EverydayInsights items={analysis.everydayInsights ?? []} /><div className="simple-facts"><span>{property.areaM2 ? `${property.areaM2} m² woonruimte` : "Oppervlakte onbekend"}</span><span>{property.buildingYear ? `Gebouwd in ${property.buildingYear}` : "Bouwjaar onbekend"}</span><span>{nearbyProperties.length} woningen dichtbij</span></div></section>
     <AiResearchSection report={aiReport} status={aiStatus} />
     {listingStatus !== "unavailable" && <ListingSection listing={listing} status={listingStatus} />}
+    <ValuationBidPanel bagId={bagId} analysis={analysis} listing={listing} />
     <section className="case-cta"><div><div className="section-kicker">Volgende stap</div><h2>Wil je dit adres serieus meenemen?</h2><p>Bewaar je vragen, documenten en deadlines in één persoonlijk aankoopdossier.</p></div><StartCaseButton bagVboId={property.bagVboId} /></section>
     <div className="details-toggle"><button className="secondary-button" type="button" onClick={() => setShowDetails((value) => !value)}>{showDetails ? "Verberg alle data" : "Ik wil de volledige check zien"}<ChevronDown size={14} className={showDetails ? "chevron-up" : ""} /></button><small>Voor als je verder wilt vergelijken of je bezichtiging voorbereidt.</small></div>
-    {showDetails && <div className="full-details"><section className="dashboard-grid"><div className="score-card"><div className="score-card-label">Reality score</div><div className="score-big">{analysis.overallScore.toLocaleString("nl-NL", { minimumFractionDigits: 1 })}<small>/ 10</small></div><p className="score-tagline">Vaste score voor eerlijke vergelijking tussen woningen.</p><div className="fit-score"><span>Jouw persoonlijke fit</span><strong>{personalFit == null ? "—" : `${personalFit.toLocaleString("nl-NL", { minimumFractionDigits: 1 })} / 10`}</strong></div><div className="score-footer"><span><Clock3 size={12} style={{ verticalAlign: "-2px" }} /> bijgewerkt<strong>{generated}</strong></span><span>datadekking<strong>{analysis.dataCoverage.label}</strong></span></div></div><div className="decision-card"><div className="section-kicker">Signalen per onderwerp</div><ScoreProfile analysis={analysis} /></div></section><section className="insight-grid"><InsightList title="Hier extra op letten" type="attention" items={attention} analysis={analysis} /><InsightList title="Sterke punten" type="positive" items={positives} analysis={analysis} /></section>
+    {showDetails && <div className="full-details"><section className="dashboard-grid"><div className="score-card"><div className="score-card-label">Reality score</div><div className="score-big">{analysis.overallScore.toLocaleString("nl-NL", { minimumFractionDigits: 1 })}<small>/ 10</small></div><p className="score-tagline">Vaste score voor eerlijke vergelijking tussen woningen.</p><div className="fit-score"><span>Jouw persoonlijke fit</span><strong>{personalFit == null ? "—" : `${personalFit.toLocaleString("nl-NL", { minimumFractionDigits: 1 })} / 10`}</strong></div><div className="score-footer"><span><Clock3 size={12} style={{ verticalAlign: "-2px" }} /> bijgewerkt<strong>{generated}</strong></span><span>onderwerpdekking<strong>{analysis.dataCoverage.label}</strong></span></div></div><div className="decision-card"><div className="section-kicker">Signalen per onderwerp</div><ScoreProfile analysis={analysis} /></div></section><section className="insight-grid"><InsightList title="Hier extra op letten" type="attention" items={attention} analysis={analysis} /><InsightList title="Sterke punten" type="positive" items={positives} analysis={analysis} /></section>
     <section className="nearby-section" id="omgeving"><div className="section-inline-heading"><div><div className="eyebrow"><Database size={13} /> officiële BAG-data</div><h2>Woningen in de directe omgeving</h2><p>Een selectie van maximaal 12 geregistreerde woonobjecten binnen 150 meter. Oppervlakte is BAG-gebruiksoppervlakte, geen advertentiemaat.</p></div><span className="coverage-pill">{nearbyProperties.length} adressen</span></div>{nearbyProperties.length ? <div className="nearby-grid">{nearbyProperties.map((nearby) => <Link className="nearby-card" href={`/woning/${nearby.bagVboId}`} key={nearby.bagVboId}><strong>{nearby.addressLabel.split(",")[0]}</strong><span>{nearby.areaM2 ? `${nearby.areaM2} m²` : "oppervlakte onbekend"} · {nearby.distanceM} m</span></Link>)}</div> : <p>Voor deze locatie zijn nu geen omliggende woonadressen gevonden.</p>}</section>
-    <section className="preference-panel"><div><div className="eyebrow"><Settings2 size={13} /> persoonlijke fit</div><p>{workspace.preferencesConfigured ? "Pas aan wat voor jou het zwaarst weegt." : "Stel je voorkeuren in voor een score die bij jouw woonwensen past."}</p></div><button className="secondary-button" type="button" onClick={() => setShowPreferences((value) => !value)}>{showPreferences ? "Sluiten" : "Voorkeuren instellen"}</button>{showPreferences && <div className="preference-controls">{preferenceKeys.map((key) => <label key={key}><span>{preferenceLabel(key)}</span><input type="range" min="1" max="5" value={preferences[key]} onChange={(event) => setLocalPreferences({ ...preferences, [key]: Number(event.target.value) })} /><output>{preferences[key]}</output></label>)}<button className="primary-button" type="button" onClick={() => { setPreferences(preferences); setShowPreferences(false); }}>Bewaar voorkeuren</button></div>}</section>
+    <section className="preference-panel"><div><div className="eyebrow"><Settings2 size={13} /> persoonlijke fit</div><p>{workspace.preferencesConfigured ? "Pas aan wat voor jou het zwaarst weegt." : "Stel je voorkeuren in voor een score die bij jouw woonwensen past."}</p></div><button className="secondary-button" type="button" onClick={() => setShowPreferences((value) => !value)}>{showPreferences ? "Sluiten" : "Voorkeuren instellen"}</button>{showPreferences && <div className="preference-controls">{preferenceKeys.map((key) => { const inputId = `preference-${key}`; return <div className="preference-control" key={key}><label htmlFor={inputId}>{preferenceLabel(key)}</label><input id={inputId} type="range" min="1" max="5" value={preferences[key]} onChange={(event) => setLocalPreferences({ ...preferences, [key]: Number(event.target.value) })} /><output htmlFor={inputId}>{preferences[key]}</output></div>; })}<button className="primary-button" type="button" onClick={() => { void savePreferences(); }}>Bewaar voorkeuren</button></div>}</section>
     <div className="signals-heading" id="signalen"><h2>De signalen</h2><span>{analysis.signals.length} onderdelen · {analysis.sources.length} bronnen</span></div><section className="signals-grid">{analysis.signals.map((signal) => <SignalCard key={signal.key} signal={signal} />)}</section>
-    <section className="checklist-section" id="checklist"><div className="section-inline-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> klaar voor de bezichtiging</div><h2>Jouw checklist</h2><p>Concrete vragen uit deze analyse, lokaal bewaard op dit apparaat.</p></div><button className="secondary-button" type="button" onClick={() => window.print()}><Printer size={14} /> Print / bewaar als PDF</button></div><div className="checklist-list">{checklist.map((item) => <label className={`checklist-item ${item.checked ? "checked" : ""}`} key={item.id}><input type="checkbox" checked={item.checked} onChange={(event) => saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, checked: event.target.checked } : candidate))} /><span><strong>{item.label}</strong>{item.reason && <small>{item.reason}</small>}<input className="checklist-note" value={item.note ?? ""} placeholder="Eigen notitie (privé)" onChange={(event) => saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate))} onClick={(event) => event.preventDefault()} /></span></label>)}<button className="add-checklist" type="button" onClick={() => saveChecklist([...checklist, { id: `custom-${Date.now()}`, label: "Eigen punt", checked: false }])}>+ Eigen punt toevoegen</button></div></section>
-    <section className="sources-section" id="bronnen"><div className="section-inline-heading"><div><h2>Bronnen en datadekking</h2><p>Elke conclusie blijft terug te vinden naar de gebruikte bron.</p></div><span className="coverage-pill"><Check size={12} /> {analysis.dataCoverage.label}</span></div><div className="source-status-list">{analysis.sourceStatuses.map((source) => <div key={source.source}><span className={`status-dot ${source.status}`} /><strong>{source.source}</strong><span>{source.status === "ok" ? "beschikbaar" : source.message ?? "niet beschikbaar"}</span></div>)}</div></section>
+    <section className="checklist-section" id="checklist"><div className="section-inline-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> klaar voor de bezichtiging</div><h2>Jouw checklist</h2><p>Concrete vragen uit deze analyse, opgeslagen in je aankoopomgeving.</p>{checklistError && <p className="form-message" role="status">{checklistError} <Link href="/login">Inloggen</Link></p>}</div><button className="secondary-button" type="button" onClick={() => window.print()}><Printer size={14} /> Print / bewaar als PDF</button></div><div className="checklist-list">{checklist.map((item) => { const checkboxId = `checklist-${item.id}`; return <div className="checklist-item-wrap" key={item.id}><label className={`checklist-item ${item.checked ? "checked" : ""}`} htmlFor={checkboxId}><input id={checkboxId} type="checkbox" checked={item.checked} onChange={(event) => { void saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, checked: event.target.checked } : candidate)); }} /><span><strong>{item.label}</strong>{item.reason && <small>{item.reason}</small>}</span></label><input className="checklist-note" value={item.note ?? ""} aria-label={`Notitie voor ${item.label}`} placeholder="Eigen notitie (privé)" onChange={(event) => { void saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate)); }} /></div>; })}<button className="add-checklist" type="button" onClick={() => { void saveChecklist([...checklist, { id: `custom-${Date.now()}`, label: "Eigen punt", checked: false }]); }}>+ Eigen punt toevoegen</button></div></section>
+    <section className="sources-section" id="bronnen"><div className="section-inline-heading"><div><h2>Bronnen en datadekking</h2><p>Elke conclusie blijft terug te vinden naar de gebruikte bron. Onderwerpen kunnen meerdere bronnen combineren; ontbrekende integraties staan hieronder expliciet vermeld.</p></div><span className="coverage-pill"><Check size={12} /> {analysis.dataCoverage.label}</span></div><div className="source-status-list">{analysis.sourceStatuses.map((source) => <div key={source.source}><span className={`status-dot ${source.status}`} /><strong>{source.source}</strong><span>{source.status === "ok" ? "beschikbaar" : source.message ?? "niet beschikbaar"}</span></div>)}</div></section>
     <div className="source-note"><span><strong>Transparantie:</strong> de score is een versieerbare rekensom, geen verborgen oordeel.</span><span><RefreshCw size={12} style={{ verticalAlign: "-2px" }} /> {analysis.analysisVersion}</span></div>
     <p className="dashboard-disclaimer">WoonReality is een screening- en beslisondersteunend product. Model- en open-data-indicaties vervangen geen bouwkundige keuring, akoestisch onderzoek, funderingsonderzoek, bodemonderzoek, juridisch advies of formele vergunningscheck.</p></div>}
   </div></main>;

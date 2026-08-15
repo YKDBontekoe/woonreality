@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     if (!body.bagVboId || !/^\d{16}$/.test(body.bagVboId)) return NextResponse.json({ error: "Kies eerst een geldig woningadres." }, { status: 400 });
 
     const admin = createSupabaseAdminClient();
-    if (!admin) return NextResponse.json({ error: "Supabase-opslag is nog niet geconfigureerd." }, { status: 503 });
+    if (!admin) return NextResponse.json({ error: "Het aankoopdossier kan nog niet worden opgeslagen: Supabase is nog niet gekoppeld." }, { status: 503 });
     const { data: property, error: propertyError } = await admin.from("properties").select("id,address_label").eq("bag_vbo_id", body.bagVboId).maybeSingle();
     if (propertyError || !property) return NextResponse.json({ error: "Open eerst de woninganalyse voordat je een dossier start." }, { status: 404 });
 
