@@ -2,7 +2,7 @@ import type { Geometry } from "geojson";
 
 export type Confidence = "high" | "medium" | "low";
 export type Severity = "good" | "neutral" | "attention";
-export type SignalCategory = "woning" | "gezondheid" | "klimaat" | "mobiliteit" | "toekomst";
+export type SignalCategory = "woning" | "gezondheid" | "klimaat" | "mobiliteit" | "buurt" | "toekomst";
 
 export type Evidence = {
   id: string;
@@ -58,6 +58,7 @@ export type SourceStatus = {
   source: string;
   status: "ok" | "partial" | "unavailable";
   message?: string;
+  sourceUrl?: string;
 };
 
 export type DataCoverage = {

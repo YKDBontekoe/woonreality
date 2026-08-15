@@ -86,6 +86,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "PDOK / BGT",
     sourceUrl: `${pdokUrls.bgt}collections/wegdeel/items`,
     confidence: "medium",
+    fetchedAt: bgt.fetchedAt,
     spatialResolution: "lokale topografie",
     caveat: "De BGT-proxy zegt iets over lokale wegstructuur, niet over een officiële gevelmeting of verkeersmodel.",
   });
@@ -94,6 +95,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "PDOK / BGT",
     sourceUrl: `${pdokUrls.bgt}collections/begroeidterreindeel/items`,
     confidence: "medium",
+    fetchedAt: bgt.fetchedAt,
     spatialResolution: "lokale topografie",
     caveat: "Groenpercentage is een eerste geometrische indicatie binnen circa 250 meter.",
   });
@@ -102,6 +104,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "EP-Online / RVO",
     sourceUrl: epOnlineUrl,
     sourceRecordId: property.bagVboId,
+    sourceUpdatedAt: energy?.Registratiedatum ?? energy?.Opnamedatum,
     confidence: "high",
     spatialResolution: "BAG-verblijfsobject",
     caveat: "Een energielabel zegt niets over de actuele staat of het werkelijke verbruik van de woning.",
@@ -116,6 +119,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "RIVM geo-services",
     sourceUrl: rivmUrls.noise,
     confidence: "medium",
+    fetchedAt: rivm?.fetchedAt,
     spatialResolution: "RIVM rastercel",
     caveat: "RIVM-waarden zijn model- of rasterwaarden; gevel, verdieping en momentane omstandigheden kunnen afwijken.",
   });
@@ -124,6 +128,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "CBS Wijk- en Buurtkaart",
     sourceUrl: cbsBuurtenUrl,
     confidence: "medium",
+    fetchedAt: cbs?.fetchedAt,
     spatialResolution: "buurt",
     caveat: "Buurtgemiddelden zijn context en beschrijven niet één woning of huishouden.",
   });
@@ -132,6 +137,8 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "NDOV haltes",
     sourceUrl: ndovHaltesUrl,
     confidence: "high",
+    sourceRecordId: ndov?.catalogDate,
+    fetchedAt: ndov?.fetchedAt,
     spatialResolution: "haltecoördinaat",
     caveat: "Een nabijgelegen halte zegt niets over frequentie, reistijd of toegankelijkheid van de specifieke lijn.",
   });
@@ -140,6 +147,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     source: "DSO Omgevingsdocumenten",
     sourceUrl: dsoOnderwerpenUrl,
     confidence: "medium",
+    fetchedAt: dso?.fetchedAt,
     spatialResolution: "puntbevraging",
     caveat: "De DSO-bevraging signaleert relevante onderwerpen; controleer de actuele regeling en kaartlagen voor juridische conclusies.",
   });
@@ -149,7 +157,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     : clamp(nearestRoadM === Infinity ? 8 : 8 - Math.max(0, 120 - nearestRoadM) / 25);
   const greenScore = clamp(4 + greenPercent / 8);
   const heatScore = clamp(9 - (100 - greenPercent) / 18);
-  const contextScore = clamp(property.buildingYear ? 6.5 + (property.buildingYear >= 2000 ? 1 : 0) : 6);
+  const olderBuilding = property.buildingYear != null && property.buildingYear < 1945;
 
   const signals: Signal[] = [
     {
@@ -224,7 +232,6 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       category: "woning",
       value: property.buildingYear ? String(property.buildingYear) : "bekend",
       unit: property.buildingYear ? "bouwjaar" : undefined,
-      score: contextScore,
       severity: "neutral",
       summary: property.areaM2
         ? `BAG koppelt dit adres aan een verblijfsobject van ${property.areaM2} m².`
@@ -232,6 +239,23 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       action: "Gebruik dit als startpunt; een bouwkundige keuring blijft nodig voor de staat van het gebouw.",
       confidence: "high",
       spatialScale: "BAG-verblijfsobject",
+      evidence: [identity],
+      availability: "available",
+    },
+    {
+      key: "foundation",
+      label: "Fundering & constructie",
+      category: "woning",
+      value: olderBuilding ? "Onderzoeken" : "Niet beoordeeld",
+      severity: olderBuilding ? "attention" : "neutral",
+      summary: olderBuilding
+        ? `Dit pand heeft een BAG-bouwjaar van ${property.buildingYear}. BAG zegt niets over fundering, verzakking of eerder herstel; onderzoek dit vóór je bod.`
+        : "Openbare adresdata bevat geen informatie over fundering, constructieve staat of eerder herstel.",
+      action: olderBuilding
+        ? "Vraag naar funderingsonderzoek, herstel, scheurvorming, peilmetingen en verzekerbaarheid; laat dit beoordelen in een bouwkundige keuring."
+        : "Vraag naar constructieve gebreken, eerdere herstelwerkzaamheden en keuringsrapporten.",
+      confidence: "low",
+      spatialScale: "BAG-pand (geen funderingsregistratie)",
       evidence: [identity],
       availability: "available",
     },
@@ -267,11 +291,11 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     {
       key: "cbs-context",
       label: "Buurtcontext",
-      category: "toekomst",
+      category: "buurt",
       value: cbs?.buurtName ?? "Geen data",
       score: cbs?.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : cbs ? 6 : undefined,
       severity: cbs ? scoreSeverity(cbs.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : 6) : "neutral",
-      summary: cbs?.buurtName ? `${cbs.buurtName}${cbs.municipalityName ? ` (${cbs.municipalityName})` : ""} geeft buurtcontext voor voorzieningen en woningwaarde.` : "Er is geen CBS-buurtcontext beschikbaar.",
+      summary: cbs?.buurtName ? `${cbs.buurtName}${cbs.municipalityName ? ` (${cbs.municipalityName})` : ""} geeft buurtcontext voor voorzieningen. Dit is geen woningwaardering.` : "Er is geen CBS-buurtcontext beschikbaar.",
       action: "Vergelijk buurtgemiddelden met je eigen leefstijl en controleer voorzieningen op verschillende tijdstippen.",
       raw: cbs?.supermarketDistanceKm != null ? { value: cbs.supermarketDistanceKm, unit: "km", metric: "CBS gemiddelde afstand supermarkt" } : undefined,
       confidence: "medium",
@@ -286,7 +310,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       value: ndov?.nearestDistanceM != null ? `${Math.round(ndov.nearestDistanceM / 10) * 10} m` : ndov ? "Geen halte < 1 km" : "Geen data",
       score: ndov?.nearestDistanceM != null ? clamp(10 - ndov.nearestDistanceM / 150) : ndov ? 3 : undefined,
       severity: ndov ? scoreSeverity(ndov.nearestDistanceM != null ? clamp(10 - ndov.nearestDistanceM / 150) : 3) : "neutral",
-      summary: ndov?.nearestDistanceM != null ? `Dichtstbijzijnde NDOV-halte ligt op circa ${formatDistance(ndov.nearestDistanceM)}; ${ndov.stopCount} halte(n) binnen 1 km.` : ndov ? "Geen NDOV-halte binnen 1 kilometer gevonden." : "De NDOV-haltecatalogus kon niet worden opgehaald.",
+      summary: ndov?.nearestDistanceM != null ? `Dichtstbijzijnde NDOV-halte ligt op circa ${formatDistance(ndov.nearestDistanceM)}; ${ndov.stopCount} halte(n) binnen 1 km${ndov.catalogDate ? ` (catalogus ${ndov.catalogDate})` : ""}.` : ndov ? "Geen NDOV-halte binnen 1 kilometer gevonden; controleer de catalogus en lokale dienstregeling voordat je hierop beslist." : "De NDOV-haltecatalogus kon niet worden opgehaald.",
       action: "Controleer lijnfrequentie, avondritten en de daadwerkelijke looproute vanaf de voordeur.",
       raw: ndov?.nearestDistanceM != null ? { value: Math.round(ndov.nearestDistanceM), unit: "m", metric: "afstand tot dichtstbijzijnde NDOV-halte" } : undefined,
       confidence: "high",
@@ -333,6 +357,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     gezondheid: "Gezondheid & hinder",
     klimaat: "Klimaat & bodem",
     mobiliteit: "Mobiliteit",
+    buurt: "Buurt & voorzieningen",
     toekomst: "Toekomst",
   } as const;
   const domains = Object.entries(categoryLabels).map(([key, label]) => {
@@ -431,14 +456,14 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     highlights: [...highlights, ...positives],
     dataCoverage: { available: availableDomainCount, total: domains.length, label: `${availableDomainCount} van ${domains.length} domeinen beschikbaar` },
     sourceStatuses: [
-      { source: "PDOK / BAG", status: "ok" },
-      { source: "PDOK / BGT", status: bgtAvailable ? "ok" : "unavailable", message: bgtAvailable ? undefined : "Lokale topografie kon niet worden opgehaald." },
-      { source: "PDOK / BAG omgeving", status: nearbyAvailable ? "ok" : "unavailable", message: nearbyAvailable ? undefined : "Nabije adressen konden niet worden opgehaald." },
-      { source: "EP-Online / RVO", status: energyAvailable ? "ok" : "unavailable", message: energyAvailable ? undefined : "Voeg EPONLINE_API_KEY toe voor energielabels." },
-      { source: "RIVM geo-services", status: rivmMetricCount === 3 ? "ok" : rivmMetricCount > 0 ? "partial" : "unavailable", message: rivmAvailable ? undefined : "RIVM-rasterwaarden konden niet worden opgehaald." },
-      { source: "CBS Wijk- en Buurtkaart", status: cbsAvailable ? "ok" : "unavailable", message: cbsAvailable ? undefined : "Geen CBS-buurtfeature gevonden of bron niet bereikbaar." },
-      { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "Voeg geen sleutel toe: de openbare haltecatalogus kon niet worden opgehaald." },
-      { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Voeg DSO_API_KEY toe voor ruimtelijke onderwerpen." },
+      { source: "PDOK / BAG", status: "ok", sourceUrl: pdokUrls.bag },
+      { source: "PDOK / BGT", status: bgtAvailable ? "ok" : "unavailable", message: bgtAvailable ? undefined : "Lokale topografie kon niet worden opgehaald.", sourceUrl: pdokUrls.bgt },
+      { source: "PDOK / BAG omgeving", status: nearbyAvailable ? "ok" : "unavailable", message: nearbyAvailable ? undefined : "Nabije adressen konden niet worden opgehaald.", sourceUrl: pdokUrls.bag },
+      { source: "EP-Online / RVO", status: energyAvailable ? "ok" : "unavailable", message: energyAvailable ? undefined : "Voeg EPONLINE_API_KEY toe voor energielabels.", sourceUrl: epOnlineUrl },
+      { source: "RIVM geo-services", status: rivmMetricCount === 3 ? "ok" : rivmMetricCount > 0 ? "partial" : "unavailable", message: rivmAvailable ? undefined : "RIVM-rasterwaarden konden niet worden opgehaald.", sourceUrl: rivmUrls.noise },
+      { source: "CBS Wijk- en Buurtkaart", status: cbsAvailable ? "ok" : "unavailable", message: cbsAvailable ? undefined : "Geen CBS-buurtfeature gevonden of bron niet bereikbaar.", sourceUrl: cbsBuurtenUrl },
+      { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "De openbare haltecatalogus kon niet worden opgehaald.", sourceUrl: ndovHaltesUrl },
+      { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Voeg DSO_API_KEY toe voor ruimtelijke onderwerpen.", sourceUrl: dsoOnderwerpenUrl },
     ],
     nearbyProperties,
   };
