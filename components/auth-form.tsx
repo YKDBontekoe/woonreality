@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { KeyRound, MailCheck } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/browser";
+import { authErrorMessage } from "@/src/lib/supabase/auth-message";
 
 export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
   const [email, setEmail] = useState("");
@@ -26,7 +27,7 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       if (error) throw error;
       setMessage("We hebben een veilige link gestuurd. Bevestig je e-mailadres via die link om verder te gaan.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "De inloglink kon niet worden verstuurd.");
+      setMessage(authErrorMessage(error, "De inloglink kon niet worden verstuurd."));
     } finally {
       setBusy(false);
     }
@@ -46,7 +47,7 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       if (!data.session) throw new Error("Er kon geen sessie met je passkey worden gestart.");
       window.location.assign("/mijn-aankoop");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Inloggen met passkey lukt nu niet. Probeer e-mail.");
+      setMessage(authErrorMessage(error, "Inloggen met passkey lukt nu niet. Probeer e-mail."));
     } finally {
       setPasskeyBusy(false);
     }

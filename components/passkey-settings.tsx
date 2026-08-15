@@ -3,6 +3,7 @@
 import { KeyRound, MailCheck, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/browser";
+import { authErrorMessage } from "@/src/lib/supabase/auth-message";
 
 type PasskeySettingsProps = {
   email: string;
@@ -50,7 +51,7 @@ export function PasskeySettings({ email, emailConfirmed, suggestEnrollment = fal
       setPasskeyCount(data?.length ?? null);
       setMessage("Je passkey is toegevoegd. Volgende keer kun je hiermee direct inloggen.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Je passkey kon niet worden toegevoegd.");
+      setMessage(authErrorMessage(error, "Je passkey kon niet worden toegevoegd."));
     } finally {
       setBusy(false);
     }

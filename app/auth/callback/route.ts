@@ -6,6 +6,11 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next");
   const setup = url.searchParams.get("setup");
+
+  if (!code && url.searchParams.get("error")) {
+    return NextResponse.redirect(new URL("/login?error=invalid-link", url.origin));
+  }
+
   if (code) {
     try {
       const supabase = await createSupabaseServerClient();
