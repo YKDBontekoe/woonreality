@@ -24,7 +24,11 @@ export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindi
       setDocuments((current) => [body.document!, ...current]);
       if (body.findings?.length) setFindings((current) => [...body.findings!, ...current]);
       setMessage(body.findings?.length ? `Gelezen: ${body.findings.length} aandachtspunt${body.findings.length === 1 ? "" : "en"} gevonden.` : "Document opgeslagen. Geen automatische aandachtspunten in de tekst.");
-      await fetch(`/api/cases/${encodeURIComponent(caseId)}/tasks`, { method: "POST" });
+      const tasksResponse = await fetch(`/api/cases/${encodeURIComponent(caseId)}/tasks`, { method: "POST" });
+      if (tasksResponse.ok) {
+        const tasksBody = await tasksResponse.json() as { tasks?: CaseTask[] };
+        if (Array.isArray(tasksBody.tasks)) setTasks(tasksBody.tasks);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Uploaden is niet gelukt.");
     } finally {

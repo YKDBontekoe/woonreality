@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
-import { syncEngineTasks } from "@/src/lib/cases/sync-tasks";
-import { CASE_STAGES, normalizeCaseStage, propertyStageFromCase } from "@/src/lib/journey";
-import { normalizeBuyerProfile } from "@/src/lib/purchase";
+import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
+import { isAcceptedCaseStageInput, normalizeCaseStage } from "@/src/lib/journey";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 
 export const runtime = "nodejs";
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
 
 async function ownedCase(caseId: string) {
   const supabase = await createSupabaseServerClient();
@@ -54,40 +49,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ caseI
     if (!user) return NextResponse.json({ error: "Log in om dit dossier te wijzigen." }, { status: 401 });
     if (!purchaseCase) return NextResponse.json({ error: "Dossier niet gevonden." }, { status: 404 });
     const body = await request.json() as { title?: string; stage?: string; status?: string };
-    const stage = body.stage ? normalizeCaseStage(body.stage) : undefined;
-    if (body.stage && !CASE_STAGES.includes(stage!)) return NextResponse.json({ error: "Onbekende dossierstap." }, { status: 400 });
-    const { data, error } = await supabase.from("purchase_cases").update({
-      ...(body.title?.trim() ? { title: body.title.trim() } : {}),
-      ...(stage ? { stage } : {}),
-      ...(body.status ? { status: body.status } : {}),
-      updated_at: new Date().toISOString(),
-    }).eq("id", caseId).eq("user_id", user.id).select("*").single();
-    if (error) throw error;
-    if (stage && stage !== purchaseCase.stage) {
-      await supabase.from("case_events").insert({ case_id: caseId, user_id: user.id, event_type: "stage_changed", payload: { from: purchaseCase.stage, to: stage } });
-      const bagVboId = bagFromCase(purchaseCase);
-      if (bagVboId) {
-        await supabase.from("saved_properties").update({ stage: propertyStageFromCase(stage), updated_at: new Date().toISOString() }).eq("user_id", user.id).eq("bag_vbo_id", bagVboId);
-      }
+    if (typeof body.stage === "string" && body.stage.trim() && !isAcceptedCaseStageInput(body.stage)) {
+      return NextResponse.json({ error: "Onbekende dossierstap." }, { status: 400 });
     }
-    const { data: profile } = await supabase.from("profiles").select("preferences_json").eq("id", user.id).maybeSingle();
-    const [{ data: documents }, { data: findings }] = await Promise.all([
-      supabase.from("case_documents").select("document_type").eq("case_id", caseId),
-      supabase.from("document_findings").select("title,severity,action,status").eq("case_id", caseId).eq("status", "open"),
-    ]);
-    await syncEngineTasks(supabase, user.id, {
-      profile: normalizeBuyerProfile(record(profile?.preferences_json).buyerProfile),
-      profileConfigured: Boolean(record(profile?.preferences_json).buyerProfile),
-      stage: stage ?? normalizeCaseStage(data.stage),
-      bagVboId: bagFromCase(purchaseCase),
-      caseId,
-      documentTypes: (documents ?? []).map((item) => item.document_type),
-      openFindings: findings ?? [],
-      hasAskingPrice: false,
-      hasOffer: false,
-      hasContractAmount: false,
+    const { data, error } = await supabase.rpc("apply_case_stage", {
+      p_case_id: caseId,
+      p_stage: body.stage?.trim() || null,
+      p_title: body.title?.trim() || null,
+      p_status: body.status || null,
     });
-    return NextResponse.json({ case: { ...data, stage: normalizeCaseStage(data.stage), bagVboId: bagFromCase(purchaseCase) } });
+    if (error || !data) throw error ?? new Error("Dossier kon niet worden bijgewerkt.");
+    const updated = data as Record<string, unknown>;
+    const stage = normalizeCaseStage(typeof updated.stage === "string" ? updated.stage : purchaseCase.stage);
+    await syncEngineTasks(supabase, user.id, await loadTaskEngineInput(supabase, user.id, {
+      caseId,
+      stage,
+      bagVboId: bagFromCase(purchaseCase),
+    }));
+    return NextResponse.json({ case: { ...updated, stage, bagVboId: bagFromCase(purchaseCase) } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Dossier kon niet worden bijgewerkt." }, { status: 502 });
   }

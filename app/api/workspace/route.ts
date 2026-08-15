@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
-import { EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
+import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
@@ -47,7 +47,7 @@ async function readWorkspace() {
       preferences,
       preferencesConfigured: Boolean(profilePreferences.personalPreferences),
       buyerProfile,
-      buyerProfileConfigured: Boolean(profilePreferences.buyerProfile),
+      buyerProfileConfigured: buyerProfileIsConfigured(buyerProfile, profilePreferences.buyerProfile),
       saved: savedProperties.map((item): SavedProperty => ({ bagVboId: item.bag_vbo_id, addressLabel: item.address_label, city: item.city, postcode: item.postcode, savedAt: item.saved_at })),
       compare: Array.isArray(profile?.compare_ids) ? profile.compare_ids.filter(isBagId).slice(0, 4) : [],
       propertyStages,

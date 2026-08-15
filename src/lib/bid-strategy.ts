@@ -43,7 +43,8 @@ export function attentionSignals(analysis?: Analysis | null) {
 
 export function buildBidStrategy(askingPrice: number, analysis?: Analysis | null, profile?: Pick<BuyerProfile, "budget" | "firstTimeBuyer" | "ownFunds"> | null): BidStrategy | null {
   if (!askingPrice || askingPrice < 1) return null;
-  const attention = attentionSignals(analysis);
+  const analysisAvailable = analysis != null;
+  const attention = analysisAvailable ? attentionSignals(analysis) : [];
   const foundationRisk = attention.some((signal) => signal.key === "foundation" || /funder/i.test(signal.label) || /funder/i.test(signal.summary));
   const energyRisk = attention.some((signal) => signal.key === "energy");
   const riskDiscount = Math.min(0.06, attention.length * 0.005 + (foundationRisk ? 0.015 : 0) + (energyRisk ? 0.005 : 0));
@@ -69,17 +70,24 @@ export function buildBidStrategy(askingPrice: number, analysis?: Analysis | null
     riskDiscount > 0 ? "Vraagprijs gecorrigeerd voor aandachtspunten uit de woningcheck." : "Rond de vraagprijs, met beide ontbindende voorwaarden.",
     firstTime ? "Als starter is een keuringsvoorbehoud extra verstandig." : "Voorbehouden houden de koop omkeerbaar tot de deadlines.",
   ]);
-  const strong = scenario(
-    "strong",
-    1 + (attention.length === 0 ? 0.01 : 0),
-    !firstTime && attention.length === 0,
-    attention.length === 0 && !foundationRisk,
-    attention.length === 0
-      ? ["Alleen een klein surplus als de open data weinig rode vlaggen toont.", "Dit is geen winkansvoorspelling: biedconcurrentie kennen we niet."]
-      : ["Geen opslag boven de vraag zolang er aandachtspunten openstaan."],
-  );
+  const strong = analysisAvailable
+    ? scenario(
+      "strong",
+      1 + (attention.length === 0 ? 0.01 : 0),
+      !firstTime && attention.length === 0,
+      attention.length === 0 && !foundationRisk,
+      attention.length === 0
+        ? ["Alleen een klein surplus als de open data weinig rode vlaggen toont.", "Dit is geen winkansvoorspelling: biedconcurrentie kennen we niet."]
+        : ["Geen opslag boven de vraag zolang er aandachtspunten openstaan."],
+    )
+    : scenario("strong", 1, true, true, [
+      "Zonder woninganalyse blijft het bod op of onder de vraagprijs.",
+      "Financierings- en keuringsvoorbehoud blijven aan tot de check er is.",
+    ]);
 
-  const recommended: BidScenarioKey = foundationRisk || attention.length >= 3 ? "cautious" : attention.length > 0 || firstTime ? "balanced" : "strong";
+  const recommended: BidScenarioKey = !analysisAvailable
+    ? "balanced"
+    : foundationRisk || attention.length >= 3 ? "cautious" : attention.length > 0 || firstTime ? "balanced" : "strong";
   const costs = profile ? estimateBuyerCosts(askingPrice, profile) : null;
   const riskSummary = attention.length
     ? `${attention.length} aandachtspunt${attention.length === 1 ? "" : "en"} uit de open-data check${foundationRisk ? ", waaronder fundering" : ""}.`

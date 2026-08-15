@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncEngineTasks } from "@/src/lib/cases/sync-tasks";
 import { normalizeCaseStage, propertyStageFromCase } from "@/src/lib/journey";
-import { normalizeBuyerProfile, profileCompletion } from "@/src/lib/purchase";
+import { buyerProfileIsConfigured, normalizeBuyerProfile } from "@/src/lib/purchase";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { suggestCaseTasks } from "@/src/lib/tasks";
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase.from("profiles").select("preferences_json").eq("id", user.id).maybeSingle();
     const buyerProfile = normalizeBuyerProfile(record(profile?.preferences_json).buyerProfile);
-    const profileConfigured = Boolean(record(profile?.preferences_json).buyerProfile) && profileCompletion(buyerProfile) >= 80;
+    const profileConfigured = buyerProfileIsConfigured(buyerProfile, record(profile?.preferences_json).buyerProfile);
     const stage = profileConfigured ? "research" : "intake";
 
     const { data: purchaseCase, error } = await supabase.from("purchase_cases").insert({
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     }).select("*").single();
     if (error || !purchaseCase) throw error ?? new Error("Dossier kon niet worden aangemaakt.");
 
-    await supabase.from("saved_properties").upsert({
+    const { error: savedError } = await supabase.from("saved_properties").upsert({
       user_id: user.id,
       bag_vbo_id: body.bagVboId,
       address_label: property.address_label,
@@ -78,13 +78,15 @@ export async function POST(request: Request) {
       stage: propertyStageFromCase(stage),
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,bag_vbo_id" });
+    if (savedError) throw savedError;
 
-    await supabase.from("case_events").insert({
+    const { error: eventError } = await supabase.from("case_events").insert({
       case_id: purchaseCase.id,
       user_id: user.id,
       event_type: "case_started",
       payload: { stage },
     });
+    if (eventError) throw eventError;
 
     await syncEngineTasks(supabase, user.id, {
       profile: buyerProfile,

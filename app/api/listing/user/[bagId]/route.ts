@@ -31,23 +31,32 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
   try {
     const { supabase, user } = await currentUser();
     if (!user) return NextResponse.json({ error: "Log in om advertentiegegevens te bewaren." }, { status: 401 });
-    const parsed = userListingBodySchema.safeParse(await request.json());
+    const raw = await request.json() as unknown;
+    const parsed = userListingBodySchema.safeParse(raw);
     if (!parsed.success) return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400 });
     if (parsed.data.sourceUrl && !isHttpUrl(parsed.data.sourceUrl)) return NextResponse.json({ error: "De bronlink is geen geldige URL." }, { status: 400 });
-    const facts = extractListingFacts(parsed.data.pastedText ?? "");
-    const askingPrice = parsed.data.askingPrice ?? facts.askingPrice ?? null;
-    const payload = {
+    const keys = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+    const facts = Object.prototype.hasOwnProperty.call(keys, "pastedText") ? extractListingFacts(parsed.data.pastedText ?? "") : undefined;
+    const payload: Record<string, unknown> = {
       user_id: user.id,
       bag_vbo_id: bagId,
-      source_url: parsed.data.sourceUrl ?? null,
-      asking_price: askingPrice,
-      pasted_text: parsed.data.pastedText ?? null,
-      extracted_json: facts,
       updated_at: new Date().toISOString(),
     };
+    if (Object.prototype.hasOwnProperty.call(keys, "askingPrice")) {
+      payload.asking_price = parsed.data.askingPrice ?? facts?.askingPrice ?? null;
+    } else if (facts?.askingPrice != null) {
+      payload.asking_price = facts.askingPrice;
+    }
+    if (Object.prototype.hasOwnProperty.call(keys, "sourceUrl")) {
+      payload.source_url = parsed.data.sourceUrl ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(keys, "pastedText")) {
+      payload.pasted_text = parsed.data.pastedText ?? null;
+      payload.extracted_json = facts ?? {};
+    }
     const { data, error } = await supabase.from("user_listings").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("*").single();
     if (error) throw error;
-    return NextResponse.json({ listing: data, facts });
+    return NextResponse.json({ listing: data, facts: facts ?? data.extracted_json });
   } catch {
     return NextResponse.json({ error: "Advertentiegegevens konden niet worden opgeslagen." }, { status: 502 });
   }

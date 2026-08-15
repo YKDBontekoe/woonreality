@@ -25,9 +25,15 @@ const RISK_PATTERNS: Array<{ re: RegExp; title: string; summary: string; severit
   { re: /erfpacht|canon/i, title: "Erfpacht of canon", summary: "Erfpacht verandert de maandlast en de verkoopbaarheid. BAG zegt niet of de grond in erfpacht is.", severity: "medium", action: "Vraag resterende looptijd, canon en of afkoop mogelijk is." },
 ];
 
-function parseAreas(text: string) {
-  const matches = [...text.matchAll(/(\d{2,4}(?:[.,]\d)?)\s*m(?:2|²)/gi)];
-  return matches.map((match) => Number(match[1].replace(",", "."))).filter((value) => Number.isFinite(value) && value >= 15 && value <= 800);
+function parseLivingAreas(text: string) {
+  const values: number[] = [];
+  const prefixed = [...text.matchAll(/woonoppervlakte[^\d]{0,24}(\d{2,4}(?:[.,]\d)?)\s*m(?:2|²)/gi)];
+  const suffixed = [...text.matchAll(/(\d{2,4}(?:[.,]\d)?)\s*m(?:2|²)[^\d]{0,16}woonoppervlakte/gi)];
+  for (const match of [...prefixed, ...suffixed]) {
+    const value = Number(match[1].replace(",", "."));
+    if (Number.isFinite(value) && value >= 15 && value <= 800) values.push(value);
+  }
+  return [...new Set(values)];
 }
 
 function parsePrices(text: string) {
@@ -42,7 +48,7 @@ export function analyzeDocumentText(input: DocumentAnalysisInput): DocumentFindi
   }
 
   const findings: DocumentFindingDraft[] = [];
-  const areas = parseAreas(text);
+  const areas = parseLivingAreas(text);
   const prices = parsePrices(text);
 
   if (input.bagAreaM2 && areas.length) {

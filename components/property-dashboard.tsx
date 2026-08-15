@@ -157,14 +157,20 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    setCaseId(null);
     fetch("/api/cases", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) return;
+        if (!response.ok) {
+          setCaseId(null);
+          return;
+        }
         const body = (await response.json()) as { cases?: Array<{ id: string; bagVboId?: string | null }> };
         const match = body.cases?.find((item) => item.bagVboId === bagId);
-        if (match) setCaseId(match.id);
+        setCaseId(match?.id ?? null);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!controller.signal.aborted) setCaseId(null);
+      });
     return () => controller.abort();
   }, [bagId]);
 
@@ -417,6 +423,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           listing={listing}
           caseId={caseId}
         />
+        {!caseId && (
         <section className="case-cta">
           <div>
             <div className="section-kicker">Volgende stap</div>
@@ -428,6 +435,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </div>
           <StartCaseButton bagVboId={property.bagVboId} />
         </section>
+        )}
         <div className="details-toggle">
           <button
             className="secondary-button"

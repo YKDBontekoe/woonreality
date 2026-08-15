@@ -1,6 +1,17 @@
 import type { BuyerProfile } from "@/src/lib/purchase";
 
-export const STARTER_TRANSFER_TAX_THRESHOLD = 525_000;
+export const TRANSFER_TAX = {
+  year: 2026,
+  starterThreshold: 555_000,
+  starterMinAge: 18,
+  starterMaxAge: 35,
+  starterRate: 0,
+  standardRate: 0.02,
+} as const;
+
+export const STARTER_TRANSFER_TAX_THRESHOLD = TRANSFER_TAX.starterThreshold;
+
+export type TransferTaxProfile = Pick<BuyerProfile, "firstTimeBuyer"> & Partial<Pick<BuyerProfile, "buyerAge" | "selfOccupied" | "priorExemptionUsed">>;
 
 export type BuyerCostLine = {
   key: string;
@@ -23,20 +34,29 @@ function roundEuro(value: number) {
   return Math.round(value);
 }
 
-export function transferTaxRate(profile: Pick<BuyerProfile, "firstTimeBuyer">, purchasePrice: number) {
-  if (profile.firstTimeBuyer && purchasePrice > 0 && purchasePrice <= STARTER_TRANSFER_TAX_THRESHOLD) return 0;
-  return 0.02;
+export function starterExemptionEligible(profile: TransferTaxProfile, purchasePrice: number) {
+  if (!profile.firstTimeBuyer || !profile.selfOccupied || profile.priorExemptionUsed) return false;
+  if (purchasePrice < 1 || purchasePrice > TRANSFER_TAX.starterThreshold) return false;
+  const age = profile.buyerAge ?? 0;
+  return age >= TRANSFER_TAX.starterMinAge && age <= TRANSFER_TAX.starterMaxAge;
 }
 
-export function estimateBuyerCosts(purchasePrice: number, profile: Pick<BuyerProfile, "firstTimeBuyer" | "ownFunds" | "budget">, financingAmount?: number | null): BuyerCostEstimate | null {
+export function transferTaxRate(profile: TransferTaxProfile, purchasePrice: number) {
+  return starterExemptionEligible(profile, purchasePrice) ? TRANSFER_TAX.starterRate : TRANSFER_TAX.standardRate;
+}
+
+export function estimateBuyerCosts(purchasePrice: number, profile: TransferTaxProfile & Pick<BuyerProfile, "ownFunds" | "budget">, financingAmount?: number | null): BuyerCostEstimate | null {
   if (!purchasePrice || purchasePrice < 1) return null;
   const rate = transferTaxRate(profile, purchasePrice);
+  const thresholdLabel = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(TRANSFER_TAX.starterThreshold);
   const lines: BuyerCostLine[] = [
     {
       key: "transfer-tax",
       label: "Overdrachtsbelasting",
       amount: roundEuro(purchasePrice * rate),
-      note: rate === 0 ? "Startersvrijstelling tot € 525.000 (indicatie; leeftijd en hoofdverblijf moet de notaris toetsen)." : "2% voor een woning als hoofdverblijf. Beleggingswoningen vallen hier buiten.",
+      note: rate === TRANSFER_TAX.starterRate
+        ? `Startersvrijstelling tot ${thresholdLabel} (${TRANSFER_TAX.year}; indicatie 0–2% tot de notaris leeftijd, hoofdverblijf en eerdere vrijstelling toetst).`
+        : "2% voor een woning als hoofdverblijf. Beleggingswoningen vallen hier buiten. Startersvrijstelling hangt af van leeftijd, zelfbewoning en eerdere vrijstelling.",
     },
     { key: "notary", label: "Notaris (indicatie)", amount: 1_250, note: "Levering en hypotheekakte. Vraag een offerte." },
     { key: "appraisal", label: "Taxatie (indicatie)", amount: 800, note: "Vaak verplicht voor de hypotheek. Geen WoonReality-waardering." },

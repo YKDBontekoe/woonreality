@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { syncEngineTasks } from "@/src/lib/cases/sync-tasks";
 import { extractListingFacts } from "@/src/lib/listing-intake";
 import { normalizeCaseStage } from "@/src/lib/journey";
-import { normalizeBuyerProfile } from "@/src/lib/purchase";
+import { buyerProfileIsConfigured, normalizeBuyerProfile } from "@/src/lib/purchase";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -29,7 +29,8 @@ function record(value: unknown): Record<string, unknown> {
 
 export async function POST(request: Request, context: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await context.params;
-  const supabase = await createSupabaseServerClient();
+  try {
+    const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Log in om documenten te bewaren." }, { status: 401 });
   const { data: purchaseCase } = await supabase.from("purchase_cases").select("id,stage,property_id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
@@ -97,7 +98,7 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
   }
 
   if (findings.length) {
-    await supabase.from("document_findings").insert(findings.map((finding) => ({
+    const { error: findingsError } = await supabase.from("document_findings").insert(findings.map((finding) => ({
       document_id: documentId,
       case_id: caseId,
       user_id: auth.user.id,
@@ -107,23 +108,29 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
       action: finding.action,
       status: "open",
     })));
+    if (findingsError) throw findingsError;
   }
 
-  await supabase.from("case_events").insert({
+  const { error: eventError } = await supabase.from("case_events").insert({
     case_id: caseId,
     user_id: auth.user.id,
     event_type: "document_uploaded",
     payload: { filename: file.name, documentType: type, findingCount: findings.length },
   });
+  if (eventError) throw eventError;
 
-  const [{ data: documents }, { data: openFindings }, { data: profile }] = await Promise.all([
+  const [{ data: documents, error: documentsError }, { data: openFindings, error: openFindingsError }, { data: profile, error: profileError }] = await Promise.all([
     supabase.from("case_documents").select("document_type").eq("case_id", caseId),
     supabase.from("document_findings").select("title,severity,action,status").eq("case_id", caseId).eq("status", "open"),
     supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle(),
   ]);
+  if (documentsError) throw documentsError;
+  if (openFindingsError) throw openFindingsError;
+  if (profileError) throw profileError;
+  const buyerProfile = normalizeBuyerProfile(record(profile?.preferences_json).buyerProfile);
   await syncEngineTasks(supabase, auth.user.id, {
-    profile: normalizeBuyerProfile(record(profile?.preferences_json).buyerProfile),
-    profileConfigured: Boolean(record(profile?.preferences_json).buyerProfile),
+    profile: buyerProfile,
+    profileConfigured: buyerProfileIsConfigured(buyerProfile, record(profile?.preferences_json).buyerProfile),
     stage: normalizeCaseStage(purchaseCase.stage),
     bagVboId: property?.bag_vbo_id,
     caseId,
@@ -134,6 +141,10 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
     hasContractAmount: Boolean(record(bid?.conditions).contractAmount),
   });
 
-  const { data: storedFindings } = await supabase.from("document_findings").select("*").eq("document_id", documentId).eq("user_id", auth.user.id);
+  const { data: storedFindings, error: storedError } = await supabase.from("document_findings").select("*").eq("document_id", documentId).eq("user_id", auth.user.id);
+  if (storedError) throw storedError;
   return NextResponse.json({ document, findings: storedFindings ?? [] }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Het document kon niet worden verwerkt." }, { status: 502 });
+  }
 }

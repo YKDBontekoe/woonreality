@@ -164,25 +164,21 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   });
 }
 
-export function hrefForTask(task: { source?: string | null; title?: string | null }, fallback: { caseId: string; bagVboId?: string | null }) {
+export function hrefForTask(task: { source?: string | null; title?: string | null; href?: string | null }, fallback: { caseId: string; bagVboId?: string | null }) {
+  if (task.href) return task.href;
   const source = task.source ?? "";
-  if (source.startsWith("engine:")) {
-    const match = suggestCaseTasks({
-      profileConfigured: true,
-      stage: "research",
-      caseId: fallback.caseId,
-      bagVboId: fallback.bagVboId,
-      documentTypes: [],
-      openFindings: [],
-      hasAskingPrice: true,
-      hasOffer: true,
-      hasContractAmount: true,
-    }).find((item) => item.source === source);
-    if (match?.href) return match.href;
+  const caseHref = `/mijn-aankoop/${fallback.caseId}`;
+  if (source.startsWith("engine:finding-")) return `${caseHref}#bevindingen`;
+  if (source.startsWith("engine:docs-")) return `${caseHref}#documenten`;
+  if (source === "engine:contract-check" || source === "engine:inspection-book") return `${caseHref}#koopakte`;
+  if (source === "engine:profile") return "/mijn-aankoop#woonprofiel";
+  if (source === "engine:viewing-signals" || source === "engine:viewing-checklist") {
+    return fallback.bagVboId ? `/woning/${fallback.bagVboId}/bezichtiging` : caseHref;
   }
+  if (source === "engine:asking-price" || source === "engine:bid-draft") return `${caseHref}#waarde-bod`;
   if (/profiel/i.test(task.title ?? "")) return "/mijn-aankoop#woonprofiel";
   if (/bezichtig/i.test(task.title ?? "") && fallback.bagVboId) return `/woning/${fallback.bagVboId}/bezichtiging`;
-  if (/document|upload|vve|vragenlijst|brochure/i.test(task.title ?? "")) return `/mijn-aankoop/${fallback.caseId}#documenten`;
-  if (/bod|vraagprijs/i.test(task.title ?? "")) return `/mijn-aankoop/${fallback.caseId}#waarde-bod`;
-  return `/mijn-aankoop/${fallback.caseId}`;
+  if (/document|upload|vve|vragenlijst|brochure/i.test(task.title ?? "")) return `${caseHref}#documenten`;
+  if (/bod|vraagprijs/i.test(task.title ?? "")) return `${caseHref}#waarde-bod`;
+  return caseHref;
 }

@@ -23,8 +23,12 @@ export type BuyerProfile = {
   parking: boolean;
   remoteWork: boolean;
   household: HouseholdType;
+  householdSpecified: boolean;
   propertyType: SoughtPropertyType;
   firstTimeBuyer: boolean;
+  buyerAge: number;
+  selfOccupied: boolean;
+  priorExemptionUsed: boolean;
   nhg: boolean;
   acceptVve: boolean;
   maxCommuteMinutes: number;
@@ -40,8 +44,12 @@ export const DEFAULT_BUYER_PROFILE: BuyerProfile = {
   parking: false,
   remoteWork: true,
   household: "family",
+  householdSpecified: true,
   propertyType: "any",
   firstTimeBuyer: false,
+  buyerAge: 32,
+  selfOccupied: true,
+  priorExemptionUsed: false,
   nhg: false,
   acceptVve: true,
   maxCommuteMinutes: 45,
@@ -57,8 +65,12 @@ export const EMPTY_BUYER_PROFILE: BuyerProfile = {
   parking: false,
   remoteWork: false,
   household: "couple",
+  householdSpecified: false,
   propertyType: "any",
   firstTimeBuyer: false,
+  buyerAge: 0,
+  selfOccupied: false,
+  priorExemptionUsed: false,
   nhg: false,
   acceptVve: true,
   maxCommuteMinutes: 0,
@@ -112,8 +124,8 @@ function asString(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
 }
 
-function asHousehold(value: unknown): HouseholdType {
-  return value === "single" || value === "couple" || value === "family" ? value : DEFAULT_BUYER_PROFILE.household;
+function asHousehold(value: unknown): HouseholdType | null {
+  return value === "single" || value === "couple" || value === "family" ? value : null;
 }
 
 function asPropertyType(value: unknown): SoughtPropertyType {
@@ -122,6 +134,7 @@ function asPropertyType(value: unknown): SoughtPropertyType {
 
 export function normalizeBuyerProfile(value: unknown): BuyerProfile {
   const record = asRecord(value);
+  const household = asHousehold(record.household);
   return {
     budget: asNumber(record.budget, 0),
     monthlyPayment: asNumber(record.monthlyPayment, 0),
@@ -131,9 +144,13 @@ export function normalizeBuyerProfile(value: unknown): BuyerProfile {
     garden: asBoolean(record.garden, false),
     parking: asBoolean(record.parking, false),
     remoteWork: asBoolean(record.remoteWork, false),
-    household: asHousehold(record.household),
+    household: household ?? DEFAULT_BUYER_PROFILE.household,
+    householdSpecified: household != null,
     propertyType: asPropertyType(record.propertyType),
     firstTimeBuyer: asBoolean(record.firstTimeBuyer, false),
+    buyerAge: asNumber(record.buyerAge, 0),
+    selfOccupied: asBoolean(record.selfOccupied, false),
+    priorExemptionUsed: asBoolean(record.priorExemptionUsed, false),
     nhg: asBoolean(record.nhg, false),
     acceptVve: asBoolean(record.acceptVve, true),
     maxCommuteMinutes: asNumber(record.maxCommuteMinutes, 0),
@@ -147,8 +164,13 @@ export function profileCompletion(profile: BuyerProfile) {
     profile.ownFunds >= 0,
     Boolean(profile.searchArea.trim()),
     profile.bedrooms > 0,
-    Boolean(profile.household),
+    profile.householdSpecified,
     profile.maxCommuteMinutes > 0,
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+export function buyerProfileIsConfigured(profile: BuyerProfile, stored?: unknown) {
+  if (stored !== undefined && (stored == null || typeof stored !== "object" || Array.isArray(stored))) return false;
+  return profileCompletion(profile) >= 80 && profile.maxCommuteMinutes > 0;
 }

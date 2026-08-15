@@ -31,21 +31,30 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
           fetch(`/api/property/${encodeURIComponent(bagId)}/bid-draft`, { cache: "no-store" }),
           fetch(`/api/listing/user/${encodeURIComponent(bagId)}`, { cache: "no-store" }),
         ]);
+        let draftAsking: number | null = null;
+        let draftScenario: BidScenarioKey | undefined;
+        let listingAsking: number | null = null;
+        let sessionAsking: number | undefined;
         if (draftResponse.status !== 401) {
           const body = await draftResponse.json() as { draft?: { asking_price: number | null; selected_scenario: BidScenarioKey }; error?: string };
           if (!draftResponse.ok) throw new Error(body.error ?? "Bodconcept kon niet worden geladen.");
-          if (body.draft?.asking_price != null) setAskingPrice(body.draft.asking_price);
-          if (body.draft?.selected_scenario) setSelected(body.draft.selected_scenario);
+          if (body.draft?.asking_price != null) draftAsking = body.draft.asking_price;
+          if (body.draft?.selected_scenario) draftScenario = body.draft.selected_scenario;
         }
         if (userListingResponse.ok) {
           const listingBody = await userListingResponse.json() as { listing?: { asking_price: number | null } | null };
-          if (!cancelled && listingBody.listing?.asking_price && !userEditedAskingPriceRef.current) setAskingPrice(listingBody.listing.asking_price);
-        } else {
+          if (listingBody.listing?.asking_price != null) listingAsking = listingBody.listing.asking_price;
+        } else if (!userEditedAskingPriceRef.current) {
           try {
             const raw = sessionStorage.getItem(listingStorageKey(bagId));
-            const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
-            if (!cancelled && draft?.askingPrice && !userEditedAskingPriceRef.current) setAskingPrice(draft.askingPrice);
+            const sessionDraft = raw ? JSON.parse(raw) as UserListingDraft : null;
+            sessionAsking = sessionDraft?.askingPrice;
           } catch { /* ignore */ }
+        }
+        if (!cancelled) {
+          const resolved = draftAsking ?? listingAsking ?? sessionAsking;
+          if (resolved != null) setAskingPrice(resolved);
+          if (draftScenario) setSelected(draftScenario);
         }
       } catch (error) {
         if (!cancelled) setSaveError(error instanceof Error ? error.message : "Bodconcept kon niet worden geladen.");
@@ -72,7 +81,9 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
       const body = await response.json() as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Bodconcept kon niet worden opgeslagen.");
       if (caseId) {
-        await fetch(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ askingPrice, offerAmount: bid, financingCondition: strategy?.scenarios[selected].financingCondition, inspectionCondition: strategy?.scenarios[selected].inspectionCondition, scenario: selected, reasons: strategy?.scenarios[selected].reasons ?? [], stage: "offer" }) });
+        const workflowResponse = await fetch(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ askingPrice, offerAmount: bid, financingCondition: strategy?.scenarios[selected].financingCondition, inspectionCondition: strategy?.scenarios[selected].inspectionCondition, scenario: selected, reasons: strategy?.scenarios[selected].reasons ?? [], stage: "offer" }) });
+        const workflowBody = await workflowResponse.json() as { error?: string };
+        if (!workflowResponse.ok) throw new Error(workflowBody.error ?? "Dossier kon niet worden bijgewerkt.");
       }
       setSaveError(""); setSaved(true); window.setTimeout(() => setSaved(false), 1800);
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Bodconcept kon niet worden opgeslagen."); }

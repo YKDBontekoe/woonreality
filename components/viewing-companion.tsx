@@ -17,6 +17,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
   const [busy, setBusy] = useState(false);
   const { toggleSaved, workspace } = usePropertyWorkspace();
   const writeQueue = useRef(Promise.resolve());
+  const noteTimers = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -57,8 +58,11 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     return () => controller.abort();
   }, [analysis, bagId]);
 
-  async function saveChecklist(next: ChecklistItem[]) {
-    setChecklist(next);
+  useEffect(() => () => {
+    Object.values(noteTimers.current).forEach((timer) => window.clearTimeout(timer));
+  }, []);
+
+  async function persistChecklist(next: ChecklistItem[]) {
     const write = writeQueue.current.catch(() => undefined).then(async () => {
       const response = await fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: next }) });
       const body = await response.json() as { error?: string };
@@ -69,18 +73,39 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     try { await write; } catch (caught) { setChecklistError(caught instanceof Error ? caught.message : "Checklist kon niet worden opgeslagen."); }
   }
 
+  async function saveChecklist(next: ChecklistItem[]) {
+    setChecklist(next);
+    await persistChecklist(next);
+  }
+
+  function updateNote(itemId: string, note: string) {
+    setChecklist((current) => {
+      const next = current.map((candidate) => candidate.id === itemId ? { ...candidate, note } : candidate);
+      window.clearTimeout(noteTimers.current[itemId]);
+      noteTimers.current[itemId] = window.setTimeout(() => { void persistChecklist(next); }, 500);
+      return next;
+    });
+  }
+
   async function finish(decision: "continue" | "doubt" | "drop") {
     setBusy(true);
     setDebrief("");
-    const saved = workspace.saved.some((item) => item.bagVboId === bagId);
-    if (!saved && analysis) await toggleSaved(analysis.property);
-    const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/debrief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
-    const body = await response.json() as { caseId?: string | null; error?: string };
-    if (response.status === 401) { window.location.href = "/login"; return; }
-    if (!response.ok) { setDebrief(body.error ?? "Debrief kon niet worden opgeslagen."); setBusy(false); return; }
-    if (decision === "continue" && body.caseId) window.location.href = `/mijn-aankoop/${body.caseId}#waarde-bod`;
-    else if (decision === "drop") window.location.href = "/mijn-aankoop";
-    else { setDebrief("Twijfel is oké. Werk je notities bij en kom later terug."); setBusy(false); }
+    try {
+      const saved = workspace.saved.some((item) => item.bagVboId === bagId);
+      if (!saved && analysis) await toggleSaved(analysis.property);
+      const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/debrief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
+      const body = await response.json() as { caseId?: string | null; error?: string };
+      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (!response.ok) { setDebrief(body.error ?? "Debrief kon niet worden opgeslagen."); return; }
+      if (decision === "continue" && body.caseId) { window.location.href = `/mijn-aankoop/${body.caseId}#waarde-bod`; return; }
+      if (decision === "continue") { setDebrief("De bezichtiging is afgerond, maar er is nog geen dossier om het bod in te zetten. Start of open eerst een aankoopdossier."); return; }
+      if (decision === "drop") { window.location.href = "/mijn-aankoop"; return; }
+      setDebrief("Twijfel is oké. Werk je notities bij en kom later terug.");
+    } catch (caught) {
+      setDebrief(caught instanceof Error ? caught.message : "Debrief kon niet worden opgeslagen.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (error) return <main className="site-shell"><div className="container"><SiteHeader current="woning" /><p className="hero-copy">{error}</p></div></main>;
@@ -101,7 +126,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
       return <div className={`companion-item ${item.checked ? "checked" : ""}`} key={item.id}>
         <label htmlFor={checkboxId}><input id={checkboxId} type="checkbox" checked={item.checked} onChange={(event) => { void saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, checked: event.target.checked } : candidate)); }} /><span><strong>{item.label}</strong>{item.reason && <small>{item.reason}</small>}</span></label>
         <label className="sr-only" htmlFor={noteId}>Notitie voor {item.label}</label>
-        <textarea id={noteId} value={item.note ?? ""} placeholder="Wat zie, ruik of hoor je?" rows={2} onChange={(event) => { void saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, note: event.target.value } : candidate)); }} />
+        <textarea id={noteId} value={item.note ?? ""} placeholder="Wat zie, ruik of hoor je?" rows={2} onChange={(event) => { updateNote(item.id, event.target.value); }} />
       </div>;
     })}</div>
     <section className="companion-debrief">

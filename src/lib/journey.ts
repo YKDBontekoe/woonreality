@@ -34,6 +34,10 @@ export function isCaseStage(value: unknown): value is CaseStage {
   return typeof value === "string" && CASE_STAGES.includes(value as CaseStage);
 }
 
+export function isAcceptedCaseStageInput(value: unknown): value is string {
+  return isCaseStage(value) || (typeof value === "string" && value in LEGACY_CASE_STAGES);
+}
+
 export function normalizeCaseStage(value: unknown): CaseStage {
   if (typeof value !== "string") return "intake";
   if (isCaseStage(value)) return value;

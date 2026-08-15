@@ -265,6 +265,10 @@ export type Database = {
         Args: { p_case_id: string; p_payload: Json };
         Returns: Json;
       };
+      apply_case_stage: {
+        Args: { p_case_id: string; p_stage?: string | null; p_title?: string | null; p_status?: string | null };
+        Returns: Json;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
