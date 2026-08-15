@@ -3,7 +3,7 @@ import { MortgageCalculator, MortgagePageIntro } from "@/components/mortgage-cal
 
 export const metadata = {
   title: "Hypotheek berekenen — WoonReality",
-  description: "Bereken je maximale hypotheek volgens de leennormen 2026: loondienst, zelfstandig, partner, schulden, NHG en energielabel.",
+  description: "Bereken je maximale hypotheek volgens de leennormen 2026: loondienst, zelfstandig, private lease, eigen geld, NHG en live AFM/DNB-indicatie.",
 };
 
 export default async function HypotheekPage({ searchParams }: { searchParams: Promise<{ label?: string; price?: string; nhg?: string }> }) {

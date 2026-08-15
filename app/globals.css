@@ -707,7 +707,9 @@ button.text-link { background: none; border: 0; padding: 0; }
 .work-chips button { border: 1px solid var(--line); background: #fbfcfa; color: var(--ink-soft); border-radius: 99px; padding: 7px 11px; font-size: 12px; }
 .work-chips button.active, .work-chips button:hover { border-color: var(--moss-focus); background: var(--mint-soft); color: var(--moss); }
 .mortgage-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
-.mortgage-hint, .mortgage-disclaimer { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.mortgage-hint, .mortgage-disclaimer, .mortgage-sources { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.mortgage-field-hint { display: block; font-weight: 400; color: var(--muted); font-size: 10px; line-height: 1.35; margin: -1px 0 2px; }
+.mortgage-sources { margin: 10px 0 0; }
 .mortgage-disclaimer { display: flex; gap: 8px; margin: 16px 0 0; }
 .mortgage-disclaimer svg { flex: none; color: var(--moss); margin-top: 1px; }
 .mortgage-warning { display: flex; gap: 8px; margin-top: 12px; color: var(--coral-deep); font-size: 12px; }

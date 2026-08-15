@@ -29,6 +29,21 @@ export {
   incomeFromSource,
   threeYearToetsinkomen,
 } from "@/src/lib/mortgage/income";
+export {
+  obligationAnnualTotal,
+  obligationLines,
+  ownFundsTotal,
+  REVOLVING_MONTHLY_FACTOR,
+  STUDENT_REMAINING_MONTHLY_FACTOR,
+} from "@/src/lib/mortgage/obligations";
+export {
+  loadMortgageMarket,
+  marketIndicativeRate,
+  parseAfmToetsrente,
+  parseEcbMirObservation,
+  AFM_TOETSRENTE_URL,
+  NHG_RATE_OFFSET,
+} from "@/src/lib/mortgage/market";
 export type {
   EmploymentContract,
   EnergyBand,
@@ -37,6 +52,7 @@ export type {
   MortgageCapacity,
   MortgageFinance,
   MortgageLine,
+  MortgageMarketSnapshot,
   MortgagePropertyContext,
   PersonFinance,
   RepaymentType,
@@ -49,12 +65,23 @@ export function defaultMortgageFinance(nhg = false): MortgageFinance {
     applicant: emptyPerson(),
     partner: null,
     studentLoanMonthly: 0,
+    studentLoanRemaining: 0,
+    studentLoanSf35: true,
+    privateLeaseMonthly: 0,
+    revolvingCreditLimit: 0,
+    installmentLoanMonthly: 0,
+    groundLeaseMonthly: 0,
     otherMonthlyDebts: 0,
     alimonyPaidMonthly: 0,
+    savings: 0,
+    gift: 0,
+    saleEquity: 0,
     interestRate: indicativeRate(10, nhg),
     fixedPeriodYears: 10,
     repayment: "annuity",
     energyPerformanceGuarantee: false,
     includeEnergyMeasures: false,
+    starterExemption: false,
+    buyerAge: 0,
   };
 }

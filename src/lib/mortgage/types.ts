@@ -38,13 +38,24 @@ export type MortgageFinance = {
   applicant: PersonFinance;
   partner: PersonFinance | null;
   studentLoanMonthly: number;
+  studentLoanRemaining: number;
+  studentLoanSf35: boolean;
+  privateLeaseMonthly: number;
+  revolvingCreditLimit: number;
+  installmentLoanMonthly: number;
+  groundLeaseMonthly: number;
   otherMonthlyDebts: number;
   alimonyPaidMonthly: number;
+  savings: number;
+  gift: number;
+  saleEquity: number;
   interestRate: number;
   fixedPeriodYears: FixedPeriodYears;
   repayment: RepaymentType;
   energyPerformanceGuarantee: boolean;
   includeEnergyMeasures: boolean;
+  starterExemption: boolean;
+  buyerAge: number;
 };
 
 export type MortgagePropertyContext = {
@@ -88,7 +99,21 @@ export type MortgageCapacity = {
   askingPrice: number;
   ownFunds: number;
   financingNeeded: number;
+  buyerCosts: number | null;
+  ownFundsGap: number | null;
   fit: "unknown" | "fits" | "tight" | "over";
   lines: MortgageLine[];
   disclaimer: string;
+};
+
+export type MortgageMarketSnapshot = {
+  fetchedAt: string;
+  toetsrente: { rate: number; label: string; sourceUrl: string; live: boolean };
+  indicativeRates: {
+    asOf: string;
+    source: string;
+    sourceUrl: string;
+    live: boolean;
+    byPeriod: Record<FixedPeriodYears, { nhg: number; other: number }>;
+  };
 };

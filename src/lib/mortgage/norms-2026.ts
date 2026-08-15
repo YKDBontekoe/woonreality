@@ -84,9 +84,9 @@ export function studentLoanGrossFactor(toetsrente: number) {
   return row?.factor ?? 1.4;
 }
 
-export function toetsrenteFor(rate: number, fixedPeriodYears: number) {
+export function toetsrenteFor(rate: number, fixedPeriodYears: number, afmFloor = AFM_TOETSRENTE_FLOOR) {
   if (fixedPeriodYears >= 10) return Math.max(0, rate);
-  return Math.max(rate, AFM_TOETSRENTE_FLOOR);
+  return Math.max(rate, afmFloor);
 }
 
 export function normalizeEnergyLabel(raw?: string | null): { band: EnergyBand; label: string | null } {
