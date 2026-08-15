@@ -1,4 +1,8 @@
 {
+  "framework": "nextjs",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "regions": ["ams1"],
   "crons": [
     {
       "path": "/api/cron/source-health",

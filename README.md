@@ -20,7 +20,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - Vercel-ready API routes and a protected source-health Cron route
 - Drizzle/Postgres schema for the next persistence step
 
-When `DATABASE_URL` is present, analysis requests upsert the property and append evidence plus the versioned analysis to Postgres. Without it, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
+When the Supabase URL, publishable key and server-only secret key are present, analysis requests upsert the property and append evidence plus the versioned analysis to Supabase Postgres. Without them, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
 
 The heat card remains a first-screening proxy. RIVM noise and air values are official public raster/model sources, but are not a facade measurement or personal exposure assessment.
 
@@ -73,24 +73,38 @@ endpoints.
 
 ## Vercel setup
 
-1. Create or select a Vercel team/project.
-2. Import this repository with framework preset `Next.js`.
-3. Add the variables from `.env.example` in Project Settings → Environment Variables.
-4. Set `CRON_SECRET`; Vercel will send it as `Authorization: Bearer ...` to the cron route.
-5. Deploy with the production branch. `vercel.json` schedules source-health checks daily at 03:15 UTC.
-6. Add a Neon/Vercel Postgres connection as `DATABASE_URL` before enabling persistence migrations.
+1. Create or select a Supabase project and configure its Auth redirect URL for `/auth/callback`.
+2. Create or select a Vercel team/project.
+3. Import this repository with framework preset `Next.js`.
+4. Add the variables from `.env.example` in Project Settings → Environment Variables.
+5. Set `CRON_SECRET`; Vercel will send it as `Authorization: Bearer ...` to the cron route.
+6. Deploy with the production branch. `vercel.json` schedules source-health checks daily at 03:15 UTC.
 
-With `DATABASE_URL` configured, apply the checked-in schema migration with:
+With Supabase configured, apply the checked-in schema migration with:
 
 ```bash
-npm run db:migrate
+supabase link --project-ref <your-project-ref>
+npm run db:push
+npm run db:types
 ```
+
+The Supabase migration creates the public analysis tables, private purchase-case tables, RLS policies, and the private `purchase-documents` Storage bucket. No Neon database or Drizzle migration is used.
 
 The prepared deployment commands are `npm run vercel:link` and `npm run vercel:deploy`.
 
+### Main-branch deployment pipeline
+
+`.github/workflows/ci.yml` runs quality checks for pull requests and pushes. On a successful push to `main`, it then links the Supabase project and applies `supabase/migrations/`. Vercel's Git integration deploys the same `main` push to production.
+
+Configure these GitHub Actions secrets in the `production` environment:
+
+- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`
+
+Configure the Supabase and application environment variables in Vercel Project Settings. The pipeline never passes database or service secrets to the browser.
+
 The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV are open services. Add `NEXT_PUBLIC_MAPBOX_TOKEN` for the interactive map, `EPONLINE_API_KEY` for energy labels, and `DSO_API_KEY` for spatial planning topics.
 
-AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and `DATABASE_URL`. The app uses Vercel AI Gateway with `AI_RESEARCH_MODEL` for source research/document extraction and `AI_SYNTHESIS_MODEL` for the structured report. Reports are stored for `AI_REPORT_TTL_DAYS` (default seven days), cite their source URLs, and never alter the deterministic Reality Score. `AI_ALLOWED_DOMAINS` and `LISTING_ALLOWED_HOSTS` limit additional web and listing sources.
+AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and the Supabase variables. The app uses Vercel AI Gateway with `AI_RESEARCH_MODEL` for source research/document extraction and `AI_SYNTHESIS_MODEL` for the structured report. Reports are stored for `AI_REPORT_TTL_DAYS` (default seven days), cite their source URLs, and never alter the deterministic Reality Score. `AI_ALLOWED_DOMAINS` and `LISTING_ALLOWED_HOSTS` limit additional web and listing sources.
 
 ## Next slices
 

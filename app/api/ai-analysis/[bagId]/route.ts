@@ -4,7 +4,7 @@ import { analyzeProperty } from "@/src/lib/analysis/analyze";
 import { aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingForProperty } from "@/src/lib/sources/listings";
-import { getDatabase } from "@/src/lib/db/client";
+import { isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { aiReportStatus, getAiReport, markAiReportGenerating, persistAiReport, persistAiReportFailure, persistAnalysis } from "@/src/lib/db/repository";
 
 export const runtime = "nodejs";
@@ -27,28 +27,28 @@ async function loadContext(bagId: string) {
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
-  if (!process.env.AI_GATEWAY_API_KEY || !getDatabase()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en DATABASE_URL zijn nodig voor AI-research." }, { status: 503 });
+  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
   try {
     const property = await getPropertyById(decodeURIComponent(bagId));
     const row = await getAiReport(property.bagVboId, aiReportVersions.report);
     const status = aiReportStatus(row);
-    return NextResponse.json({ status, report: status === "ready" ? row?.reportJson ?? null : null, generatedAt: row?.generatedAt?.toISOString() ?? null, expiresAt: row?.expiresAt?.toISOString() ?? null });
+    return NextResponse.json({ status, report: status === "ready" ? row?.report_json ?? null : null, generatedAt: row?.generated_at ?? null, expiresAt: row?.expires_at ?? null });
   } catch (error) {
     return NextResponse.json({ status: "failed", message: error instanceof Error ? error.message : "AI-status kon niet worden geladen" }, { status: 502 });
   }
 }
 
 export async function POST(_request: Request, context: { params: Promise<{ bagId: string }> }) {
-  if (!process.env.AI_GATEWAY_API_KEY || !getDatabase()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en DATABASE_URL zijn nodig voor AI-research." }, { status: 503 });
+  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
   try {
     const { analysis, listing } = await loadContext(bagId);
     await persistAnalysis(analysis);
     const inputFingerprint = fingerprint(analysis, listing);
     const existing = await getAiReport(analysis.property.bagVboId, aiReportVersions.report);
-    if (existing && aiReportStatus(existing) === "ready" && existing.inputFingerprint === inputFingerprint) {
-      return NextResponse.json({ status: "ready", report: existing.reportJson });
+    if (existing && aiReportStatus(existing) === "ready" && existing.input_fingerprint === inputFingerprint) {
+      return NextResponse.json({ status: "ready", report: existing.report_json });
     }
     if (existing && aiReportStatus(existing) === "generating") return NextResponse.json({ status: "generating" }, { status: 202 });
     await markAiReportGenerating(analysis, aiReportVersions.report, aiReportVersions.prompt, inputFingerprint);
