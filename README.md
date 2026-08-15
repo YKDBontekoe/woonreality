@@ -108,6 +108,8 @@ AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and the Supabase variabl
 
 ## Next slices
 
+The purchase cockpit slice is now included. `/mijn-aankoop` works as a database-backed dashboard with a buyer profile, saved-home board, property stages, next actions, and links into the existing transparent woningcheck. Buyer preferences, saved homes, comparison selection, viewing checklists, bid drafts, valuation snapshots, finance data, and purchase workflow data are stored through Supabase with user-scoped RLS. The UI keeps drafts user-controlled but no longer uses browser storage for product data.
+
 1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
 2. Add official RIVM/Atlas raster sampling for additional greenery and climate layers.
 3. Add DSO/KOOP document detail links and timeline presentation.
