@@ -454,7 +454,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     domains,
     everydayInsights: insights,
     highlights: [...highlights, ...positives],
-    dataCoverage: { available: availableDomainCount, total: domains.length, label: `${availableDomainCount} van ${domains.length} domeinen beschikbaar` },
+    dataCoverage: { available: availableDomainCount, total: domains.length, label: `${availableDomainCount} van ${domains.length} onderwerpen beschikbaar` },
     sourceStatuses: [
       { source: "PDOK / BAG", status: "ok", sourceUrl: pdokUrls.bag },
       { source: "PDOK / BGT", status: bgtAvailable ? "ok" : "unavailable", message: bgtAvailable ? undefined : "Lokale topografie kon niet worden opgehaald.", sourceUrl: pdokUrls.bgt },

@@ -1,43 +1,65 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PersonalPreferences, Property, SavedProperty } from "@/src/lib/types";
-import { emptyWorkspace, readWorkspace, writeWorkspace, type WorkspaceData } from "@/src/lib/workspace";
+import type { PersonalPreferences, Property } from "@/src/lib/types";
+import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
+import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
+
+export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
 
 export function usePropertyWorkspace() {
   const [workspace, setWorkspace] = useState<WorkspaceData>(() => emptyWorkspace());
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [workspaceReady, setWorkspaceReady] = useState(false);
 
-  useEffect(() => setWorkspace(readWorkspace()), []);
-  const toggleSaved = useCallback((property: Property) => {
-    setWorkspace((current) => {
-      const exists = current.saved.some((item) => item.bagVboId === property.bagVboId);
-      const saved: SavedProperty[] = exists
-        ? current.saved.filter((item) => item.bagVboId !== property.bagVboId)
-        : [{ bagVboId: property.bagVboId, addressLabel: property.addressLabel, city: property.city, postcode: property.postcode, savedAt: new Date().toISOString() }, ...current.saved];
-      const next = { ...current, saved };
-      writeWorkspace(next);
-      return next;
-    });
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch("/api/workspace", { cache: "no-store" });
+      const body = await response.json() as { workspace?: WorkspaceData; error?: string };
+      if (response.status === 401) { setWorkspaceError("Log in om je aankoopomgeving te bewaren."); return; }
+      if (!response.ok || !body.workspace) throw new Error(body.error ?? "Aankoopomgeving kon niet worden geladen.");
+      setWorkspace(body.workspace);
+      setWorkspaceError("");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Aankoopomgeving kon niet worden geladen.");
+    } finally {
+      setWorkspaceReady(true);
+    }
   }, []);
 
-  const toggleCompare = useCallback((bagVboId: string) => {
-    setWorkspace((current) => {
-      const compare = current.compare.includes(bagVboId)
-        ? current.compare.filter((id) => id !== bagVboId)
-        : current.compare.length >= 4 ? current.compare : [...current.compare, bagVboId];
-      const next = { ...current, compare };
-      writeWorkspace(next);
-      return next;
-    });
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const mutate = useCallback(async (payload: Record<string, unknown>): Promise<WorkspaceMutationResult> => {
+    try {
+      const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await response.json() as { workspace?: WorkspaceData; error?: string };
+      if (response.status === 401) { window.location.href = "/login"; return { ok: false, error: "Log in om wijzigingen te bewaren." }; }
+      if (!response.ok || !body.workspace) throw new Error(body.error ?? "Wijziging kon niet worden opgeslagen.");
+      setWorkspace(body.workspace);
+      setWorkspaceError("");
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Wijziging kon niet worden opgeslagen.";
+      setWorkspaceError(message);
+      return { ok: false, error: message };
+    }
   }, []);
 
-  const setPreferences = useCallback((preferences: PersonalPreferences) => {
-    setWorkspace((current) => {
-      const next = { ...current, preferences, preferencesConfigured: true };
-      writeWorkspace(next);
-      return next;
-    });
-  }, []);
+  const toggleSaved = useCallback(async (property: Property) => {
+    const exists = workspace.saved.some((item) => item.bagVboId === property.bagVboId);
+    await mutate(exists ? { action: "unsave", bagVboId: property.bagVboId } : { action: "save", bagVboId: property.bagVboId, addressLabel: property.addressLabel, city: property.city, postcode: property.postcode });
+  }, [mutate, workspace.saved]);
 
-  return { workspace, toggleSaved, toggleCompare, setPreferences };
+  const toggleCompare = useCallback(async (bagVboId: string) => {
+    const compare = workspace.compare.includes(bagVboId) ? workspace.compare.filter((id) => id !== bagVboId) : workspace.compare.length >= 4 ? workspace.compare : [...workspace.compare, bagVboId];
+    await mutate({ action: "compare", compare });
+  }, [mutate, workspace.compare]);
+
+  const setPreferences = useCallback(async (preferences: PersonalPreferences) => mutate({ action: "profile", preferences }), [mutate]);
+
+  const setBuyerProfile = useCallback(async (buyerProfile: BuyerProfile) => mutate({ action: "profile", buyerProfile }), [mutate]);
+
+  const setPropertyStage = useCallback(async (bagVboId: string, stage: PropertyStage) => mutate({ action: "stage", bagVboId, stage }), [mutate]);
+
+  return { workspace, workspaceReady, workspaceError, toggleSaved, toggleCompare, setPreferences, setBuyerProfile, setPropertyStage };
 }
