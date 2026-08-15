@@ -721,8 +721,10 @@ button.text-link { background: none; border: 0; padding: 0; }
 .mortgage-subhead { display: block; margin-bottom: 8px; color: var(--ink-soft); font-size: 12px; font-weight: 600; }
 .mortgage-form-card .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .mortgage-form-card .form-grid label { font-size: 12px; color: var(--ink-soft); }
-.mortgage-income { grid-column: 1 / -1; }
-.mortgage-income input { font: 600 22px/1.1 "Space Grotesk", sans-serif; padding: 12px 14px; }
+.mortgage-pay-lines { list-style: none; margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--mint-pale); display: grid; gap: 6px; }
+.mortgage-pay-lines li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink-soft); }
+.mortgage-pay-lines strong { font: 600 13px "DM Mono", monospace; color: var(--ink); }
+.mortgage-pay-lines .is-total { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--mint-border); color: var(--ink); font-weight: 600; }
 .mortgage-hint, .mortgage-disclaimer, .mortgage-sources, .mortgage-result-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .mortgage-result-note { margin: 8px 0 0; }
 .mortgage-field-hint { display: block; font-weight: 400; color: var(--muted); font-size: 11px; line-height: 1.35; margin: -1px 0 2px; }

@@ -30,6 +30,14 @@ export {
   threeYearToetsinkomen,
 } from "@/src/lib/mortgage/income";
 export {
+  HOLIDAY_PAY_RATE,
+  buildSalaryBreakdown,
+  emptySalaryBreakdown,
+  holidayPayAmount,
+  thirteenthAmount,
+} from "@/src/lib/mortgage/salary";
+export type { HolidayMode, IncomeEntry, SalaryBreakdown, SalaryBreakdownInput } from "@/src/lib/mortgage/salary";
+export {
   obligationAnnualTotal,
   obligationLines,
   ownFundsTotal,
