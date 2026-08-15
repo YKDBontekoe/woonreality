@@ -122,6 +122,103 @@ type DocumentFindingRow = {
   created_at: string;
 };
 
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  preferences_json: Json;
+  compare_ids: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedPropertyRow = {
+  user_id: string;
+  bag_vbo_id: string;
+  address_label: string;
+  postcode: string;
+  city: string;
+  stage: string;
+  saved_at: string;
+  updated_at: string;
+};
+
+export type PropertyChecklistRow = {
+  user_id: string;
+  bag_vbo_id: string;
+  items_json: Json;
+  updated_at: string;
+};
+
+export type PropertyBidDraftRow = {
+  id: string;
+  user_id: string;
+  bag_vbo_id: string;
+  asking_price: number | null;
+  selected_scenario: string;
+  updated_at: string;
+};
+
+export type CaseFinanceRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  maximum_price: number | null;
+  own_funds: number | null;
+  financing_amount: number | null;
+  financing_status: string;
+  transfer_preference: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ComparableSaleRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  address_label: string;
+  sale_price: number;
+  sale_date: string | null;
+  area_m2: number | null;
+  distance_m: number | null;
+  source: string;
+  source_url: string | null;
+  created_at: string;
+};
+
+export type ValuationSnapshotRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  version: number;
+  low_value: number | null;
+  midpoint_value: number | null;
+  high_value: number | null;
+  methodology: Json;
+  created_at: string;
+};
+
+export type BidDraftRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  version: number;
+  amount: number | null;
+  transfer_date: string | null;
+  conditions: Json;
+  body: string;
+  status: string;
+  created_at: string;
+};
+
+export type CaseEventRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  event_type: string;
+  payload: Json;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -131,14 +228,32 @@ export type Database = {
       evidence: Table<EvidenceRow>;
       analyses: Table<AnalysisRow>;
       ai_reports: Table<AiReportRow>;
-      profiles: Table<{ id: string; display_name: string | null; preferences_json: Json; created_at: string; updated_at: string }>;
+      profiles: Table<ProfileRow>;
       purchase_cases: Table<PurchaseCaseRow>;
       case_tasks: Table<CaseTaskRow>;
       case_documents: Table<CaseDocumentRow>;
       document_findings: Table<DocumentFindingRow>;
+      saved_properties: Table<SavedPropertyRow>;
+      property_checklists: Table<PropertyChecklistRow>;
+      property_bid_drafts: Table<PropertyBidDraftRow>;
+      case_finance: Table<CaseFinanceRow>;
+      comparable_sales: Table<ComparableSaleRow>;
+      valuation_snapshots: Table<ValuationSnapshotRow>;
+      bid_drafts: Table<BidDraftRow>;
+      notification_preferences: Table<{ user_id: string; email_enabled: boolean; deadline_reminders: boolean; updated_at: string }>;
+      case_events: Table<CaseEventRow>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      merge_profile_preferences: {
+        Args: { p_preferences?: Json | null; p_buyer_profile?: Json | null; p_compare_ids?: Json | null };
+        Returns: Json;
+      };
+      apply_case_workflow: {
+        Args: { p_case_id: string; p_payload: Json };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
