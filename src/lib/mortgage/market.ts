@@ -19,6 +19,7 @@ const ECB_SERIES: Record<FixedPeriodYears, string> = {
   30: "M.NL.B.A2C.P.R.A.2250.EUR.N",
 };
 
+const FETCH_TIMEOUT_MS = 8_000;
 const FETCH_HEADERS = {
   Accept: "application/json, text/html",
   "User-Agent": "WoonReality/0.1 (mortgage-norms; +https://github.com/YKDBontekoe/woonreality)",
@@ -81,7 +82,11 @@ function fallbackSnapshot(): MortgageMarketSnapshot {
 }
 
 async function fetchAfmToetsrente() {
-  const response = await fetch(AFM_TOETSRENTE_URL, { headers: FETCH_HEADERS, next: { revalidate: 21_600 } });
+  const response = await fetch(AFM_TOETSRENTE_URL, {
+    headers: FETCH_HEADERS,
+    next: { revalidate: 21_600 },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`AFM HTTP ${response.status}`);
   const parsed = parseAfmToetsrente(await response.text());
   if (!parsed) throw new Error("AFM toetsrente kon niet worden gelezen");
@@ -90,11 +95,27 @@ async function fetchAfmToetsrente() {
 
 async function fetchEcbRate(period: FixedPeriodYears) {
   const url = `${ECB_MIR_URL}/${ECB_SERIES[period]}?lastNObservations=1&format=jsondata`;
-  const response = await fetch(url, { headers: { ...FETCH_HEADERS, Accept: "application/json" }, next: { revalidate: 86_400 } });
+  const response = await fetch(url, {
+    headers: { ...FETCH_HEADERS, Accept: "application/json" },
+    next: { revalidate: 86_400 },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`ECB HTTP ${response.status}`);
   const parsed = parseEcbMirObservation(await response.json());
   if (!parsed) throw new Error("ECB-rente kon niet worden gelezen");
   return parsed;
+}
+
+function asIndicativeRate(value: number, nhg: boolean) {
+  return Math.round((nhg ? Math.max(0, value - NHG_RATE_OFFSET) : value) * 100) / 100;
+}
+
+function bandFromResult(
+  result: PromiseSettledResult<{ rate: number; period: string }>,
+  fallback: { nhg: number; other: number },
+) {
+  if (result.status !== "fulfilled") return fallback;
+  return { nhg: asIndicativeRate(result.value.rate, true), other: asIndicativeRate(result.value.rate, false) };
 }
 
 export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
@@ -113,18 +134,22 @@ export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
       live: true,
     };
   }
-  if (five.status === "fulfilled" && ten.status === "fulfilled" && long.status === "fulfilled") {
-    const asRate = (value: number, nhg: boolean) => Math.round((nhg ? Math.max(0, value - NHG_RATE_OFFSET) : value) * 100) / 100;
+  if (five.status === "fulfilled" || ten.status === "fulfilled" || long.status === "fulfilled") {
+    const fallbackBands = snapshot.indicativeRates.byPeriod;
+    const asOf = (ten.status === "fulfilled" && ten.value.period)
+      || (five.status === "fulfilled" && five.value.period)
+      || (long.status === "fulfilled" && long.value.period)
+      || snapshot.indicativeRates.asOf;
     snapshot.indicativeRates = {
-      asOf: ten.value.period || snapshot.indicativeRates.asOf,
+      asOf,
       source: "DNB/ECB nieuwe woninghypotheken (banken)",
       sourceUrl: "https://data.ecb.europa.eu/data/datasets/MIR/MIR.M.NL.B.A2C.O.R.A.2250.EUR.N",
       live: true,
       byPeriod: {
-        5: { nhg: asRate(five.value.rate, true), other: asRate(five.value.rate, false) },
-        10: { nhg: asRate(ten.value.rate, true), other: asRate(ten.value.rate, false) },
-        20: { nhg: asRate(long.value.rate, true), other: asRate(long.value.rate, false) },
-        30: { nhg: asRate(long.value.rate, true), other: asRate(long.value.rate, false) },
+        5: bandFromResult(five, fallbackBands[5]),
+        10: bandFromResult(ten, fallbackBands[10]),
+        20: bandFromResult(long, fallbackBands[20]),
+        30: bandFromResult(long, fallbackBands[30]),
       },
     };
   }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { estimateBuyerCosts } from "../src/lib/costs";
+import { sampleRecordValid } from "../src/lib/sources/health";
 import {
   calculateMortgageCapacity,
   defaultEmploymentSource,
@@ -13,6 +14,7 @@ import {
   NHG,
   normalizeEnergyLabel,
   parseAfmToetsrente,
+  parseCanonicalEnergyLabel,
   parseEcbMirObservation,
   REVOLVING_MONTHLY_FACTOR,
   studentLoanGrossFactor,
@@ -252,4 +254,61 @@ test("NHG fee is added to buyer costs when NHG is selected under the limit", () 
   assert.ok(withNhg?.lines.some((line) => line.key === "nhg" && line.amount === Math.round(360_000 * 0.004)));
   const without = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000, nhg: false }, 360_000);
   assert.ok(without && !without.lines.some((line) => line.key === "nhg"));
+
+  const cash = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 400_000, budget: 400_000, nhg: true }, 0);
+  assert.ok(cash && !cash.lines.some((line) => line.key === "nhg"));
+
+  const ebv = estimateBuyerCosts(480_000, { firstTimeBuyer: false, ownFunds: 20_000, budget: 480_000, nhg: true, energySavingMeasures: true }, 480_000);
+  assert.ok(ebv?.lines.some((line) => line.key === "nhg" && line.amount === Math.round(480_000 * NHG.feeRate)));
+  const noEbv = estimateBuyerCosts(480_000, { firstTimeBuyer: false, ownFunds: 20_000, budget: 480_000, nhg: true }, 480_000);
+  assert.ok(noEbv && !noEbv.lines.some((line) => line.key === "nhg"));
+
+  const overLimit = estimateBuyerCosts(500_000, { firstTimeBuyer: false, ownFunds: 50_000, budget: 500_000, nhg: true }, 450_000);
+  assert.ok(overLimit && !overLimit.lines.some((line) => line.key === "nhg"));
+});
+
+test("full-cash purchase keeps zero financing and skips the NHG fee", () => {
+  const result = calculateMortgageCapacity(withJob(60_000, { savings: 250_000 }), { askingPrice: 200_000, nhg: true });
+  assert.equal(result.financingNeeded, 0);
+  const costs = estimateBuyerCosts(200_000, { firstTimeBuyer: false, ownFunds: 250_000, budget: 200_000, nhg: true }, 0);
+  assert.ok(costs && !costs.lines.some((line) => line.key === "nhg"));
+  assert.equal(result.buyerCosts, costs.total);
+  assert.equal(result.ownFundsGap, Math.round(costs.ownFundsNeeded - 250_000));
+});
+
+test("NHG does not cap when the asking price is above the kostengrens", () => {
+  const finance = withJob(200_000);
+  const open = calculateMortgageCapacity(finance, { nhg: false, askingPrice: 500_000 });
+  const selected = calculateMortgageCapacity(finance, { nhg: true, askingPrice: 500_000 });
+  assert.ok(open.maxLoan > NHG.limit);
+  assert.equal(selected.maxLoan, open.maxLoan);
+  assert.ok(!selected.lines.some((line) => line.key === "nhg"));
+});
+
+test("NHG excludes entrepreneurial income under 12 months", () => {
+  const young: IncomeSource = { ...defaultSelfEmployedSource(), monthsActive: 6, profits: [60_000, 50_000, 40_000] };
+  assert.equal(incomeFromSource(young), 50_000);
+  assert.equal(incomeFromSource(young, { nhg: true }), 0);
+
+  const finance = withJob(40_000);
+  finance.applicant.sources.push(young);
+  assert.equal(calculateMortgageCapacity(finance).toetsinkomen, 40_000 + 50_000);
+  assert.equal(calculateMortgageCapacity(finance, { nhg: true }).toetsinkomen, 40_000);
+});
+
+test("canonical energy labels reject display text such as Label C", () => {
+  assert.equal(parseCanonicalEnergyLabel("C"), "C");
+  assert.equal(parseCanonicalEnergyLabel("A++++"), "A++++");
+  assert.equal(parseCanonicalEnergyLabel("Label C"), undefined);
+});
+
+test("ECB health samples require a valid MIR observation", () => {
+  const ecb = { source: "ECB/DNB hypotheekrente", url: "https://data-api.ecb.europa.eu/service/data/MIR" };
+  assert.equal(sampleRecordValid(ecb, '{"hello":true}'), false);
+  const payload = {
+    dataSets: [{ series: { "0:0": { observations: { "0": [3.74, 0, 0] } } } }],
+    structure: { dimensions: { observation: [{ values: [{ id: "2026-06" }] }] } },
+  };
+  assert.equal(sampleRecordValid(ecb, JSON.stringify(payload)), true);
+  assert.equal(sampleRecordValid({ source: "PDOK BAG", url: "https://api.pdok.nl/bag" }, '{"type":"FeatureCollection"}'), true);
 });

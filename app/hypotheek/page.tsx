@@ -1,5 +1,6 @@
 import { SiteHeader } from "@/components/site-header";
 import { MortgageCalculator, MortgagePageIntro } from "@/components/mortgage-calculator";
+import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
 
 export const metadata = {
   title: "Hypotheek berekenen — WoonReality",
@@ -14,7 +15,7 @@ export default async function HypotheekPage({ searchParams }: { searchParams: Pr
     <div className="container mortgage-page">
       <MortgagePageIntro />
       <MortgageCalculator
-        initialEnergyLabel={params.label}
+        initialEnergyLabel={parseCanonicalEnergyLabel(params.label)}
         initialAskingPrice={Number.isFinite(price) ? price : 0}
         initialNhg={params.nhg === "1" ? true : params.nhg === "0" ? false : undefined}
       />

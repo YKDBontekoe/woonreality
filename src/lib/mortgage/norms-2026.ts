@@ -21,6 +21,15 @@ export const NHG = {
   feeRate: 0.004,
 } as const;
 
+export function nhgKostengrens(energySavingMeasures = false) {
+  return energySavingMeasures ? NHG.energyLimit : NHG.limit;
+}
+
+/** Property-value + EBV check shared by capacity caps and the NHG fee. */
+export function isNhgEligible(purchasePrice: number, energySavingMeasures = false) {
+  return purchasePrice > 0 && purchasePrice <= nhgKostengrens(energySavingMeasures);
+}
+
 export const LTV = {
   standard: 1,
   withEnergyMeasures: 1.06,

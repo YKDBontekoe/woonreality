@@ -16,6 +16,7 @@ import {
   Share2,
 } from "lucide-react";
 import Link from "next/link";
+import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "@/components/property-map";
 import { SignalCard } from "@/components/signal-card";
@@ -28,6 +29,7 @@ import {
   DEFAULT_PREFERENCES,
   preferenceLabel,
 } from "@/src/lib/personalization";
+import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
 import {
   checklistForAnalysis,
   mergeChecklistWithDefaults,
@@ -308,8 +310,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     ? energySignal
     : listing?.energyLabel;
   const hypotheekQuery = new URLSearchParams();
-  if (energyLabel) hypotheekQuery.set("label", energyLabel);
+  const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel) ?? parseCanonicalEnergyLabel(listing?.energyLabel);
+  if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (listing?.askingPrice) hypotheekQuery.set("price", String(Math.round(listing.askingPrice)));
+  const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
 
   return (
     <main className="site-shell">
@@ -431,7 +435,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             <h2>Wat kun jij hier lenen?</h2>
             <p>Open de hypotheekcheck met {energyLabel ? `energielabel ${energyLabel}` : "het energielabel"}{listing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld. Loondienst, zelfstandig, schulden en NHG reken je daar zelf.</p>
           </div>
-          <Link className="primary-button" href={`/hypotheek?${hypotheekQuery.toString()}` as never}>Bereken je hypotheek</Link>
+          <Link className="primary-button" href={hypotheekHref}>Bereken je hypotheek</Link>
         </section>
         <ValuationBidPanel
           bagId={bagId}
