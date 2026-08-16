@@ -23,6 +23,8 @@ import { SignalCard } from "@/components/signal-card";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { StartCaseButton } from "@/components/start-case-button";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
+import { FundaListingPanel } from "@/components/funda-listing-panel";
+import { ListingFactsCard } from "@/components/listing-facts-card";
 import { PageShell } from "@/components/ui/page-shell";
 import {
   calculatePersonalFit,
@@ -36,6 +38,8 @@ import {
   checklistForAnalysis,
   mergeChecklistWithDefaults,
 } from "@/src/lib/checklist";
+import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
+import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type {
   AiPropertyReport,
   AiReportStatus,
@@ -60,6 +64,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [listingStatus, setListingStatus] = useState<
     "loading" | "available" | "unavailable"
   >("loading");
+  const [userListing, setUserListing] = useState<PropertyListing | null>(null);
   const [aiReport, setAiReport] = useState<AiPropertyReport | null>(null);
   const [aiStatus, setAiStatus] = useState<AiReportStatus>("missing");
   const { workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
@@ -157,6 +162,51 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         if (!(caught instanceof DOMException && caught.name === "AbortError"))
           setListingStatus("unavailable");
       });
+    return () => controller.abort();
+  }, [bagId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setUserListing(null);
+    async function loadUserListing() {
+      try {
+        const response = await fetch(`/api/listing/user/${encodeURIComponent(bagId)}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const body = await response.json() as {
+            listing?: {
+              source_url?: string | null;
+              asking_price?: number | null;
+              extracted_json?: unknown;
+              updated_at?: string | null;
+            } | null;
+          };
+          const mapped = body.listing ? listingFromUserRecord(body.listing) : null;
+          if (mapped) {
+            if (!controller.signal.aborted) setUserListing(mapped);
+            return;
+          }
+        }
+        const raw = sessionStorage.getItem(listingStorageKey(bagId));
+        const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
+        if (!draft) return;
+        const facts = {
+          notes: [],
+          ...(draft.facts as ImportedListingFacts | undefined),
+          ...(draft.askingPrice ? { askingPrice: draft.askingPrice } : {}),
+        };
+        if (draft.sourceUrl || facts.askingPrice || facts.livingAreaM2) {
+          if (!controller.signal.aborted) {
+            setUserListing(listingFromImportedFacts(draft.sourceUrl || "", facts));
+          }
+        }
+      } catch (caught) {
+        if (caught instanceof DOMException && caught.name === "AbortError") return;
+      }
+    }
+    void loadUserListing();
     return () => controller.abort();
   }, [bagId]);
 
@@ -305,16 +355,17 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     .filter((item) => item.type === "positive")
     .slice(0, 3);
   const nearbyProperties = analysis.nearbyProperties ?? [];
+  const marketListing = listing ?? userListing;
   const energySignal = analysis.signals.find((signal) => signal.key === "energy")?.value;
   const energyLabel = typeof energySignal === "string" && energySignal !== "Geen data"
     ? energySignal
-    : listing?.energyLabel;
+    : marketListing?.energyLabel;
   const hypotheekQuery = new URLSearchParams();
-  const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel) ?? parseCanonicalEnergyLabel(listing?.energyLabel);
+  const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel) ?? parseCanonicalEnergyLabel(marketListing?.energyLabel);
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
-  if (listing?.askingPrice) hypotheekQuery.set("price", String(Math.round(listing.askingPrice)));
+  if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const askingForAffordability = listing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
+  const askingForAffordability = marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
   const affordability = workspace.mortgageConfigured
     ? computePropertyAffordability({
       state: workspace.mortgageState,
@@ -325,7 +376,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     : null;
 
   async function saveProperty() {
-    await toggleSaved(property, listing?.askingPrice ?? askingForAffordability);
+    await toggleSaved(property, marketListing?.askingPrice ?? askingForAffordability);
   }
 
   return (
@@ -447,6 +498,13 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           <EverydayInsights items={analysis.everydayInsights ?? []} />
         </section>
         <PurchaseGuardrails buildingYear={property.buildingYear} />
+        <FundaListingPanel
+          bagId={bagId}
+          bagAreaM2={property.areaM2}
+          listing={userListing}
+          licensedListing={listing}
+          onListingChange={setUserListing}
+        />
         <details className="later-tools">
           <summary>
             Als je dit huis serieus neemt
@@ -458,7 +516,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 <strong>Hypotheek berekenen</strong>
                 <span>
                   {energyLabel ? `Met energielabel ${energyLabel}` : "Met het energielabel"}
-                  {listing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld.
+                  {marketListing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld.
                 </span>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
@@ -490,8 +548,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               <AiResearchSection report={aiReport} status={aiStatus} />
             </div>
             {listingStatus !== "unavailable" && (
-              <div id="advertentie">
-                <ListingSection listing={listing} status={listingStatus} />
+              <div>
+                <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
                 {affordability && (
                   <div className={`buying-power-strip fit-${affordability.fit}`}>
                     <div>
@@ -512,7 +570,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             <ValuationBidPanel
               bagId={bagId}
               analysis={analysis}
-              listing={listing}
+              listing={marketListing}
               caseId={caseId}
             />
           </div>
@@ -1067,163 +1125,6 @@ function SimpleVerdict({
         ))}
       </div>
     </div>
-  );
-}
-
-function formatEuro(value?: number) {
-  return value == null
-    ? "—"
-    : new Intl.NumberFormat("nl-NL", {
-        style: "currency",
-        currency: "EUR",
-        maximumFractionDigits: 0,
-      }).format(value);
-}
-
-function formatDate(value?: string) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium" }).format(
-    new Date(value),
-  );
-}
-
-function listingStatusLabel(status: PropertyListing["status"]) {
-  return {
-    active: "Te koop",
-    sold: "Verkocht",
-    withdrawn: "Ingetrokken",
-    unknown: "Status onbekend",
-  }[status];
-}
-
-function ListingSection({
-  listing,
-  status,
-}: {
-  listing: PropertyListing | null;
-  status: "loading" | "available" | "unavailable";
-}) {
-  if (status === "loading")
-    return (
-      <section className="listing-section">
-        <div className="listing-loading">Advertentiedata wordt opgehaald…</div>
-      </section>
-    );
-  if (!listing) return null;
-
-  const facts = [
-    [
-      "Woonoppervlak",
-      listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined,
-    ],
-    [
-      "Perceel",
-      listing.plotAreaM2 != null ? `${listing.plotAreaM2} m²` : undefined,
-    ],
-    ["Inhoud", listing.volumeM3 != null ? `${listing.volumeM3} m³` : undefined],
-    ["Kamers", listing.roomCount],
-    ["Slaapkamers", listing.bedroomCount],
-    ["Badkamers", listing.bathroomCount],
-    ["Type", listing.propertyType],
-    ["Bouwjaar", listing.constructionYear],
-    ["Energielabel", listing.energyLabel],
-    ["Isolatie", listing.insulation],
-    ["Verwarming", listing.heating],
-    ["Beglazing", listing.glazing],
-    ["Zonnepanelen", listing.solarPanelCount],
-    [
-      "Buitenruimte",
-      listing.outdoorSpaceM2 != null
-        ? `${listing.outdoorSpaceM2} m²`
-        : undefined,
-    ],
-    ["Tuinligging", listing.gardenOrientation],
-    [
-      "Balkon",
-      listing.balcony == null ? undefined : listing.balcony ? "Ja" : "Nee",
-    ],
-    [
-      "Terras",
-      listing.terrace == null ? undefined : listing.terrace ? "Ja" : "Nee",
-    ],
-    ["Parkeren", listing.parking],
-    ["Berging", listing.storage],
-    ["VvE-bijdrage", formatEuro(listing.vveContribution)],
-    ["VvE-reserve", formatEuro(listing.vveReserveFund)],
-  ].filter(([, value]) => value !== undefined && value !== "—") as [
-    string,
-    string | number,
-  ][];
-
-  return (
-    <section className="listing-section" id="advertentie">
-      <div className="section-inline-heading">
-        <div>
-          <div className="eyebrow">
-            <span className="eyebrow-dot" /> gelicentieerde marktdata
-          </div>
-          <h2>Wat de advertentie zegt</h2>
-          <p>
-            Advertentiegegevens staan los van BAG en openbare registraties.
-            Controleer wijzigingen bij de aanbieder.
-          </p>
-        </div>
-        <span className="coverage-pill">
-          {listingStatusLabel(listing.status)}
-        </span>
-      </div>
-      <div className="listing-card">
-        <div className="listing-price-row">
-          <div>
-            <span className="listing-label">Vraagprijs</span>
-            <strong>{formatEuro(listing.askingPrice)}</strong>
-            {listing.pricePerM2 != null && (
-              <small>{formatEuro(listing.pricePerM2)} per m²</small>
-            )}
-          </div>
-          <div className="listing-price-history">
-            {listing.originalAskingPrice != null && (
-              <span>
-                Oorspronkelijk {formatEuro(listing.originalAskingPrice)}
-              </span>
-            )}
-            {listing.priceChangeAmount != null && (
-              <span>
-                Wijziging {formatEuro(listing.priceChangeAmount)}
-                {listing.priceChangePct != null
-                  ? ` (${listing.priceChangePct.toLocaleString("nl-NL")}%)`
-                  : ""}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="listing-meta">
-          <span>Gepubliceerd {formatDate(listing.firstPublishedAt)}</span>
-          <span>Bijgewerkt {formatDate(listing.lastUpdatedAt)}</span>
-          {listing.offerDeadline && (
-            <span>Bieden tot {formatDate(listing.offerDeadline)}</span>
-          )}
-        </div>
-        {facts.length > 0 && (
-          <div className="listing-fact-grid">
-            {facts.map(([label, value]) => (
-              <div key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="listing-footer">
-          <span>
-            Bron: {listing.provider} · opgehaald {formatDate(listing.fetchedAt)}
-          </span>
-          <a href={listing.sourceUrl} target="_blank" rel="noreferrer">
-            Open bron
-          </a>
-        </div>
-      </div>
-    </section>
   );
 }
 

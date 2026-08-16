@@ -1,10 +1,12 @@
 # Listing and surrounding-address data strategy
 
-Last reviewed: 14 August 2026
+Last reviewed: 16 August 2026
 
 ## Decision
 
-Do not scrape Funda or Pararius in WoonReality. Funda's current terms prohibit scraping and data mining without prior written permission; Pararius prohibits commercial screen scraping. `robots.txt` is not a licence and does not override those terms. A scraper would also be brittle because page markup and bot protection can change without notice.
+Do not scrape Funda or Pararius catalogs in WoonReality. Funda's current terms prohibit scraping and data mining without prior written permission; Pararius prohibits commercial screen scraping. `robots.txt` is not a licence and does not override those terms. A crawler would also be brittle because page markup and bot protection can change without notice.
+
+A user may still paste **one listing URL** they are looking at. WoonReality then fetches only that page, on that click, to fill missing asking-price and kenmerken fields. Search results, related pages, photos and floor plans stay out of scope.
 
 Use provider adapters with explicit provenance instead:
 
@@ -12,7 +14,22 @@ Use provider adapters with explicit provenance instead:
 2. **Next — official enrichment:** connect EP-Online for labels, CBS neighbourhood data, DSO/KOOP plans and environmental datasets. These improve the address report without copying portal content.
 3. **Commercial market data:** use Kadaster Objectinformatie for the last transaction price and object facts. At review time, the general object block is free and the latest purchase price costs EUR 0.45 per address; access requires a Mijn Kadaster API key.
 4. **Current listings:** request a licensed feed or written permission from Funda/NVM/brainbay, or contract with a property-data API vendor. Keep this behind a `ListingProvider` interface so licensing can change without changing the analysis model.
-5. **User supplied listing:** optionally let a user paste or upload their own brochure/export. Extract only that submitted document, retain the source URL/file and timestamp, and never crawl related pages automatically.
+5. **User supplied listing:** optionally let a user paste a Funda listing URL, brochure text, page HTML or export. WoonReality fetches **only the single URL the user submitted**, extracts kenmerken, retains the source URL and timestamp, and never crawls search results or related pages. If Funda blocks the request, the user pastes advertentietekst or page HTML instead — still without bypassing bot protection.
+
+## User-initiated Funda import
+
+A logged-in or guest user can paste one `https://www.funda.nl/...` **listing** URL
+in search (Funda-link mode), on the property page, or in the landing intake.
+`POST /api/listing/from-url` extracts the address from the URL and page, resolves
+it via PDOK, and stores kenmerken plus free-text sections. `POST /api/listing/user/:bagId/import`
+does the same when the BAG id is already known. Search pages and other hosts are
+rejected. This is not a catalog scraper: there is no crawl, no photo/floor-plan
+storage, and official BAG/EP-Online facts are never overwritten.
+
+If Funda blocks the fetch with a bot-check, the address is still parsed from the
+listing URL so the woningcheck can open. The user can then paste kenmerken or the
+page HTML from Funda (after completing the check in their own browser). We never
+bypass CAPTCHA or bot protection; pasted content is treated as user-supplied.
 
 ## Licensed feed integration
 

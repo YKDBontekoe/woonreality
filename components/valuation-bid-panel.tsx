@@ -14,14 +14,13 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
   const { workspace } = usePropertyWorkspace();
   const [askingPrice, setAskingPrice] = useState(listing?.askingPrice ?? 0);
   const [selected, setSelected] = useState<BidScenarioKey>("balanced");
-  const [draftResolved, setDraftResolved] = useState(false);
   const [userEditedAskingPrice, setUserEditedAskingPrice] = useState(false);
   const userEditedAskingPriceRef = useRef(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    setDraftResolved(false);
+    setAskingPrice(0);
     setUserEditedAskingPrice(false);
     userEditedAskingPriceRef.current = false;
     let cancelled = false;
@@ -58,8 +57,6 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
         }
       } catch (error) {
         if (!cancelled) setSaveError(error instanceof Error ? error.message : "Bodconcept kon niet worden geladen.");
-      } finally {
-        if (!cancelled) setDraftResolved(true);
       }
     }
     void load();
@@ -67,8 +64,8 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
   }, [bagId]);
 
   useEffect(() => {
-    if (!draftResolved && !userEditedAskingPrice && listing?.askingPrice != null) setAskingPrice(listing.askingPrice);
-  }, [draftResolved, listing?.askingPrice, userEditedAskingPrice]);
+    if (!userEditedAskingPrice && listing?.askingPrice != null && !askingPrice) setAskingPrice(listing.askingPrice);
+  }, [askingPrice, listing?.askingPrice, userEditedAskingPrice]);
 
   const strategy = useMemo(() => buildBidStrategy(askingPrice, analysis, workspace.buyerProfileConfigured ? workspace.buyerProfile : null), [askingPrice, analysis, workspace.buyerProfile, workspace.buyerProfileConfigured]);
   const costs = useMemo(() => estimateBuyerCosts(askingPrice, workspace.buyerProfile), [askingPrice, workspace.buyerProfile]);
