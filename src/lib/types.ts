@@ -45,6 +45,8 @@ export type DomainSummary = {
   signalKeys: string[];
   available: boolean;
   summary: string;
+  /** True when a signal in this domain (e.g. fundering) is flagged "attention" but has no numeric score, so the average above understates the real risk. */
+  hasUnscoredAttention: boolean;
 };
 
 export type EverydayInsight = {
@@ -65,6 +67,19 @@ export type DataCoverage = {
   available: number;
   total: number;
   label: string;
+};
+
+/**
+ * A real risk category WoonReality deliberately does not model or score,
+ * because no reliable open-data signal is wired in yet. Shown so buyers
+ * know to check it themselves rather than assume "no signal" means "no risk".
+ */
+export type KnownGap = {
+  key: string;
+  label: string;
+  summary: string;
+  checkUrl: string;
+  checkLabel: string;
 };
 
 export type ScoreComponent = {
@@ -98,6 +113,10 @@ export type Property = {
   buildingYear?: number;
   areaM2?: number;
   buildingGeometry?: Geometry;
+  /** BAG gebruiksdoel(en), e.g. ["woonfunctie"]. Empty/undefined when BAG did not report a value. */
+  usagePurposes?: string[];
+  /** False only when BAG explicitly reports gebruiksdoel(en) that exclude "woonfunctie" (e.g. a museum or office). */
+  isResidential: boolean;
 };
 
 export type NearbyProperty = {
@@ -106,6 +125,8 @@ export type NearbyProperty = {
   areaM2?: number;
   distanceM: number;
   coordinates: Coordinates;
+  /** BAG pand id(s) this verblijfsobject belongs to, used to detect shared buildings (likely appartement/VvE). */
+  pandIds?: string[];
 };
 
 export type PropertyListing = {
@@ -148,6 +169,10 @@ export type PropertyListing = {
   municipality?: string;
   province?: string;
   description?: string;
+  /** Eigendomssituatie van de grond, bv. "Eigen grond" of "Erfpacht". Niet in BAG. */
+  ownership?: string;
+  /** Buurtomschrijving uit de advertentie. Geen woningwaardering. */
+  neighborhood?: string;
   extraKenmerken?: Record<string, string>;
   textSections?: { title: string; text: string }[];
   notes?: string[];
@@ -229,6 +254,7 @@ export type Analysis = {
   highlights: { type: "positive" | "attention"; signalKey: string; text: string }[];
   dataCoverage: DataCoverage;
   sourceStatuses: SourceStatus[];
+  knownGaps: KnownGap[];
   nearbyProperties: NearbyProperty[];
   persistence?: "database" | "cache-only";
 };

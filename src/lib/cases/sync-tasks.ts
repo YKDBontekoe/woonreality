@@ -28,6 +28,11 @@ export async function loadTaskEngineInput(
   if (valuationError) throw valuationError;
   const prefs = record(profile?.preferences_json);
   const buyerProfile = normalizeBuyerProfile(prefs.buyerProfile);
+  const conditions = record(bid?.conditions);
+  const contractSignedAt = typeof conditions.contractSignedAt === "string" ? conditions.contractSignedAt : null;
+  const contractReceivedAt = typeof conditions.contractReceivedAt === "string" ? conditions.contractReceivedAt : null;
+  const financingWeeks = typeof conditions.financingWeeks === "number" ? conditions.financingWeeks : null;
+  const inspectionWeeks = typeof conditions.inspectionWeeks === "number" ? conditions.inspectionWeeks : null;
   return {
     profile: buyerProfile,
     profileConfigured: buyerProfileIsConfigured(buyerProfile, prefs.buyerProfile),
@@ -38,7 +43,11 @@ export async function loadTaskEngineInput(
     openFindings: findings ?? [],
     hasAskingPrice: Boolean(record(valuation?.methodology).askingPrice ?? valuation?.midpoint_value),
     hasOffer: Boolean(bid?.amount),
-    hasContractAmount: Boolean(record(bid?.conditions).contractAmount),
+    hasContractAmount: Boolean(conditions.contractAmount),
+    contractReceivedAt,
+    contractSignedAt,
+    financingWeeks,
+    inspectionWeeks,
   };
 }
 
@@ -65,18 +74,66 @@ export async function syncEngineTasks(supabase: ServerClient, userId: string, in
     if (closeError) throw closeError;
   }
 
-  const sources = new Set((existing ?? []).map((row) => row.source).filter(Boolean));
-  const rows = suggestions.filter((task) => !sources.has(task.source)).map((task) => ({
-    case_id: input.caseId,
-    user_id: userId,
-    title: task.title,
-    description: task.description,
-    priority: task.priority,
-    source: task.source,
-    status: "open",
-  }));
-  if (!rows.length) return suggestions;
-  const { error: insertError } = await supabase.from("case_tasks").insert(rows);
+  const openBySource = new Map(
+    (existing ?? [])
+      .filter((row) => row.status === "open" && row.source)
+      .map((row) => [row.source as string, row]),
+  );
+  const closedDeadlineSources = new Set(
+    (existing ?? [])
+      .filter((row) => row.source?.startsWith("engine:deadline-") && row.status !== "open")
+      .map((row) => row.source as string),
+  );
+
+  const toInsert: Array<{
+    case_id: string;
+    user_id: string;
+    title: string;
+    description: string;
+    priority: string;
+    source: string;
+    status: string;
+    due_at: string | null;
+  }> = [];
+
+  for (const task of suggestions) {
+    const open = openBySource.get(task.source);
+    if (open) {
+      if (task.source.startsWith("engine:deadline-")) {
+        const { error: updateError } = await supabase
+          .from("case_tasks")
+          .update({
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            due_at: task.dueAt ?? null,
+          })
+          .eq("id", open.id)
+          .eq("case_id", input.caseId)
+          .eq("user_id", userId);
+        if (updateError) throw updateError;
+      }
+      continue;
+    }
+    // Recreate a closed deadline task only when the latest suggestion is still future-dated.
+    if (closedDeadlineSources.has(task.source) && task.source.startsWith("engine:deadline-")) {
+      if (!task.dueAt || new Date(task.dueAt).getTime() < Date.now()) continue;
+    } else if ((existing ?? []).some((row) => row.source === task.source)) {
+      continue;
+    }
+    toInsert.push({
+      case_id: input.caseId,
+      user_id: userId,
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      source: task.source,
+      status: "open",
+      due_at: task.dueAt ?? null,
+    });
+  }
+  if (!toInsert.length) return suggestions;
+  const { error: insertError } = await supabase.from("case_tasks").insert(toInsert);
   if (insertError) throw insertError;
   return suggestions;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { redactError, toUserMessage } from "@/src/lib/errors";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     const property = await getPropertyById(decodeURIComponent(bagId));
     return NextResponse.json({ property }, { headers: { "Cache-Control": "public, s-maxage=604800, stale-while-revalidate=86400" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Property lookup failed" }, { status: 502 });
+    console.error("Property lookup failed", redactError(error));
+    return NextResponse.json({ error: toUserMessage(error, "Dit adres kon niet worden opgehaald. Probeer het later opnieuw.") }, { status: 502 });
   }
 }

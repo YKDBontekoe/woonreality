@@ -1,5 +1,6 @@
 import {
   extractListingFacts,
+  isHttpsUrl,
   parseDutchNumber,
   type ExtractedListingFacts,
 } from "@/src/lib/listing-intake";
@@ -222,6 +223,9 @@ export function listingFromImportedFacts(
   facts: ImportedListingFacts,
   fetchedAt = new Date().toISOString(),
 ): PropertyListing {
+  if (sourceUrl && !isHttpsUrl(sourceUrl)) {
+    throw new ListingImportError("Alleen HTTPS-advertentielinks zijn toegestaan.", "invalid_url");
+  }
   const livingAreaM2 = facts.livingAreaM2;
   const askingPrice = facts.askingPrice;
   const pricePerM2 = askingPrice && livingAreaM2 ? Math.round(askingPrice / livingAreaM2) : undefined;
@@ -252,6 +256,8 @@ export function listingFromImportedFacts(
     pricePerM2,
     description: facts.description,
     addressLabel: facts.addressLabel,
+    ownership: facts.ownership,
+    neighborhood: facts.neighborhood,
     extraKenmerken: facts.extraKenmerken && Object.keys(facts.extraKenmerken).length ? facts.extraKenmerken : undefined,
     textSections: facts.sections?.length ? facts.sections : undefined,
     notes: facts.notes.length ? facts.notes : undefined,

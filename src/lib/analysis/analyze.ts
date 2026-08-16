@@ -74,11 +74,33 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   if (dsoResult.status === "rejected") console.warn("DSO onderwerpen unavailable", dsoResult.reason);
   const origin = property.coordinates;
   const greenAreaM2 = bgt.greenAreas.reduce((sum, feature) => sum + geometryAreaM2(feature.geometry, origin), 0);
-  const searchAreaM2 = Math.PI * 250 ** 2;
+  // getBgtFeatures queries a square bbox of ±250 m (500 m side), not a 250 m
+  // radius circle. Using a circular denominator here overstated green% by
+  // roughly (500² − π·250²) / 500² ≈ 21%.
+  const BGT_SEARCH_RADIUS_M = 250;
+  const searchAreaM2 = (BGT_SEARCH_RADIUS_M * 2) ** 2;
   const greenPercent = clamp((greenAreaM2 / searchAreaM2) * 100, 0, 100);
   const nearestRoadM = bgt.roads.length
     ? Math.min(...bgt.roads.map((feature) => distanceToGeometryM(origin, feature.geometry)))
     : Number.POSITIVE_INFINITY;
+  const nearestWaterM = bgt.water.length
+    ? Math.min(...bgt.water.map((feature) => distanceToGeometryM(origin, feature.geometry)))
+    : Number.POSITIVE_INFINITY;
+  const waterAreaM2 = bgt.water.reduce((sum, feature) => sum + geometryAreaM2(feature.geometry, origin), 0);
+  const waterPercent = clamp((waterAreaM2 / searchAreaM2) * 100, 0, 100);
+  // The BGT collection endpoints cap results at limit=100. Dense city
+  // centres can genuinely have >100 road or green-terrain parts within the
+  // search box, in which case the percentage below silently underrepresents
+  // the true count instead of reflecting a complete picture.
+  const BGT_PAGE_CAP = 100;
+  const bgtGreenTruncated = bgt.greenAreas.length >= BGT_PAGE_CAP;
+  const bgtRoadsTruncated = bgt.roads.length >= BGT_PAGE_CAP;
+
+  const nonResidential = property.isResidential === false;
+  const siblingResidentialUnits = nearbyProperties.filter(
+    (item) => item.pandIds?.some((id) => property.bagPandIds.includes(id)),
+  );
+  const likelyApartmentOrVve = siblingResidentialUnits.length >= 1;
 
   const identity = identityEvidence(property);
   const bgtRoadEvidence = createEvidence({
@@ -98,6 +120,15 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     fetchedAt: bgt.fetchedAt,
     spatialResolution: "lokale topografie",
     caveat: "Groenpercentage is een eerste geometrische indicatie binnen circa 250 meter.",
+  });
+  const bgtWaterEvidence = createEvidence({
+    id: "bgt-water",
+    source: "PDOK / BGT",
+    sourceUrl: `${pdokUrls.bgt}collections/waterdeel/items`,
+    confidence: "medium",
+    fetchedAt: bgt.fetchedAt,
+    spatialResolution: "lokale topografie",
+    caveat: "Dit is alleen de aanwezigheid van geregistreerd oppervlaktewater, geen overstromings- of wateroverlastmodel.",
   });
   const energyEvidence = createEvidence({
     id: "ep-online-energy",
@@ -164,7 +195,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       key: "noise",
       label: "Geluidsscreening",
       category: "gezondheid",
-      value: Math.round((noiseScore * 10) / 10),
+      value: Math.round(noiseScore * 10) / 10,
       unit: "/ 10",
       score: noiseScore,
       severity: scoreSeverity(noiseScore),
@@ -189,10 +220,10 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       value: `${Math.round(greenPercent)}%`,
       score: greenScore,
       severity: scoreSeverity(greenScore),
-      summary: `Ongeveer ${Math.round(greenPercent)}% van de lokale BGT-oppervlakken is als begroeid terrein geregistreerd.`,
+      summary: `Ongeveer ${Math.round(greenPercent)}% van de lokale BGT-oppervlakken is als begroeid terrein geregistreerd.${bgtGreenTruncated ? " Let op: de BGT-bevraging is afgekapt op 100 vlakken; in dicht bebouwd gebied kan het werkelijke groenpercentage hierdoor afwijken." : ""}`,
       action: "Check bij een bezichtiging ook de boomkroon, privacy en het groen dat je daadwerkelijk vanuit de woning ziet.",
       raw: { value: Math.round(greenPercent), unit: "%", metric: "BGT-begroeid terrein binnen circa 250 m" },
-      confidence: "medium",
+      confidence: bgtGreenTruncated ? "low" : "medium",
       spatialScale: "circa 250 m zoekbuffer",
       evidence: [bgtGreenEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
@@ -205,7 +236,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       unit: "/ 10",
       score: heatScore,
       severity: scoreSeverity(heatScore),
-      summary: `De eerste groen/verharding-proxy komt uit op ${Math.round(greenPercent)}% groen in de zoekbuffer.`,
+      summary: `De eerste groen/verharding-proxy komt uit op ${Math.round(greenPercent)}% groen in de zoekbuffer.${bgtGreenTruncated ? " De BGT-bevraging is afgekapt op 100 vlakken, dus deze proxy is minder betrouwbaar in dicht bebouwd gebied." : ""}`,
       action: "Kijk op een hete dag naar schaduw, geveloriëntatie en de hoeveelheid verharding rond tuin en straat.",
       raw: { value: Math.round(100 - greenPercent), unit: "% verhardingsproxy", metric: "afgeleid uit BGT" },
       confidence: "low",
@@ -214,12 +245,31 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       availability: bgtAvailable ? "available" : "unavailable",
     },
     {
+      key: "water",
+      label: "Oppervlaktewater",
+      category: "klimaat",
+      value: Number.isFinite(nearestWaterM) ? formatDistance(nearestWaterM) : "Geen water gevonden",
+      severity: nearestWaterM < 30 ? "attention" : Number.isFinite(nearestWaterM) ? "good" : "neutral",
+      summary: nearestWaterM < 30
+        ? `BGT registreert oppervlaktewater op circa ${formatDistance(nearestWaterM)}. Zo dicht op open water is het grondwaterpeil vaak hoger, wat kruipruimte- en funderingsvocht kan beïnvloeden.`
+        : Number.isFinite(nearestWaterM)
+          ? `BGT registreert oppervlaktewater op circa ${formatDistance(nearestWaterM)} (${Math.round(waterPercent)}% van de zoekbuffer).`
+          : "BGT registreert geen oppervlaktewater binnen de zoekbuffer van circa 250 m.",
+      action: nearestWaterM < 30
+        ? "Vraag naar het grondwaterpeil, de kruipruimte en vochtwering; laat dit meenemen in de bouwkundige keuring."
+        : "Dit zegt niets over overstromings- of wateroverlastrisico. Check risicokaart.nl (Overstroming) voor een officiële inschatting.",
+      confidence: "low",
+      spatialScale: "circa 250 m zoekbuffer",
+      evidence: [bgtWaterEvidence],
+      availability: bgtAvailable ? "available" : "unavailable",
+    },
+    {
       key: "access",
       label: "Lokale wegstructuur",
       category: "mobiliteit",
       value: `${bgt.roads.length} wegdelen`,
       severity: "neutral",
-      summary: `${bgt.roads.length} BGT-wegdelen zijn in de eerste zoekbuffer aangetroffen; dit beschrijft de straatstructuur, geen bereikbaarheid.`,
+      summary: `${bgt.roads.length} BGT-wegdelen zijn in de eerste zoekbuffer aangetroffen; dit beschrijft de straatstructuur, geen bereikbaarheid.${bgtRoadsTruncated ? " De telling is afgekapt op 100 wegdelen; het werkelijke aantal kan hoger liggen." : ""}`,
       action: "Controleer looproutes, scholen, OV en dagelijkse voorzieningen; deze eerste indicatie meet die niet.",
       confidence: "medium",
       spatialScale: "circa 250 m zoekbuffer",
@@ -241,6 +291,40 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       spatialScale: "BAG-verblijfsobject",
       evidence: [identity],
       availability: "available",
+    },
+    {
+      key: "usage",
+      label: "Gebruiksdoel",
+      category: "woning",
+      value: nonResidential ? (property.usagePurposes?.join(", ") || "Geen woonfunctie") : "Woonfunctie",
+      severity: nonResidential ? "attention" : "neutral",
+      summary: nonResidential
+        ? `BAG registreert dit object niet als woonfunctie (${property.usagePurposes?.join(", ") || "onbekend gebruiksdoel"}). Deze woningcheck is gebouwd voor woningen; de scores hierboven zijn mogelijk niet zinvol voor dit gebruik.`
+        : "BAG registreert dit object als woonfunctie.",
+      action: nonResidential
+        ? "Controleer of dit pand daadwerkelijk te koop staat als woning en of woonbestemming/vergunning aanwezig is voordat je verdergaat."
+        : "Geen actie nodig; controleer bij twijfel de vergunde bestemming bij de gemeente.",
+      confidence: "high",
+      spatialScale: "BAG-verblijfsobject",
+      evidence: [identityEvidence(property)],
+      availability: "available",
+    },
+    {
+      key: "vve",
+      label: "Appartement & VvE",
+      category: "woning",
+      value: likelyApartmentOrVve ? `${siblingResidentialUnits.length} andere woonadres(sen) in hetzelfde pand` : "Vermoedelijk zelfstandig pand",
+      severity: likelyApartmentOrVve ? "attention" : "neutral",
+      summary: likelyApartmentOrVve
+        ? `BAG registreert ${siblingResidentialUnits.length} andere woonfunctie-verblijfsobject(en) in hetzelfde pand. Dit wijst op een appartement(encomplex); controleer VvE-status, reservefonds, splitsingsakte en erfpacht.`
+        : "BAG registreert geen andere woonfunctie-verblijfsobjecten in hetzelfde pand; een VvE is dan minder waarschijnlijk, maar niet uitgesloten.",
+      action: likelyApartmentOrVve
+        ? "Vraag de VvE-jaarstukken, notulen, meerjarenonderhoudsplan (MJOP) en reservefonds op vóór je een bod doet."
+        : "Vraag bij twijfel na of het pand is gesplitst in appartementsrechten.",
+      confidence: "low",
+      spatialScale: "BAG-pand",
+      evidence: [identityEvidence(property)],
+      availability: nearbyAvailable ? "available" : "unavailable",
     },
     {
       key: "foundation",
@@ -363,27 +447,48 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   const domains = Object.entries(categoryLabels).map(([key, label]) => {
     const domainSignals = signals.filter((signal) => signal.category === key);
     const availableSignals = domainSignals.filter((signal) => signal.availability !== "unavailable" && typeof signal.score === "number");
-    const score = availableSignals.length
+    // A signal such as "fundering" can carry severity "attention" without a
+    // numeric score (BAG has no funderingsregistratie). Averaging only the
+    // scored signals then silently drops the warning from the domain score,
+    // e.g. showing "Woning 9.1/10" while an unresolved foundation flag is
+    // open. Cap the score instead of letting it look clean.
+    const hasUnscoredAttention = domainSignals.some((signal) => signal.availability !== "unavailable" && typeof signal.score !== "number" && signal.severity === "attention");
+    let score = availableSignals.length
       ? Math.round((availableSignals.reduce((sum, signal) => sum + (signal.score ?? 0), 0) / availableSignals.length) * 10) / 10
       : null;
+    if (score != null && hasUnscoredAttention) score = Math.min(score, 6.4);
     return {
       key: key as keyof typeof categoryLabels,
       label,
       score,
       signalKeys: domainSignals.map((signal) => signal.key),
       available: availableSignals.length > 0,
-      summary: score == null ? "Voor dit domein is nu geen betrouwbare bron beschikbaar." : `Gemiddelde indicatie ${score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10.`,
+      hasUnscoredAttention,
+      summary: score == null
+        ? "Voor dit domein is nu geen betrouwbare bron beschikbaar."
+        : hasUnscoredAttention
+          ? `Gemiddelde indicatie ${score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10 — met een open aandachtspunt zonder score (zie hieronder); laat het cijfer dit niet verbloemen.`
+          : `Gemiddelde indicatie ${score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10.`,
     };
   });
   const availableSignals = signals.filter((signal) => signal.availability !== "unavailable");
-  const highlights = availableSignals
-    .filter((signal) => (signal.score ?? 5) < 5.5)
-    .sort((a, b) => (a.score ?? 5) - (b.score ?? 5))
-    .slice(0, 3)
-    .map((signal) => ({ type: "attention" as const, signalKey: signal.key, text: signal.summary }));
-  const positives = availableSignals
-    .filter((signal) => (signal.score ?? 5) >= 6.5)
-    .sort((a, b) => (b.score ?? 5) - (a.score ?? 5))
+  // Signals without a numeric score (e.g. "context", "access") must never
+  // fall into the attention/positive buckets: defaulting them to a score of
+  // 5 previously made plain facts ("107 m² woonoppervlak") show up as
+  // "aandachtspunten", crowding out genuine risks like an attention-flagged
+  // foundation signal that itself has no numeric score either.
+  const scoredSignals = availableSignals.filter((signal): signal is Signal & { score: number } => typeof signal.score === "number");
+  const flaggedUnscored = availableSignals.filter((signal) => typeof signal.score !== "number" && signal.severity === "attention");
+  const highlights = [
+    ...flaggedUnscored.map((signal) => ({ type: "attention" as const, signalKey: signal.key, text: signal.summary })),
+    ...scoredSignals
+      .filter((signal) => signal.score < 5.5)
+      .sort((a, b) => a.score - b.score)
+      .map((signal) => ({ type: "attention" as const, signalKey: signal.key, text: signal.summary })),
+  ].slice(0, 3);
+  const positives = scoredSignals
+    .filter((signal) => signal.score >= 6.5)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((signal) => ({ type: "positive" as const, signalKey: signal.key, text: signal.summary }));
   const availableDomainCount = domains.filter((domain) => domain.available).length;
@@ -459,11 +564,27 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       { source: "PDOK / BAG", status: "ok", sourceUrl: pdokUrls.bag },
       { source: "PDOK / BGT", status: bgtAvailable ? "ok" : "unavailable", message: bgtAvailable ? undefined : "Lokale topografie kon niet worden opgehaald.", sourceUrl: pdokUrls.bgt },
       { source: "PDOK / BAG omgeving", status: nearbyAvailable ? "ok" : "unavailable", message: nearbyAvailable ? undefined : "Nabije adressen konden niet worden opgehaald.", sourceUrl: pdokUrls.bag },
-      { source: "EP-Online / RVO", status: energyAvailable ? "ok" : "unavailable", message: energyAvailable ? undefined : "Voeg EPONLINE_API_KEY toe voor energielabels.", sourceUrl: epOnlineUrl },
+      { source: "EP-Online / RVO", status: energyAvailable ? "ok" : "unavailable", message: energyAvailable ? undefined : "Energielabels zijn nu niet beschikbaar voor dit adres.", sourceUrl: epOnlineUrl },
       { source: "RIVM geo-services", status: rivmMetricCount === 3 ? "ok" : rivmMetricCount > 0 ? "partial" : "unavailable", message: rivmAvailable ? undefined : "RIVM-rasterwaarden konden niet worden opgehaald.", sourceUrl: rivmUrls.noise },
       { source: "CBS Wijk- en Buurtkaart", status: cbsAvailable ? "ok" : "unavailable", message: cbsAvailable ? undefined : "Geen CBS-buurtfeature gevonden of bron niet bereikbaar.", sourceUrl: cbsBuurtenUrl },
       { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "De openbare haltecatalogus kon niet worden opgehaald.", sourceUrl: ndovHaltesUrl },
-      { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Voeg DSO_API_KEY toe voor ruimtelijke onderwerpen.", sourceUrl: dsoOnderwerpenUrl },
+      { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Ruimtelijke onderwerpen zijn nu niet beschikbaar voor dit adres.", sourceUrl: dsoOnderwerpenUrl },
+    ],
+    knownGaps: [
+      {
+        key: "flood-risk",
+        label: "Overstromings- en wateroverlastrisico",
+        summary: "WoonReality modelleert geen overstromingskans of wateroverlast bij hevige regen. Het 'Oppervlaktewater'-signaal hierboven laat alleen zien of er BGT-water vlakbij ligt, geen risicoberekening.",
+        checkUrl: "https://www.risicokaart.nl/",
+        checkLabel: "Check Risicokaart.nl",
+      },
+      {
+        key: "soil-contamination",
+        label: "Bodemverontreiniging",
+        summary: "Bodemkwaliteit en historische activiteiten (bv. een voormalige stortplaats of tankstation) worden niet gecontroleerd; dit vraagt een provinciaal of gemeentelijk bodemloket.",
+        checkUrl: "https://www.bodemloket.nl/",
+        checkLabel: "Check Bodemloket.nl",
+      },
     ],
     nearbyProperties,
   };

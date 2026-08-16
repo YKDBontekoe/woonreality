@@ -1,3 +1,4 @@
+import { computePurchaseDeadlines } from "@/src/lib/deadlines";
 import { CASE_STAGE_LABELS, type CaseStage } from "@/src/lib/journey";
 import { profileCompletion, type BuyerProfile } from "@/src/lib/purchase";
 
@@ -8,6 +9,8 @@ export type TaskSuggestion = {
   priority: "low" | "normal" | "high";
   source: string;
   href?: string;
+  /** ISO date-time; set for legal/contractual deadlines the deadline engine computed. */
+  dueAt?: string;
 };
 
 export type TaskEngineInput = {
@@ -23,6 +26,12 @@ export type TaskEngineInput = {
   hasContractAmount: boolean;
   checklistComplete?: boolean;
   attentionActions?: string[];
+  /** ISO date (yyyy-mm-dd) the signed koopovereenkomst was received; drives bedenktijd. */
+  contractReceivedAt?: string | null;
+  /** ISO date (yyyy-mm-dd) the koopovereenkomst was signed; drives voorbehoud deadlines. */
+  contractSignedAt?: string | null;
+  financingWeeks?: number | null;
+  inspectionWeeks?: number | null;
 };
 
 export function taskSource(key: string) {
@@ -154,6 +163,49 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
       source: taskSource("inspection-book"),
       href: `${caseHref}#koopakte`,
     });
+  }
+
+  if (input.contractSignedAt || input.contractReceivedAt) {
+    const signedDate = input.contractSignedAt ? new Date(`${input.contractSignedAt}T00:00:00`) : null;
+    const receivedDate = input.contractReceivedAt
+      ? new Date(`${input.contractReceivedAt}T00:00:00`)
+      : signedDate;
+    if ((signedDate && !Number.isNaN(signedDate.getTime())) || (receivedDate && !Number.isNaN(receivedDate.getTime()))) {
+      const deadlines = computePurchaseDeadlines({
+        contractReceivedAt: receivedDate && !Number.isNaN(receivedDate.getTime()) ? receivedDate : null,
+        contractSignedAt: signedDate && !Number.isNaN(signedDate.getTime()) ? signedDate : null,
+        financingWeeks: input.financingWeeks,
+        inspectionWeeks: input.inspectionWeeks,
+      });
+      const formatDate = (date: Date) => date.toLocaleDateString("nl-NL", { dateStyle: "long" });
+      for (const deadline of deadlines) {
+        const isPast = deadline.dueAt.getTime() < Date.now();
+        if (isPast) continue;
+        const copy: Record<typeof deadline.key, { title: string; description: string }> = {
+          bedenktijd: {
+            title: "Bedenktijd loopt af",
+            description: `Tot en met ${formatDate(deadline.dueAt)} kun je nog kosteloos terugtreden (Art. 7:2 BW), zonder opgaaf van reden.`,
+          },
+          financing: {
+            title: "Voorbehoud van financiering vervalt",
+            description: `Regel je hypotheek (afwijzing of toezegging) vóór ${formatDate(deadline.dueAt)}, anders vervalt je ontbindende voorwaarde.`,
+          },
+          inspection: {
+            title: "Voorbehoud van bouwkundige keuring vervalt",
+            description: `Plan en verwerk de bouwkundige keuring vóór ${formatDate(deadline.dueAt)} om nog kosteloos te kunnen ontbinden.`,
+          },
+        };
+        tasks.push({
+          key: `deadline-${deadline.key}`,
+          title: copy[deadline.key].title,
+          description: copy[deadline.key].description,
+          priority: "high",
+          source: taskSource(`deadline-${deadline.key}`),
+          href: `${caseHref}#koopakte`,
+          dueAt: deadline.dueAt.toISOString(),
+        });
+      }
+    }
   }
 
   const seen = new Set<string>();

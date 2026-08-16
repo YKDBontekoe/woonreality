@@ -1,5 +1,6 @@
 import { isFundaListingUrl } from "@/src/lib/listing-import";
-import { isHttpUrl } from "@/src/lib/listing-intake";
+import { isHttpsUrl } from "@/src/lib/listing-intake";
+import { listingRiskFlags } from "@/src/lib/listing-risk";
 import { formatEuro } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
 
@@ -20,7 +21,7 @@ function listingStatusLabel(status: PropertyListing["status"]) {
 }
 
 function sourceIsOpenable(url: string) {
-  if (!isHttpUrl(url)) return false;
+  if (!isHttpsUrl(url)) return false;
   if (isFundaListingUrl(url)) return true;
   try {
     const parsed = new URL(url);
@@ -78,7 +79,11 @@ export function ListingFactsCard({
     ["Berging", listing.storage],
     ["VvE-bijdrage", listing.vveContribution != null ? formatEuro(listing.vveContribution) : undefined],
     ["VvE-reserve", listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund) : undefined],
+    ["Eigendomssituatie", listing.ownership],
+    ["Buurt", listing.neighborhood],
   ].filter(([, value]) => value !== undefined && value !== "—") as [string, string | number][];
+
+  const riskFlags = listingRiskFlags(listing);
 
   const shownLabels = new Set(facts.map(([label]) => label.toLowerCase()));
   const extraKenmerken = Object.entries(listing.extraKenmerken ?? {}).filter(([label]) => {
@@ -132,6 +137,20 @@ export function ListingFactsCard({
           <p className="listing-conflict">
             De advertentie noemt {listing.livingAreaM2} m², BAG {bagAreaM2} m². We overschrijven het BAG-oppervlak niet.
           </p>
+        )}
+        {riskFlags.length > 0 && (
+          <div className="listing-risk-flags">
+            <span className="listing-label">Wat een aankoopmakelaar hier zou uitzoeken</span>
+            <ul>
+              {riskFlags.map((flag) => (
+                <li key={flag.key} className={`listing-risk-flag severity-${flag.severity}`}>
+                  <strong>{flag.title}</strong>
+                  <p>{flag.summary}</p>
+                  <p className="listing-risk-action">{flag.action}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {facts.length > 0 && (
           <div className="listing-fact-grid">

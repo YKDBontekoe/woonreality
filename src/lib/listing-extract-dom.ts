@@ -11,6 +11,7 @@ import {
 } from "@/src/lib/listing-extract";
 
 const TEXT_HEADINGS = /^(omschrijving|indeling|buurt|omgeving|bijzonderheden|kenmerken|overdracht|uitrusting|tuin|buitenruimte|wat je moet weten|ligt|ligging)$/i;
+const NEIGHBORHOOD_HEADINGS = /^(buurt|omgeving|wijk|ligging)/i;
 
 function textOf(node: Element | null | undefined) {
   return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -34,7 +35,7 @@ function kenmerkPairs(doc: Document) {
   return pairs;
 }
 
-function extractFreeText(doc: Document): { description?: string; sections: ListingTextSection[] } {
+function extractFreeText(doc: Document): { description?: string; neighborhood?: string; sections: ListingTextSection[] } {
   const sections: ListingTextSection[] = [];
   for (const heading of Array.from(doc.querySelectorAll("h2, h3"))) {
     const title = textOf(heading);
@@ -58,7 +59,8 @@ function extractFreeText(doc: Document): { description?: string; sections: Listi
   const named = sections.find((section) => TEXT_HEADINGS.test(section.title))?.text
     ?? [...sections].sort((a, b) => b.text.length - a.text.length)[0]?.text;
   const description = [named, og, meta].find((value) => value && value.length > 40)?.slice(0, 8_000);
-  return { description, sections: sections.slice(0, 12) };
+  const neighborhood = sections.find((section) => NEIGHBORHOOD_HEADINGS.test(section.title))?.text.slice(0, 4_000);
+  return { description, neighborhood, sections: sections.slice(0, 12) };
 }
 
 export function isFundaChallengeDocument(doc: Document) {
@@ -79,6 +81,7 @@ export function extractFundaListingFromDocument(doc: Document, sourceUrl?: strin
   for (const [label, value] of kenmerkPairs(doc)) applyKenmerk(label, value, facts);
   const free = extractFreeText(doc);
   if (free.description) facts.description ??= free.description;
+  if (free.neighborhood) facts.neighborhood ??= free.neighborhood;
   if (free.sections.length) facts.sections = free.sections;
   const visible = (doc.querySelector("main")?.textContent || doc.body?.textContent || "").replace(/\s+/g, " ").trim();
   const merged = finalizeExtractedFacts(facts, visible);

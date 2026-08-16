@@ -89,7 +89,10 @@ export type CalculatorState = {
 
 export type MortgageSnapshot = {
   maxLoanForPurchase: number;
+  /** Hypotheek + eigen geld, zonder kosten koper. Bewaard voor vergelijkbaarheid. */
   maxPurchasePrice: number;
+  /** Koopsom die eigen geld en hypotheek dekken ná kosten koper. Gebruik dit veld voor budgetbeslissingen. */
+  maxPurchasePriceAfterCosts: number;
   monthlyPayment: number;
   toetsinkomen: number;
   ownFunds: number;
@@ -333,6 +336,7 @@ export function buildMortgageSnapshot(capacity: MortgageCapacity, nhg: boolean):
   return {
     maxLoanForPurchase: capacity.maxLoanForPurchase,
     maxPurchasePrice: capacity.maxPurchasePrice,
+    maxPurchasePriceAfterCosts: capacity.maxPurchasePriceAfterCosts,
     monthlyPayment: capacity.monthlyPayment,
     toetsinkomen: capacity.toetsinkomen,
     ownFunds: capacity.ownFunds,
@@ -346,7 +350,7 @@ export function buildMortgageSnapshot(capacity: MortgageCapacity, nhg: boolean):
 export function buyerProfileFromMortgageCapacity(profile: BuyerProfile, capacity: MortgageCapacity, state: CalculatorState): BuyerProfile {
   return {
     ...profile,
-    budget: capacity.maxPurchasePrice > 0 ? capacity.maxPurchasePrice : profile.budget,
+    budget: capacity.maxPurchasePriceAfterCosts > 0 ? capacity.maxPurchasePriceAfterCosts : profile.budget,
     monthlyPayment: capacity.monthlyPayment > 0 ? capacity.monthlyPayment : profile.monthlyPayment,
     ownFunds: capacity.ownFunds,
     nhg: state.nhg,
@@ -364,6 +368,8 @@ export function normalizeMortgageSnapshot(value: unknown): MortgageSnapshot | nu
   return {
     maxLoanForPurchase: asNumber(record.maxLoanForPurchase),
     maxPurchasePrice,
+    // Ontbreekt in oudere opgeslagen snapshots: val dan terug op de bruto waarde.
+    maxPurchasePriceAfterCosts: asNumber(record.maxPurchasePriceAfterCosts, maxPurchasePrice),
     monthlyPayment: asNumber(record.monthlyPayment),
     toetsinkomen: asNumber(record.toetsinkomen),
     ownFunds: asNumber(record.ownFunds),
