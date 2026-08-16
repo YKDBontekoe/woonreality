@@ -1,42 +1,41 @@
 "use client";
 
+import Link from "next/link";
 import { Calculator, ChevronDown, CircleAlert, Landmark, ShieldCheck, Sparkles, Wallet } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
+  MORTGAGE_STORAGE_KEY,
   NHG,
+  WORK_TYPES,
   buildMortgageScenarios,
   buildMortgageSchedule,
   calculateMortgageCapacity,
+  calculatorFundsTotal,
+  calculatorStateToFinance,
   currentMortgageReference,
-  defaultDgaSource,
-  defaultEmploymentSource,
-  defaultPensionSource,
-  defaultSelfEmployedSource,
+  defaultCalculatorState,
   buildSalaryBreakdown,
-  emptyTriple,
   marketIndicativeRate,
-  ownFundsTotal,
+  mortgageStateHasCapacity,
   parseCanonicalEnergyLabel,
   rateImpactRows,
+  restoreCalculatorState,
   summarizeHousingTax,
+  switchIncomeEntry,
+  type CalculatorState,
   type FixedPeriodYears,
-  type HolidayMode,
-  type IncomeEntry,
-  type IncomeSource,
-  type MortgageFinance,
   type MortgageMarketSnapshot,
-  type PersonFinance,
-  type RepaymentType,
+  type PersonForm,
   type WorkType,
   type YearTriple,
 } from "@/src/lib/mortgage";
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import { formatEuro } from "@/src/lib/purchase";
 import { MortgageCostInsight, type CostInsightOptions } from "@/components/mortgage-cost-insight";
+import { usePropertyWorkspace } from "@/components/use-property-workspace";
 
-const STORAGE_KEY = "woonreality.mortgage.v2";
 const DEBT_FIELDS: { key: DebtKey; label: string; add: string; hint?: string }[] = [
   { key: "lease", label: "Private lease per maand", add: "Private lease", hint: "De hele maandlast telt mee." },
   { key: "student", label: "Studieschuld", add: "Studieschuld" },
@@ -50,287 +49,6 @@ const DEBT_FIELDS: { key: DebtKey; label: string; add: string; hint?: string }[]
 type DebtKey = "lease" | "student" | "installment" | "revolving" | "erfpacht" | "alimony" | "other";
 const PRIMARY_WORK: WorkType[] = ["permanent", "temporary", "flex", "self_employed"];
 const EXTRA_WORK: WorkType[] = ["dga", "pension", "mix"];
-
-const WORK_TYPES: { value: WorkType; label: string }[] = [
-  { value: "permanent", label: "Loondienst" },
-  { value: "temporary", label: "Tijdelijk" },
-  { value: "flex", label: "Flex" },
-  { value: "self_employed", label: "Zelfstandig" },
-  { value: "dga", label: "DGA" },
-  { value: "pension", label: "Pensioen" },
-  { value: "mix", label: "Mix" },
-];
-
-type PersonForm = {
-  workType: WorkType;
-  reachedAow: boolean;
-  incomeEntry: IncomeEntry;
-  monthlyGross: number;
-  holidayMode: HolidayMode;
-  holidayCustom: number;
-  hasThirteenth: boolean;
-  yearEndPayout: number;
-  monthlyAllowances: number;
-  structuralBonus: number;
-  variableBonus: YearTriple;
-  grossAnnual: number;
-  thirteenthMonth: number;
-  bonus: number;
-  intent: boolean;
-  perspectief: boolean;
-  history: YearTriple;
-  monthsActive: number;
-  profits: YearTriple;
-  box1: YearTriple;
-  dividend: YearTriple;
-  pensionAnnual: number;
-  alimonyAnnual: number;
-};
-
-type CalculatorState = {
-  withPartner: boolean;
-  applicant: PersonForm;
-  partner: PersonForm;
-  studentLoanMonthly: number;
-  studentLoanRemaining: number;
-  studentLoanSf35: boolean;
-  privateLeaseMonthly: number;
-  revolvingCreditLimit: number;
-  installmentLoanMonthly: number;
-  groundLeaseMonthly: number;
-  otherMonthlyDebts: number;
-  alimonyPaidMonthly: number;
-  savings: number;
-  gift: number;
-  saleEquity: number;
-  nhg: boolean;
-  interestRate: number;
-  rateTouched: boolean;
-  fixedPeriodYears: FixedPeriodYears;
-  repayment: RepaymentType;
-  energyLabel: string;
-  askingPrice: number;
-  includeEnergyMeasures: boolean;
-  energyPerformanceGuarantee: boolean;
-  starterExemption: boolean;
-  buyerAge: number;
-};
-
-function emptyPersonForm(): PersonForm {
-  return {
-    workType: "permanent",
-    reachedAow: false,
-    incomeEntry: "monthly",
-    monthlyGross: 0,
-    holidayMode: "standard",
-    holidayCustom: 0,
-    hasThirteenth: false,
-    yearEndPayout: 0,
-    monthlyAllowances: 0,
-    structuralBonus: 0,
-    variableBonus: emptyTriple(),
-    grossAnnual: 0,
-    thirteenthMonth: 0,
-    bonus: 0,
-    intent: false,
-    perspectief: false,
-    history: emptyTriple(),
-    monthsActive: 36,
-    profits: emptyTriple(),
-    box1: emptyTriple(),
-    dividend: emptyTriple(),
-    pensionAnnual: 0,
-    alimonyAnnual: 0,
-  };
-}
-
-function defaultState(): CalculatorState {
-  return {
-    withPartner: false,
-    applicant: emptyPersonForm(),
-    partner: emptyPersonForm(),
-    studentLoanMonthly: 0,
-    studentLoanRemaining: 0,
-    studentLoanSf35: true,
-    privateLeaseMonthly: 0,
-    revolvingCreditLimit: 0,
-    installmentLoanMonthly: 0,
-    groundLeaseMonthly: 0,
-    otherMonthlyDebts: 0,
-    alimonyPaidMonthly: 0,
-    savings: 0,
-    gift: 0,
-    saleEquity: 0,
-    nhg: true,
-    interestRate: marketIndicativeRate(null, 10, true),
-    rateTouched: false,
-    fixedPeriodYears: 10,
-    repayment: "annuity",
-    energyLabel: "",
-    askingPrice: 0,
-    includeEnergyMeasures: false,
-    energyPerformanceGuarantee: false,
-    starterExemption: false,
-    buyerAge: 0,
-  };
-}
-
-function asNumber(value: unknown, fallback = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asTriple(value: unknown): YearTriple {
-  if (!Array.isArray(value)) return emptyTriple();
-  return [asNumber(value[0]), asNumber(value[1]), asNumber(value[2])];
-}
-
-function restoreState(raw: unknown, defaults: CalculatorState): CalculatorState {
-  if (!raw || typeof raw !== "object") return defaults;
-  const record = raw as Record<string, unknown>;
-  const person = (value: unknown, fallback: PersonForm): PersonForm => {
-    if (!value || typeof value !== "object") return fallback;
-    const row = value as Record<string, unknown>;
-    const workType = WORK_TYPES.some((item) => item.value === row.workType) ? row.workType as WorkType : fallback.workType;
-    return {
-      ...fallback,
-      workType,
-      reachedAow: Boolean(row.reachedAow),
-      incomeEntry: row.incomeEntry === "annual" || (!asNumber(row.monthlyGross) && asNumber(row.grossAnnual) > 0) ? "annual" : "monthly",
-      monthlyGross: asNumber(row.monthlyGross),
-      holidayMode: row.holidayMode === "included" || row.holidayMode === "custom" ? row.holidayMode : "standard",
-      holidayCustom: asNumber(row.holidayCustom),
-      hasThirteenth: Boolean(row.hasThirteenth) || asNumber(row.thirteenthMonth) > 0,
-      yearEndPayout: asNumber(row.yearEndPayout),
-      monthlyAllowances: asNumber(row.monthlyAllowances),
-      structuralBonus: asNumber(row.structuralBonus, asNumber(row.bonus)),
-      variableBonus: asTriple(row.variableBonus),
-      grossAnnual: asNumber(row.grossAnnual),
-      thirteenthMonth: asNumber(row.thirteenthMonth),
-      bonus: asNumber(row.bonus),
-      intent: Boolean(row.intent),
-      perspectief: Boolean(row.perspectief),
-      history: asTriple(row.history),
-      monthsActive: asNumber(row.monthsActive, 36),
-      profits: asTriple(row.profits),
-      box1: asTriple(row.box1),
-      dividend: asTriple(row.dividend),
-      pensionAnnual: asNumber(row.pensionAnnual),
-      alimonyAnnual: asNumber(row.alimonyAnnual),
-    };
-  };
-  const period = record.fixedPeriodYears;
-  return {
-    ...defaults,
-    withPartner: Boolean(record.withPartner),
-    applicant: person(record.applicant, defaults.applicant),
-    partner: person(record.partner, defaults.partner),
-    studentLoanMonthly: asNumber(record.studentLoanMonthly),
-    studentLoanRemaining: asNumber(record.studentLoanRemaining),
-    studentLoanSf35: record.studentLoanSf35 === undefined ? defaults.studentLoanSf35 : Boolean(record.studentLoanSf35),
-    privateLeaseMonthly: asNumber(record.privateLeaseMonthly),
-    revolvingCreditLimit: asNumber(record.revolvingCreditLimit),
-    installmentLoanMonthly: asNumber(record.installmentLoanMonthly),
-    groundLeaseMonthly: asNumber(record.groundLeaseMonthly),
-    otherMonthlyDebts: asNumber(record.otherMonthlyDebts),
-    alimonyPaidMonthly: asNumber(record.alimonyPaidMonthly),
-    savings: asNumber(record.savings, asNumber(record.ownFunds)),
-    gift: asNumber(record.gift),
-    saleEquity: asNumber(record.saleEquity),
-    nhg: record.nhg === undefined ? defaults.nhg : Boolean(record.nhg),
-    interestRate: asNumber(record.interestRate, defaults.interestRate),
-    rateTouched: Boolean(record.rateTouched),
-    fixedPeriodYears: period === 5 || period === 10 || period === 20 || period === 30 ? period : 10,
-    repayment: record.repayment === "linear" ? "linear" : "annuity",
-    energyLabel: typeof record.energyLabel === "string" ? record.energyLabel : defaults.energyLabel,
-    askingPrice: asNumber(record.askingPrice),
-    includeEnergyMeasures: Boolean(record.includeEnergyMeasures),
-    energyPerformanceGuarantee: Boolean(record.energyPerformanceGuarantee),
-    starterExemption: Boolean(record.starterExemption),
-    buyerAge: asNumber(record.buyerAge),
-  };
-}
-
-function employmentFrom(person: PersonForm): IncomeSource {
-  const base = defaultEmploymentSource();
-  const contract = person.workType === "temporary"
-    ? person.intent ? "temporary_intent" : "temporary"
-    : person.workType === "flex" ? "flex" : "permanent";
-  const monthly = person.incomeEntry === "monthly" ? buildSalaryBreakdown(person) : null;
-  const variable = monthly ? 0 : buildSalaryBreakdown({ ...person, monthlyGross: 0, holidayMode: "included", hasThirteenth: false, thirteenthMonth: 0, yearEndPayout: 0, monthlyAllowances: 0, structuralBonus: 0 }).variableBonus;
-  return {
-    ...base,
-    contract,
-    grossAnnual: monthly ? monthly.grossAnnual : Math.max(0, person.grossAnnual),
-    thirteenthMonth: monthly ? monthly.thirteenthMonth + monthly.yearEndPayout : Math.max(0, person.thirteenthMonth) + Math.max(0, person.yearEndPayout),
-    bonus: monthly ? monthly.structuralBonus + monthly.variableBonus : Math.max(0, person.structuralBonus || person.bonus) + variable,
-    history: person.history,
-    perspectief: person.workType === "flex" && person.perspectief,
-  };
-}
-
-function sourcesFromPerson(person: PersonForm): IncomeSource[] {
-  const sources: IncomeSource[] = [];
-  if (person.workType === "self_employed") sources.push({ ...defaultSelfEmployedSource(), monthsActive: person.monthsActive, profits: person.profits });
-  else if (person.workType === "dga") sources.push({ ...defaultDgaSource(), box1: person.box1, dividend: person.dividend, monthsActive: person.monthsActive });
-  else if (person.workType === "pension") sources.push({ ...defaultPensionSource(), annual: person.pensionAnnual });
-  else if (person.workType === "mix") {
-    sources.push(employmentFrom({ ...person, workType: "permanent" }));
-    sources.push({ ...defaultSelfEmployedSource(), monthsActive: person.monthsActive, profits: person.profits });
-  } else sources.push(employmentFrom(person));
-  if (person.alimonyAnnual > 0) sources.push({ kind: "alimony", annual: person.alimonyAnnual });
-  return sources;
-}
-
-function personFinance(person: PersonForm): PersonFinance {
-  return { reachedAow: person.reachedAow, sources: sourcesFromPerson(person) };
-}
-
-function switchIncomeEntry(person: PersonForm, mode: IncomeEntry): PersonForm {
-  if (mode === person.incomeEntry) return person;
-  if (mode === "annual") {
-    const pay = buildSalaryBreakdown(person);
-    return { ...person, incomeEntry: "annual", grossAnnual: pay.grossAnnual, thirteenthMonth: pay.thirteenthMonth, bonus: pay.structuralBonus };
-  }
-  if (!person.monthlyGross && person.grossAnnual > 0) {
-    return {
-      ...person,
-      incomeEntry: "monthly",
-      monthlyGross: Math.round(person.grossAnnual / 12),
-      holidayMode: "included",
-    };
-  }
-  return { ...person, incomeEntry: "monthly" };
-}
-
-function toFinance(state: CalculatorState, studentMode: "monthly" | "remaining" = "monthly"): MortgageFinance {
-  return {
-    applicant: personFinance(state.applicant),
-    partner: state.withPartner ? personFinance(state.partner) : null,
-    studentLoanMonthly: studentMode === "monthly" ? state.studentLoanMonthly : 0,
-    studentLoanRemaining: studentMode === "remaining" ? state.studentLoanRemaining : 0,
-    studentLoanSf35: state.studentLoanSf35,
-    privateLeaseMonthly: state.privateLeaseMonthly,
-    revolvingCreditLimit: state.revolvingCreditLimit,
-    installmentLoanMonthly: state.installmentLoanMonthly,
-    groundLeaseMonthly: state.groundLeaseMonthly,
-    otherMonthlyDebts: state.otherMonthlyDebts,
-    alimonyPaidMonthly: state.alimonyPaidMonthly,
-    savings: state.savings,
-    gift: state.gift,
-    saleEquity: state.saleEquity,
-    interestRate: state.interestRate,
-    fixedPeriodYears: state.fixedPeriodYears,
-    repayment: state.repayment,
-    energyPerformanceGuarantee: state.energyPerformanceGuarantee,
-    includeEnergyMeasures: state.includeEnergyMeasures,
-    starterExemption: state.starterExemption,
-    buyerAge: state.buyerAge,
-  };
-}
-
-function fundsTotal(state: CalculatorState) {
-  return ownFundsTotal(state);
-}
 
 function debtSummary(state: CalculatorState) {
   const parts: string[] = [];
@@ -382,8 +100,9 @@ function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurcha
 }
 
 export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, initialNhg }: { initialEnergyLabel?: string; initialAskingPrice?: number; initialNhg?: boolean }) {
+  const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
   const [state, setState] = useState<CalculatorState>(() => {
-    const defaults = defaultState();
+    const defaults = defaultCalculatorState();
     const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
     if (energyLabel) defaults.energyLabel = energyLabel;
     if (initialAskingPrice && initialAskingPrice > 0) defaults.askingPrice = initialAskingPrice;
@@ -394,9 +113,12 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     return defaults;
   });
   const [ready, setReady] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "login">("idle");
   const [market, setMarket] = useState<MortgageMarketSnapshot | null>(null);
   const marketRef = useRef<MortgageMarketSnapshot | null>(null);
   marketRef.current = market;
+  const migratedLocalRef = useRef(false);
+  const accountHydratedRef = useRef(false);
   const [showIncomeExtras, setShowIncomeExtras] = useState(false);
   const [showMoreWork, setShowMoreWork] = useState(false);
   const [openFunds, setOpenFunds] = useState(false);
@@ -416,34 +138,71 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   });
   const [wozValue, setWozValue] = useState(0);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const restored = restoreState(JSON.parse(raw), defaultState());
-        const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
-        if (energyLabel) restored.energyLabel = energyLabel;
-        if (initialAskingPrice && initialAskingPrice > 0) restored.askingPrice = initialAskingPrice;
-        if (initialNhg != null) restored.nhg = initialNhg;
-        if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(marketRef.current, restored.fixedPeriodYears, restored.nhg);
-        setState(restored);
-        if (fundsTotal(restored) > 0) setOpenFunds(true);
-        if (filledDebtKeys(restored).length) {
-          setOpenDebts(true);
-          setAddedDebts(filledDebtKeys(restored));
-        }
-        if (restored.studentLoanRemaining > 0 && restored.studentLoanMonthly <= 0) setStudentMode("remaining");
-        if (EXTRA_WORK.includes(restored.applicant.workType) || EXTRA_WORK.includes(restored.partner.workType)) setShowMoreWork(true);
-        if (restored.applicant.alimonyAnnual || restored.applicant.reachedAow || restored.partner.alimonyAnnual || restored.partner.reachedAow) setShowIncomeExtras(true);
-      }
-    } catch { /* ignore */ }
-    setReady(true);
+  const applyRestored = useCallback((restored: CalculatorState) => {
+    const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
+    if (energyLabel) restored.energyLabel = energyLabel;
+    if (initialAskingPrice && initialAskingPrice > 0) restored.askingPrice = initialAskingPrice;
+    if (initialNhg != null) restored.nhg = initialNhg;
+    if (!restored.rateTouched) restored.interestRate = marketIndicativeRate(marketRef.current, restored.fixedPeriodYears, restored.nhg);
+    setState(restored);
+    if (calculatorFundsTotal(restored) > 0) setOpenFunds(true);
+    if (filledDebtKeys(restored).length) {
+      setOpenDebts(true);
+      setAddedDebts(filledDebtKeys(restored));
+    }
+    if (restored.studentLoanRemaining > 0 && restored.studentLoanMonthly <= 0) setStudentMode("remaining");
+    if (EXTRA_WORK.includes(restored.applicant.workType) || EXTRA_WORK.includes(restored.partner.workType)) setShowMoreWork(true);
+    if (restored.applicant.alimonyAnnual || restored.applicant.reachedAow || restored.partner.alimonyAnnual || restored.partner.reachedAow) setShowIncomeExtras(true);
   }, [initialAskingPrice, initialEnergyLabel, initialNhg]);
 
   useEffect(() => {
+    if (!workspaceReady || accountHydratedRef.current) return;
+    if (authenticated && workspace.mortgageState && mortgageStateHasCapacity(workspace.mortgageState)) {
+      accountHydratedRef.current = true;
+      applyRestored(restoreCalculatorState(workspace.mortgageState));
+      setSaveStatus("saved");
+      setReady(true);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(MORTGAGE_STORAGE_KEY);
+      if (raw) {
+        const restored = restoreCalculatorState(JSON.parse(raw), defaultCalculatorState());
+        applyRestored(restored);
+        if (authenticated && !workspace.mortgageConfigured && mortgageStateHasCapacity(restored) && !migratedLocalRef.current) {
+          migratedLocalRef.current = true;
+          accountHydratedRef.current = true;
+          void setMortgageState(restored).then((result) => {
+            if (result.ok) {
+              setSaveStatus("saved");
+            }
+          });
+        } else {
+          setSaveStatus(authenticated ? "local" : "login");
+        }
+      } else {
+        setSaveStatus(authenticated ? "local" : "login");
+      }
+    } catch { /* ignore */ }
+    accountHydratedRef.current = true;
+    setReady(true);
+  }, [applyRestored, authenticated, setMortgageState, workspace.mortgageConfigured, workspace.mortgageState, workspaceReady]);
+
+  useEffect(() => {
     if (!ready) return;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+    try { localStorage.setItem(MORTGAGE_STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }, [ready, state]);
+
+  useEffect(() => {
+    if (!ready || !authenticated || !mortgageStateHasCapacity(state)) return;
+    const handle = window.setTimeout(() => {
+      setSaveStatus("saving");
+      void setMortgageState(state).then((result) => {
+        setSaveStatus(result.ok ? "saved" : authenticated ? "local" : "login");
+      });
+    }, 900);
+    return () => window.clearTimeout(handle);
+  }, [authenticated, ready, setMortgageState, state]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -466,13 +225,13 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     };
   }, []);
 
-  const result = useMemo(() => calculateMortgageCapacity(toFinance(state, studentMode), {
+  const result = useMemo(() => calculateMortgageCapacity(calculatorStateToFinance(state, studentMode), {
     energyLabel: state.energyLabel,
     askingPrice: state.askingPrice,
     nhg: state.nhg,
   }, market ?? undefined), [market, state, studentMode]);
 
-  const funds = fundsTotal(state);
+  const funds = calculatorFundsTotal(state);
   const reference = useMemo(() => currentMortgageReference(), []);
   const maxDeductionRate = reference.box1.maxHousingDeductionRate;
 
@@ -543,7 +302,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
 
   const scenarios = useMemo(() => {
     if (!result.available) return [];
-    return buildMortgageScenarios(toFinance(state, studentMode), {
+    return buildMortgageScenarios(calculatorStateToFinance(state, studentMode), {
       energyLabel: state.energyLabel,
       askingPrice: state.askingPrice,
       nhg: state.nhg,
@@ -595,6 +354,13 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
 
   return <>
+    <div className="mortgage-account-bar" role="status">
+      {saveStatus === "saved" && <span><ShieldCheck size={14} /> Opgeslagen op je account · <Link href="/mijn-aankoop">Open aankoopdashboard</Link></span>}
+      {saveStatus === "saving" && <span>Hypotheek opslaan…</span>}
+      {saveStatus === "local" && <span>Op dit apparaat bewaard{authenticated ? "" : ""} · <Link href="/mijn-aankoop">Bekijk dashboard</Link></span>}
+      {saveStatus === "login" && <span><CircleAlert size={14} /> <Link href="/login">Log in</Link> om je hypotheek op je account te bewaren.</span>}
+      {saveStatus === "idle" && !authenticated && <span><Link href="/login">Log in</Link> om je berekening te bewaren tussen apparaten.</span>}
+    </div>
     <div className="mortgage-layout">
       <section className="mortgage-form-card">
         <div className="section-kicker">Stap 1 · inkomen</div>

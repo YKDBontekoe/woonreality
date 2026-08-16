@@ -243,6 +243,7 @@ export type PersonalPreferences = {
 };
 
 export type SavedProperty = Pick<Property, "bagVboId" | "addressLabel" | "city" | "postcode"> & {
+  askingPrice?: number | null;
   savedAt: string;
 };
 

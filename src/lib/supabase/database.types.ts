@@ -258,7 +258,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       merge_profile_preferences: {
-        Args: { p_preferences?: Json | null; p_buyer_profile?: Json | null; p_compare_ids?: Json | null };
+        Args: { p_preferences?: Json | null; p_buyer_profile?: Json | null; p_compare_ids?: Json | null; p_mortgage?: Json | null };
         Returns: Json;
       };
       apply_case_workflow: {

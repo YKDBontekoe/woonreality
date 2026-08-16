@@ -32,6 +32,8 @@ import {
   preferenceLabel,
 } from "@/src/lib/personalization";
 import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
+import { computePropertyAffordability, fitLabel } from "@/src/lib/affordability";
+import { formatEuro as formatEuroShared } from "@/src/lib/purchase";
 import {
   checklistForAnalysis,
   mergeChecklistWithDefaults,
@@ -361,6 +363,19 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
+  const askingForAffordability = listing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
+  const affordability = workspace.mortgageConfigured
+    ? computePropertyAffordability({
+      state: workspace.mortgageState,
+      askingPrice: askingForAffordability,
+      energyLabel: mortgageEnergyLabel ?? energyLabel,
+      nhg: workspace.mortgageState?.nhg ?? workspace.buyerProfile.nhg,
+    })
+    : null;
+
+  async function saveProperty() {
+    await toggleSaved(property, listing?.askingPrice ?? askingForAffordability);
+  }
 
   return (
     <PageShell current="woning">
@@ -386,7 +401,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 className={`secondary-button ${isSaved ? "selected" : ""}`}
                 type="button"
                 onClick={async () => {
-                  await toggleSaved(property);
+                  await saveProperty();
                 }}
               >
                 {isSaved ? (
@@ -466,7 +481,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 className="secondary-button"
                 type="button"
                 onClick={async () => {
-                  if (!isSaved) await toggleSaved(property);
+                  if (!isSaved) await saveProperty();
                 }}
               >
                 <Heart size={14} />
@@ -504,6 +519,20 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
+            {affordability && listingStatus === "unavailable" && (
+              <div className={`buying-power-strip fit-${affordability.fit}`}>
+                <div>
+                  <span className="section-kicker">Jouw koopkracht</span>
+                  <strong>{fitLabel(affordability.fit)}</strong>
+                  <p>{affordability.summary}</p>
+                </div>
+                <div className="buying-power-strip-meta">
+                  {affordability.maxPurchasePrice > 0 && <span>Max. koopsom {formatEuroShared(affordability.maxPurchasePrice)}</span>}
+                  {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
+                  <Link className="text-link" href="/mijn-aankoop">Open dashboard</Link>
+                </div>
+              </div>
+            )}
             {!caseId && (
               <div className="later-tool-link" style={{ alignItems: "center" }}>
                 <span>
@@ -517,7 +546,24 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               <AiResearchSection report={aiReport} status={aiStatus} />
             </div>
             {listingStatus !== "unavailable" && (
-              <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
+              <div>
+                <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
+                {affordability && (
+                  <div className={`buying-power-strip fit-${affordability.fit}`}>
+                    <div>
+                      <span className="section-kicker">Jouw koopkracht</span>
+                      <strong>{fitLabel(affordability.fit)}</strong>
+                      <p>{affordability.summary}</p>
+                    </div>
+                    <div className="buying-power-strip-meta">
+                      {affordability.maxPurchasePrice > 0 && <span>Max. koopsom {formatEuroShared(affordability.maxPurchasePrice)}</span>}
+                      {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
+                      <Link className="text-link" href={hypotheekHref}>Open hypotheek <ArrowRight size={13} /></Link>
+                      <Link className="text-link" href="/mijn-aankoop">Dashboard</Link>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             <ValuationBidPanel
               bagId={bagId}
