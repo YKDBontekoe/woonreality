@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
+import { toUserMessage } from "@/src/lib/errors";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { persistAnalysis } from "@/src/lib/db/repository";
 
@@ -19,6 +20,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     }
     return NextResponse.json(analysis, { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Analysis failed" }, { status: 502 });
+    console.error("Property analysis failed", error);
+    return NextResponse.json({ error: toUserMessage(error, "De woningcheck kon niet worden gemaakt. Probeer het later opnieuw.") }, { status: 502 });
   }
 }
