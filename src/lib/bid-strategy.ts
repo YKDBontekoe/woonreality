@@ -22,6 +22,12 @@ export type BidStrategy = {
   riskSummary: string;
 };
 
+export type NegotiationGuidance = {
+  counterOfferSteps: string[];
+  escalationClause: { title: string; summary: string; whenToUse: string; caution: string };
+  walkAwayReminder: string;
+};
+
 const LABELS: Record<BidScenarioKey, string> = {
   cautious: "Voorzichtig",
   balanced: "Gebalanceerd",
@@ -39,6 +45,34 @@ function clampToBudget(amount: number, budget?: number) {
 
 export function attentionSignals(analysis?: Analysis | null) {
   return (analysis?.signals ?? []).filter((signal) => signal.severity === "attention");
+}
+
+/**
+ * A tegenbod is normal, not a sign you should panic-raise your bid. This is
+ * exactly the coaching an aankoopmakelaar gives during onderhandeling: react
+ * on one variable at a time, and know the ophoogclausule option and your
+ * walk-away price before you're in the moment.
+ */
+export function negotiationGuidance(strategy: BidStrategy | null, selected: BidScenarioKey, budget?: number): NegotiationGuidance {
+  const scenario = strategy?.scenarios[selected];
+  const maxAmount = budget && budget > 0 ? budget : scenario?.amount;
+  return {
+    counterOfferSteps: [
+      "Reageer op één variabele tegelijk: óf het bedrag, óf een voorwaarde (bv. een voorbehoud laten vallen). Niet allebei in dezelfde stap weggeven.",
+      "Vraag altijd wat de reden van het tegenbod is: een ander bod, een taxatieverschil, of gewoon onderhandelruimte. Dat bepaalt je reactie.",
+      "Verhoog in kleine, beargumenteerde stappen. Elke verhoging zonder toelichting wekt de indruk dat er nog meer ruimte is.",
+      "Zet nieuwe afspraken altijd schriftelijk (e-mail) vast, ook als de makelaar van de verkoper mondeling akkoord lijkt.",
+    ],
+    escalationClause: {
+      title: "Ophoogclausule (escalation clause)",
+      summary: "Een ophoogclausule zegt: 'ik bied X, maar ga automatisch Y hoger dan het beste concurrerende bod, tot een maximum van Z.' Dit voorkomt dat je blind moet gokken tegen onbekende concurrentie.",
+      whenToUse: "Vooral zinvol bij aantoonbare biedconcurrentie (meerdere kijkers, korte reactietermijn) en als je een keiharde bovengrens hebt.",
+      caution: "De verkoper moet bewijs van het concurrerende bod kunnen tonen; leg dat vooraf vast. Niet elke verkopend makelaar accepteert deze clausule.",
+    },
+    walkAwayReminder: maxAmount
+      ? `Bepaal vooraf je maximum (nu circa ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(maxAmount)}) en wees bereid om af te haken zodra dat wordt overschreden. Een huis waarvoor je je financiële marge opgeeft, is geen goede koop.`
+      : "Bepaal vooraf je maximum en wees bereid om af te haken zodra dat wordt overschreden. Een huis waarvoor je je financiële marge opgeeft, is geen goede koop.",
+  };
 }
 
 export function buildBidStrategy(askingPrice: number, analysis?: Analysis | null, profile?: Pick<BuyerProfile, "budget" | "firstTimeBuyer" | "ownFunds"> | null): BidStrategy | null {
