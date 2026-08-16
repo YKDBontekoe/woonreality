@@ -99,7 +99,19 @@ function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurcha
   return `Dit huis kost ${formatEuro(result.askingPrice)}. Volgens deze schets kun je tot ${formatEuro(result.maxPurchasePrice)} gaan — ${formatEuro(gap)} tekort.`;
 }
 
-export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, initialNhg }: { initialEnergyLabel?: string; initialAskingPrice?: number; initialNhg?: boolean }) {
+export function MortgageCalculator({
+  initialEnergyLabel,
+  initialAskingPrice,
+  initialNhg,
+  variant = "full",
+  onCapacityChange,
+}: {
+  initialEnergyLabel?: string;
+  initialAskingPrice?: number;
+  initialNhg?: boolean;
+  variant?: "full" | "onboarding";
+  onCapacityChange?: (ready: boolean) => void;
+}) {
   const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
   const [state, setState] = useState<CalculatorState>(() => {
     const defaults = defaultCalculatorState();
@@ -231,6 +243,10 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     nhg: state.nhg,
   }, market ?? undefined), [market, state, studentMode]);
 
+  useEffect(() => {
+    onCapacityChange?.(result.available);
+  }, [onCapacityChange, result.available]);
+
   const funds = calculatorFundsTotal(state);
   const reference = useMemo(() => currentMortgageReference(), []);
   const maxDeductionRate = reference.box1.maxHousingDeductionRate;
@@ -353,15 +369,17 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
   const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
 
+  const onboarding = variant === "onboarding";
+
   return <>
     <div className="mortgage-account-bar" role="status">
-      {saveStatus === "saved" && <span><ShieldCheck size={14} /> Opgeslagen op je account · <Link href="/mijn-aankoop">Open aankoopdashboard</Link></span>}
+      {saveStatus === "saved" && <span><ShieldCheck size={14} /> Opgeslagen op je account{onboarding ? "" : <> · <Link href="/mijn-aankoop">Open aankoopdashboard</Link></>}</span>}
       {saveStatus === "saving" && <span>Hypotheek opslaan…</span>}
-      {saveStatus === "local" && <span>Op dit apparaat bewaard{authenticated ? "" : ""} · <Link href="/mijn-aankoop">Bekijk dashboard</Link></span>}
+      {saveStatus === "local" && <span>Op dit apparaat bewaard{onboarding ? "" : <> · <Link href="/mijn-aankoop">Bekijk dashboard</Link></>}</span>}
       {saveStatus === "login" && <span><CircleAlert size={14} /> <Link href="/login">Log in</Link> om je hypotheek op je account te bewaren.</span>}
       {saveStatus === "idle" && !authenticated && <span><Link href="/login">Log in</Link> om je berekening te bewaren tussen apparaten.</span>}
     </div>
-    <div className="mortgage-layout">
+    <div className={`mortgage-layout${onboarding ? " mortgage-layout-onboarding" : ""}`}>
       <section className="mortgage-form-card">
         <div className="section-kicker">Stap 1 · inkomen</div>
         <h2>Wat is je inkomen?</h2>
@@ -557,7 +575,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
             {detailedCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(detailedCosts.total)}</strong></div>}
           </div>
           {fitCopy(result) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result)}</div>}
-          {detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">Kosten en grafieken bekijken</a>}
+          {!onboarding && detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">Kosten en grafieken bekijken</a>}
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenExplain((value) => !value)} aria-expanded={openExplain}>
             {openExplain ? "Verberg rekenregels" : "Hoe komen we op dit bedrag?"}
           </button>
@@ -604,6 +622,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         </p>}
       </aside>
     </div>
+    {!onboarding && (
     <MortgageCostInsight
       costs={detailedCosts}
       tax={housingTax}
@@ -631,6 +650,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         { label: "Eigenwoningforfait", url: reference.sources.eigenwoningforfait },
       ]}
     />
+    )}
     {result.available && <a className="mortgage-mobile-dock" href="#hypotheek-result">
       <span>
         <small>Maximale hypotheek</small>

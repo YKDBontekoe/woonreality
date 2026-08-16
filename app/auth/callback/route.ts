@@ -20,8 +20,10 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/login?error=invalid-link", url.origin));
     }
   }
-  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : "/mijn-aankoop";
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : "/onboarding";
   const destination = new URL(safeNext, url.origin);
-  if (setup === "passkey" && destination.pathname === "/mijn-aankoop") destination.searchParams.set("setup", "passkey");
+  if (setup === "passkey" && (destination.pathname === "/mijn-aankoop" || destination.pathname === "/onboarding")) {
+    destination.searchParams.set("setup", "passkey");
+  }
   return NextResponse.redirect(destination);
 }

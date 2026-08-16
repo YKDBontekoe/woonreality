@@ -83,6 +83,8 @@ export function usePropertyWorkspace() {
 
   const setListingPrice = useCallback(async (bagVboId: string, askingPrice: number) => mutate({ action: "listingPrice", bagVboId, askingPrice }), [mutate]);
 
+  const dismissOnboarding = useCallback(async () => mutate({ action: "onboarding", dismissOnboarding: true }), [mutate]);
+
   return {
     workspace,
     workspaceReady,
@@ -95,6 +97,7 @@ export function usePropertyWorkspace() {
     setPropertyStage,
     setMortgageState,
     setListingPrice,
+    dismissOnboarding,
     refresh,
   };
 }

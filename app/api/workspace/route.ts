@@ -9,6 +9,7 @@ import {
   restoreCalculatorState,
   type CalculatorState,
 } from "@/src/lib/mortgage/calculator-state";
+import { parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
@@ -81,6 +82,7 @@ async function readWorkspace() {
       mortgageState,
       mortgageSnapshot,
       mortgageConfigured,
+      onboardingDismissed: parseOnboardingDismissed(profilePreferences),
       saved: savedProperties.map((item): SavedProperty => ({
         bagVboId: item.bag_vbo_id,
         addressLabel: item.address_label,
@@ -179,6 +181,29 @@ export async function POST(request: Request) {
         asking_price: body.askingPrice > 0 ? body.askingPrice : null,
         updated_at: now,
       }, { onConflict: "user_id,bag_vbo_id" });
+      if (error) throw error;
+    } else if (body.action === "onboarding") {
+      if (!body.dismissOnboarding) return NextResponse.json({ error: "Geef dismissOnboarding mee." }, { status: 400 });
+      const { data: profileRow, error: profileReadError } = await result.supabase
+        .from("profiles")
+        .select("preferences_json, compare_ids")
+        .eq("id", result.user.id)
+        .maybeSingle();
+      if (profileReadError) throw profileReadError;
+      const currentPrefs = record(profileRow?.preferences_json);
+      const nextPrefs = {
+        ...currentPrefs,
+        onboarding: { dismissedAt: now },
+      };
+      if (!preferencesJsonWithinLimit(nextPrefs)) {
+        return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
+      }
+      const { error } = await result.supabase.from("profiles").upsert({
+        id: result.user.id,
+        preferences_json: nextPrefs,
+        compare_ids: profileRow?.compare_ids ?? [],
+        updated_at: now,
+      }, { onConflict: "id" });
       if (error) throw error;
     } else {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });
