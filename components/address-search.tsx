@@ -19,6 +19,8 @@ export function AddressSearch({
   const router = useRouter();
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
+  const dismissedRef = useRef(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AddressSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -27,19 +29,25 @@ export function AddressSearch({
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
+    dismissedRef.current = false;
+    setResults([]);
+    setActiveIndex(-1);
+    setError("");
+
     if (query.trim().length < 3) {
-      setResults([]);
-      setError("");
+      setSearching(false);
       setSearched(false);
-      setActiveIndex(-1);
       return;
     }
+
+    const requestId = ++requestIdRef.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
         const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
         const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
+        if (requestId !== requestIdRef.current || dismissedRef.current) return;
         if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
         setResults(body.results ?? []);
         setError("");
@@ -47,13 +55,15 @@ export function AddressSearch({
         setActiveIndex(-1);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") return;
+        if (requestId !== requestIdRef.current || dismissedRef.current) return;
         setError(caught instanceof Error ? caught.message : "Zoeken lukt nu niet");
         setResults([]);
         setSearched(true);
       } finally {
-        setSearching(false);
+        if (requestId === requestIdRef.current) setSearching(false);
       }
     }, 260);
+
     return () => {
       window.clearTimeout(timer);
       controller.abort();
@@ -66,10 +76,18 @@ export function AddressSearch({
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (!results.length) {
-      if (event.key === "Enter" && results[0]) openResult(results[0]);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      dismissedRef.current = true;
+      requestIdRef.current += 1;
+      setActiveIndex(-1);
+      setResults([]);
+      setSearching(false);
       return;
     }
+
+    if (!results.length || dismissedRef.current) return;
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActiveIndex((index) => (index + 1) % results.length);
@@ -78,11 +96,9 @@ export function AddressSearch({
       setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1));
     } else if (event.key === "Enter") {
       event.preventDefault();
+      if (dismissedRef.current || !results.length) return;
       const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
       if (pick) openResult(pick);
-    } else if (event.key === "Escape") {
-      setActiveIndex(-1);
-      setResults([]);
     }
   }
 
@@ -97,6 +113,7 @@ export function AddressSearch({
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
+          if (dismissedRef.current || !results.length) return;
           const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
           if (pick) openResult(pick);
         }}

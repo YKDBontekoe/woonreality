@@ -32,7 +32,7 @@ export function TextInput({
 }: FieldBase & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <Field label={label} htmlFor={htmlFor} hint={hint} className={className}>
-      <input id={htmlFor} {...inputProps} />
+      <input {...inputProps} id={htmlFor} />
     </Field>
   );
 }
@@ -47,7 +47,7 @@ export function TextSelect({
 }: FieldBase & SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   return (
     <Field label={label} htmlFor={htmlFor} hint={hint} className={className}>
-      <select id={htmlFor} {...selectProps}>
+      <select {...selectProps} id={htmlFor}>
         {children}
       </select>
     </Field>
@@ -63,7 +63,7 @@ export function TextTextarea({
 }: FieldBase & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <Field label={label} htmlFor={htmlFor} hint={hint} className={className}>
-      <textarea id={htmlFor} {...textareaProps} />
+      <textarea {...textareaProps} id={htmlFor} />
     </Field>
   );
 }

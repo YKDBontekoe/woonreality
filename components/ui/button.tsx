@@ -27,28 +27,28 @@ type ButtonAsLink = CommonProps & {
 };
 
 export function Button(props: ButtonAsButton | ButtonAsLink) {
-  const variant = props.variant ?? "primary";
-  const className = props.className ?? "";
-  const classes = [variantClass[variant], className].filter(Boolean).join(" ");
-
   if ("href" in props && props.href) {
+    const { variant = "primary", className = "", children, href } = props;
+    const classes = [variantClass[variant], className].filter(Boolean).join(" ");
     return (
-      <Link className={classes} href={props.href as Route}>
-        {props.children}
+      <Link className={classes} href={href as Route}>
+        {children}
       </Link>
     );
   }
 
-  const buttonProps = props as ButtonAsButton;
+  const {
+    variant = "primary",
+    className = "",
+    children,
+    type = "button",
+    ...rest
+  } = props as ButtonAsButton;
+  const classes = [variantClass[variant], className].filter(Boolean).join(" ");
+
   return (
-    <button
-      className={classes}
-      type={buttonProps.type ?? "button"}
-      disabled={buttonProps.disabled}
-      onClick={buttonProps.onClick}
-      aria-label={buttonProps["aria-label"]}
-    >
-      {buttonProps.children}
+    <button className={classes} type={type} {...rest}>
+      {children}
     </button>
   );
 }
