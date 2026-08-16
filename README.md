@@ -63,6 +63,7 @@ GET /api/listing/:bagId
 GET /api/listing/user/:bagId
 PUT /api/listing/user/:bagId
 POST /api/listing/user/:bagId/import
+POST /api/listing/from-url
 GET /api/cron/source-health
 GET /api/health
 ```
@@ -76,8 +77,11 @@ and return a normalized JSON object containing at least `externalId` and an
 HTTPS `sourceUrl`. The app does not call or reverse-engineer undocumented Funda
 endpoints.
 
-Users can also paste one Funda listing URL. The app fetches only that page to
-fill missing asking-price and kenmerken fields; it does not scrape search results.
+Users can also paste one Funda listing URL in search (Funda-link mode) or on
+the property page. The app fetches only that page to fill missing asking-price,
+kenmerken and free-text fields, then resolves the official BAG address. It does
+not scrape search results. If Funda shows a bot-check, the address is still
+taken from the URL slug.
 
 ## Vercel setup
 

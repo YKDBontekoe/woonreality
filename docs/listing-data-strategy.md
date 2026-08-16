@@ -19,13 +19,15 @@ Use provider adapters with explicit provenance instead:
 ## User-initiated Funda import
 
 A logged-in or guest user can paste one `https://www.funda.nl/...` **listing** URL
-on the property page or landing intake. `POST /api/listing/user/:bagId/import`
-fetches that page once, extracts JSON-LD and kenmerken, and stores the result in
-`user_listings` (or session storage when the user is not signed in). Search pages
-and other hosts are rejected. This is not a catalog scraper: there is no crawl,
-no photo/floor-plan storage, and official BAG/EP-Online facts are never overwritten.
+in search (Funda-link mode), on the property page, or in the landing intake.
+`POST /api/listing/from-url` extracts the address from the URL and page, resolves
+it via PDOK, and stores kenmerken plus free-text sections. `POST /api/listing/user/:bagId/import`
+does the same when the BAG id is already known. Search pages and other hosts are
+rejected. This is not a catalog scraper: there is no crawl, no photo/floor-plan
+storage, and official BAG/EP-Online facts are never overwritten.
 
-If the fetch is blocked, the existing paste-text path remains the fallback.
+If Funda blocks the fetch with a bot-check, the address is still parsed from the
+listing URL so the woningcheck can open; kenmerken can be added later.
 
 ## Licensed feed integration
 

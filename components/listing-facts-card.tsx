@@ -78,6 +78,11 @@ export function ListingFactsCard({
     ["VvE-reserve", listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund) : undefined],
   ].filter(([, value]) => value !== undefined && value !== "—") as [string, string | number][];
 
+  const shownLabels = new Set(facts.map(([label]) => label.toLowerCase()));
+  const extraKenmerken = Object.entries(listing.extraKenmerken ?? {}).filter(([label]) => {
+    const key = label.toLowerCase();
+    return !shownLabels.has(key) && !/woonoppervlak|^wonen$|perceel|aantal kamers|slaapkamer|energielabel|bouwjaar|vraagprijs/.test(key);
+  });
   const areaConflict =
     bagAreaM2 != null &&
     listing.livingAreaM2 != null &&
@@ -136,6 +141,33 @@ export function ListingFactsCard({
             ))}
           </div>
         )}
+        {extraKenmerken.length > 0 && (
+          <div className="listing-extra-kenmerken">
+            {extraKenmerken.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        )}
+        {listing.description && (
+          <div className="listing-description">
+            <span className="listing-label">Omschrijving</span>
+            <p>{listing.description}</p>
+          </div>
+        )}
+        {listing.textSections?.filter((section) => section.text !== listing.description).map((section) => (
+          <div className="listing-description" key={section.title}>
+            <span className="listing-label">{section.title}</span>
+            <p>{section.text}</p>
+          </div>
+        ))}
+        {listing.notes?.length ? (
+          <ul className="listing-notes">
+            {listing.notes.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+        ) : null}
         <div className="listing-footer">
           <span>
             Bron: {listing.provider} · opgehaald {formatDate(listing.fetchedAt)}

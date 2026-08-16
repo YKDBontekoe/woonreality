@@ -148,6 +148,9 @@ export type PropertyListing = {
   municipality?: string;
   province?: string;
   description?: string;
+  extraKenmerken?: Record<string, string>;
+  textSections?: { title: string; text: string }[];
+  notes?: string[];
 };
 
 export type ResearchSourceType = "official" | "municipality" | "planning" | "listing" | "web";

@@ -9,6 +9,11 @@ import type { PropertyListing } from "@/src/lib/types";
 export const FUNDA_USER_PROVIDER = "Funda (door jou toegevoegd)";
 export const USER_PROVIDER = "Door jou toegevoegd";
 
+export type ListingTextSection = {
+  title: string;
+  text: string;
+};
+
 export type ImportedListingFacts = ExtractedListingFacts & {
   roomCount?: number;
   bathroomCount?: number;
@@ -27,6 +32,17 @@ export type ImportedListingFacts = ExtractedListingFacts & {
   vveReserveFund?: number;
   status?: PropertyListing["status"];
   firstPublishedAt?: string;
+  description?: string;
+  addressLabel?: string;
+  postcode?: string;
+  city?: string;
+  street?: string;
+  houseNumber?: number;
+  houseLetter?: string;
+  ownership?: string;
+  neighborhood?: string;
+  extraKenmerken?: Record<string, string>;
+  sections?: ListingTextSection[];
 };
 
 export class ListingImportError extends Error {
@@ -39,27 +55,107 @@ export class ListingImportError extends Error {
   }
 }
 
-const FETCH_TIMEOUT_MS = 6_000;
+const FETCH_TIMEOUT_MS = 10_000;
 const MAX_BYTES = 8_000_000;
 const USER_AGENT = "WoonReality/0.1 (user-initiated listing import)";
+const SMALL_STREET_WORDS = new Set(["de", "den", "der", "van", "het", "en", "'s"]);
+const PAYWALLED = /log in om te bekijken/i;
 
 export function isFundaHost(hostname: string) {
   return hostname.toLowerCase().replace(/^www\./, "") === "funda.nl";
 }
 
 export function isFundaListingUrl(value: string) {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") return false;
-    if (!isFundaHost(url.hostname)) return false;
-    const path = url.pathname.toLowerCase();
-    if (path.includes("/zoeken")) return false;
-    const match = path.match(/^\/(?:detail\/)?(koop|huur)\/([^/]+)\/(.+)$/);
-    if (!match) return false;
-    return /\d{4,}/.test(match[3]);
-  } catch {
-    return false;
+  return Boolean(normalizeFundaListingUrl(value));
+}
+
+export function normalizeFundaListingUrl(value: string) {
+  const trimmed = value.trim();
+  const candidates = [trimmed];
+  if (trimmed.startsWith("http://")) candidates.push(`https://${trimmed.slice(7)}`);
+  else if (trimmed.startsWith("www.")) candidates.push(`https://${trimmed}`);
+  else if (trimmed.startsWith("funda.nl/")) candidates.push(`https://www.${trimmed}`);
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      if (url.protocol !== "https:") continue;
+      if (!isFundaHost(url.hostname)) continue;
+      const path = url.pathname.toLowerCase();
+      if (path.includes("/zoeken")) continue;
+      const match = path.match(/^\/(?:detail\/)?(koop|huur)\/([^/]+)\/(.+)$/);
+      if (!match || !/\d{4,}/.test(match[3])) continue;
+      return url.toString();
+    } catch {
+      /* try next candidate */
+    }
   }
+  return null;
+}
+
+function titleCaseSlug(slug: string) {
+  return slug.split("-").filter(Boolean).map((part, index) => {
+    const lower = part.toLowerCase();
+    if (index > 0 && SMALL_STREET_WORDS.has(lower)) return lower;
+    if (lower.startsWith("'s")) return `'s${lower.slice(2)}`;
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }).join(" ");
+}
+
+export function parseFundaListingAddress(value: string) {
+  const normalized = normalizeFundaListingUrl(value);
+  if (!normalized) return null;
+  const path = new URL(normalized).pathname.replace(/\/+$/, "");
+  const match = path.match(/^\/(?:detail\/)?(?:koop|huur)\/([^/]+)\/([a-z0-9-]+)(?:\/\d+)?$/i);
+  if (!match) return null;
+  const city = titleCaseSlug(match[1]);
+  const slug = match[2].toLowerCase().replace(/-bouwnr-\d+$/, "");
+  const objectAndRest = slug.match(/^(huis|appartement|parkeergelegenheid|bouwgrond|ligplaats|woonboot|recreatiewoning|garage|kamer)-(\d{4,})-(.+)$/);
+  if (!objectAndRest) {
+    return city ? { city, query: city, sourceUrl: normalized } : null;
+  }
+  const streetSlug = objectAndRest[3];
+  const streetMatch = streetSlug.match(/^(.+)-(\d+)(?:-([a-z0-9]))?$/i);
+  if (!streetMatch) return { city, query: city, sourceUrl: normalized };
+  const street = titleCaseSlug(streetMatch[1]);
+  const houseNumber = Number(streetMatch[2]);
+  const houseLetter = streetMatch[3] ? streetMatch[3].toUpperCase() : undefined;
+  const addressLabel = `${street} ${houseNumber}${houseLetter ?? ""}`.trim();
+  return {
+    city,
+    street,
+    houseNumber: Number.isFinite(houseNumber) ? houseNumber : undefined,
+    houseLetter,
+    addressLabel,
+    query: `${addressLabel}, ${city}`,
+    sourceUrl: normalized,
+  };
+}
+
+export function addressQueryFromFacts(facts: ImportedListingFacts, sourceUrl?: string) {
+  if (facts.street && facts.houseNumber && facts.city) {
+    const house = `${facts.street} ${facts.houseNumber}${facts.houseLetter ?? ""}`;
+    return facts.postcode ? `${house}, ${facts.postcode} ${facts.city}` : `${house}, ${facts.city}`;
+  }
+  if (facts.addressLabel && facts.city) return `${facts.addressLabel}, ${facts.city}`;
+  if (facts.addressLabel) return facts.addressLabel;
+  return sourceUrl ? parseFundaListingAddress(sourceUrl)?.query : undefined;
+}
+
+export function isFundaChallengeHtml(html: string) {
+  return /fundaCaptchaForm|grecaptcha|Je bent bijna op de pagina die je zoekt|__akam_recaptcha/i.test(html)
+    && !/application\/ld\+json/i.test(html);
+}
+
+function factsFromFundaUrl(sourceUrl: string): ImportedListingFacts {
+  const parsed = parseFundaListingAddress(sourceUrl);
+  return {
+    notes: [],
+    ...(parsed?.city ? { city: parsed.city } : {}),
+    ...(parsed?.street ? { street: parsed.street } : {}),
+    ...(parsed?.houseNumber ? { houseNumber: parsed.houseNumber } : {}),
+    ...(parsed?.houseLetter ? { houseLetter: parsed.houseLetter } : {}),
+    ...(parsed?.addressLabel ? { addressLabel: parsed.addressLabel } : {}),
+  };
 }
 
 export function fundaListingId(url: string) {
@@ -84,9 +180,15 @@ export function mergeListingFacts(
   const merged: ImportedListingFacts = { ...imported, notes: uniqueNotes([...existingNotes, ...importedNotes]) };
   if (!existing) return merged;
   for (const [key, value] of Object.entries(existing) as Array<[keyof ImportedListingFacts, ImportedListingFacts[keyof ImportedListingFacts]]>) {
-    if (key === "notes") continue;
+    if (key === "notes" || key === "extraKenmerken" || key === "sections") continue;
     if (hasValue(value)) (merged as Record<string, unknown>)[key] = value;
   }
+  merged.extraKenmerken = { ...(imported.extraKenmerken ?? {}), ...(existing.extraKenmerken ?? {}) };
+  if (!Object.keys(merged.extraKenmerken).length) delete merged.extraKenmerken;
+  const sections = [...(existing.sections ?? []), ...(imported.sections ?? [])].filter((section, index, all) => (
+    all.findIndex((item) => item.title === section.title && item.text === section.text) === index
+  ));
+  if (sections.length) merged.sections = sections;
   return merged;
 }
 
@@ -123,6 +225,11 @@ export function listingFromImportedFacts(
     storage: facts.storage,
     firstPublishedAt: facts.firstPublishedAt,
     pricePerM2,
+    description: facts.description,
+    addressLabel: facts.addressLabel,
+    extraKenmerken: facts.extraKenmerken && Object.keys(facts.extraKenmerken).length ? facts.extraKenmerken : undefined,
+    textSections: facts.sections?.length ? facts.sections : undefined,
+    notes: facts.notes.length ? facts.notes : undefined,
   };
   return {
     provider: isFundaListingUrl(sourceUrl) ? FUNDA_USER_PROVIDER : USER_PROVIDER,
@@ -141,7 +248,7 @@ export function factsFromUnknown(value: unknown): ImportedListingFacts {
   const facts: ImportedListingFacts = { notes };
   const numbers = [
     "askingPrice", "livingAreaM2", "plotAreaM2", "bedroomCount", "constructionYear", "vveContribution",
-    "roomCount", "bathroomCount", "volumeM3", "solarPanelCount", "outdoorSpaceM2", "vveReserveFund",
+    "roomCount", "bathroomCount", "volumeM3", "solarPanelCount", "outdoorSpaceM2", "vveReserveFund", "houseNumber",
   ] as const;
   for (const key of numbers) {
     const parsed = typeof record[key] === "number" && Number.isFinite(record[key]) ? record[key] : undefined;
@@ -149,6 +256,7 @@ export function factsFromUnknown(value: unknown): ImportedListingFacts {
   }
   const strings = [
     "energyLabel", "propertyType", "insulation", "heating", "glazing", "gardenOrientation", "parking", "storage", "firstPublishedAt",
+    "description", "addressLabel", "postcode", "city", "street", "houseLetter", "ownership", "neighborhood",
   ] as const;
   for (const key of strings) {
     if (typeof record[key] === "string" && record[key].trim()) facts[key] = record[key].trim();
@@ -157,6 +265,19 @@ export function factsFromUnknown(value: unknown): ImportedListingFacts {
   if (typeof record.terrace === "boolean") facts.terrace = record.terrace;
   if (record.status === "active" || record.status === "sold" || record.status === "withdrawn" || record.status === "unknown") {
     facts.status = record.status;
+  }
+  if (record.extraKenmerken && typeof record.extraKenmerken === "object" && !Array.isArray(record.extraKenmerken)) {
+    facts.extraKenmerken = Object.fromEntries(
+      Object.entries(record.extraKenmerken as Record<string, unknown>).flatMap(([key, value]) => typeof value === "string" && value.trim() ? [[key, value.trim()]] : []),
+    );
+  }
+  if (Array.isArray(record.sections)) {
+    facts.sections = record.sections.flatMap((item) => {
+      const section = asRecord(item);
+      const title = typeof section?.title === "string" ? section.title.trim() : "";
+      const text = typeof section?.text === "string" ? section.text.trim() : "";
+      return title && text ? [{ title, text }] : [];
+    });
   }
   return facts;
 }
@@ -243,22 +364,28 @@ function parseStatus(value: string): PropertyListing["status"] | undefined {
 function applyKenmerk(label: string, value: string, facts: ImportedListingFacts) {
   const key = label.toLowerCase().replace(/\s+/g, " ").trim();
   const text = value.replace(/\s+/g, " ").trim();
-  if (!key || !text) return;
-  if (/woonoppervlakte|gebruiksoppervlakte wonen/.test(key)) facts.livingAreaM2 ??= parseArea(text);
+  if (!key || !text || PAYWALLED.test(text)) return;
+  facts.extraKenmerken = { ...(facts.extraKenmerken ?? {}), [label.replace(/\s+/g, " ").trim()]: text };
+  if (/woonoppervlakte|gebruiksoppervlakte wonen|^wonen$/.test(key)) facts.livingAreaM2 ??= parseArea(text);
   else if (/perceel/.test(key)) facts.plotAreaM2 ??= parseArea(text);
   else if (/^inhoud$|inhoud m/.test(key)) {
     const match = text.match(/(\d{2,5}(?:[.,]\d)?)/);
     const parsed = match ? parseDutchNumber(match[1]) : undefined;
     if (parsed != null && parsed >= 50 && parsed <= 20_000) facts.volumeM3 ??= parsed;
-  } else if (/slaapkamer/.test(key)) facts.bedroomCount ??= parseCount(text, 20);
+  } else if (/slaapkamer/.test(key) && !/aantal kamers/.test(key)) facts.bedroomCount ??= parseCount(text, 20);
   else if (/badkamer/.test(key)) facts.bathroomCount ??= parseCount(text, 20);
-  else if (/aantal kamers|^kamers$/.test(key)) facts.roomCount ??= parseCount(text, 30);
-  else if (/energielabel/.test(key)) facts.energyLabel ??= parseEnergyLabel(text);
+  else if (/aantal kamers|^kamers$/.test(key)) {
+    const rooms = text.match(/(\d+)\s*kamers?/i);
+    const beds = text.match(/(\d+)\s*slaapkamers?/i);
+    if (rooms) facts.roomCount ??= Number(rooms[1]);
+    if (beds) facts.bedroomCount ??= Number(beds[1]);
+    if (!rooms) facts.roomCount ??= parseCount(text, 30);
+  } else if (/energielabel/.test(key)) facts.energyLabel ??= parseEnergyLabel(text);
   else if (/bouwjaar/.test(key)) {
     const yearMatch = text.match(/\b(1[6-9]\d{2}|20[0-2]\d)\b/);
     const year = yearMatch ? Number(yearMatch[1]) : undefined;
     if (year && year >= 1600) facts.constructionYear ??= year;
-  } else if (/soort woonhuis|soort appartement|woningtype|type woning/.test(key)) facts.propertyType ??= text;
+  } else if (/soort woonhuis|soort appartement|woningtype|type woning|soort bouw/.test(key)) facts.propertyType ??= text;
   else if (/^isolatie$/.test(key)) facts.insulation ??= text;
   else if (/verwarming/.test(key)) facts.heating ??= text;
   else if (/beglazing|isolatieglas/.test(key)) facts.glazing ??= text;
@@ -272,11 +399,16 @@ function applyKenmerk(label: string, value: string, facts: ImportedListingFacts)
   else if (/parkeer/.test(key)) facts.parking ??= text;
   else if (/berging|schuur/.test(key)) facts.storage ??= text;
   else if (/reservefonds/.test(key)) facts.vveReserveFund ??= parseDutchNumber(text.replace(/[^\d,.]/g, ""));
-  else if (/vve|bijdrage/.test(key) && /€|\d/.test(text)) facts.vveContribution ??= parseDutchNumber(text.replace(/[^\d,.]/g, ""));
+  else if (/bijdrage vve|^vve$|vve-bijdrage/.test(key) && /€|\d/.test(text)) facts.vveContribution ??= parseDutchNumber(text.replace(/[^\d,.]/g, ""));
+  else if (/vraagprijs per m|koopprijs per m/.test(key)) { /* stored in extraKenmerken */ }
   else if (/vraagprijs|koopprijs|huurprijs/.test(key)) {
     const price = parseDutchNumber(text.replace(/[^\d,.]/g, ""));
     if (price != null && price >= 50_000 && price <= 5_000_000) facts.askingPrice ??= price;
   } else if (/^status$|aanbodstatus/.test(key)) facts.status ??= parseStatus(text);
+  else if (/eigendomssituatie|erfpacht/.test(key)) {
+    facts.ownership ??= text;
+    if (/erfpacht/i.test(text)) facts.notes = uniqueNotes([...(facts.notes ?? []), "De advertentie noemt erfpacht — controleer canon en afkoop."]);
+  }
 }
 
 function kenmerkPairs($: cheerio.CheerioAPI) {
@@ -310,12 +442,100 @@ function applyJsonLd(node: Record<string, unknown>, facts: ImportedListingFacts)
     const date = new Date(datePosted);
     if (!Number.isNaN(date.getTime())) facts.firstPublishedAt ??= date.toISOString();
   }
+  const description = jsonLdString(node.description);
+  if (description && description.length > 40) facts.description ??= description.slice(0, 20_000);
+  const address = asRecord(node.address);
+  if (address) {
+    facts.street ??= jsonLdString(address.streetAddress)?.replace(/\s+\d.*$/, "") ? undefined : facts.street;
+    const streetAddress = jsonLdString(address.streetAddress);
+    if (streetAddress) facts.addressLabel ??= streetAddress;
+    facts.postcode ??= jsonLdString(address.postalCode);
+    facts.city ??= jsonLdString(address.addressLocality);
+    const house = streetAddress?.match(/\s(\d+)(?:\s*[-/]?([a-zA-Z]))?$/);
+    if (house) {
+      facts.houseNumber ??= Number(house[1]);
+      if (house[2]) facts.houseLetter ??= house[2].toUpperCase();
+      const streetName = streetAddress?.slice(0, house.index).trim();
+      if (streetName) facts.street ??= streetName;
+    }
+  }
+  const name = jsonLdString(node.name);
+  if (name && /\d/.test(name)) facts.addressLabel ??= name;
   const additional = node.additionalProperty;
   const properties = Array.isArray(additional) ? additional : additional ? [additional] : [];
   for (const item of properties) {
     const record = asRecord(item);
     if (!record) continue;
     applyKenmerk(jsonLdString(record.name) ?? "", jsonLdString(record.value) ?? String(record.value ?? ""), facts);
+  }
+}
+
+const TEXT_HEADINGS = /^(omschrijving|indeling|buurt|omgeving|bijzonderheden|kenmerken|overdracht|uitrusting|tuin|buitenruimte|wat je moet weten|ligt|ligging)$/i;
+
+function extractFreeText($: cheerio.CheerioAPI): { description?: string; sections: ListingTextSection[] } {
+  const sections: ListingTextSection[] = [];
+  $("h2, h3").each((_, heading) => {
+    const title = $(heading).text().replace(/\s+/g, " ").trim();
+    if (!title || title.length > 80) return;
+    const parts: string[] = [];
+    let cursor = $(heading).next();
+    while (cursor.length && !cursor.is("h1,h2,h3,nav,footer")) {
+      const tag = cursor.prop("tagName")?.toLowerCase();
+      if (tag === "p" || tag === "div" || tag === "section" || tag === "li") {
+        const text = cursor.text().replace(/\s+/g, " ").trim();
+        if (text.length > 40 && !/cookie|javascript|recaptcha/i.test(text)) parts.push(text);
+      }
+      cursor = cursor.next();
+    }
+    const text = uniqueNotes(parts).join("\n\n").slice(0, 8_000);
+    if (text.length > 80) sections.push({ title, text });
+  });
+  const og = $('meta[property="og:description"]').attr("content")?.replace(/\s+/g, " ").trim();
+  const meta = $('meta[name="description"]').attr("content")?.replace(/\s+/g, " ").trim();
+  const named = sections.find((section) => TEXT_HEADINGS.test(section.title))?.text
+    ?? sections.sort((a, b) => b.text.length - a.text.length)[0]?.text;
+  const description = [named, og, meta].find((value) => value && value.length > 40)?.slice(0, 20_000);
+  return { description, sections: sections.slice(0, 12) };
+}
+
+const JSON_FIELD_MAP: Array<[RegExp, keyof ImportedListingFacts]> = [
+  [/^(description|omschrijving|descriptiontext|sellingtext)$/i, "description"],
+  [/^(neighborhooddescription|buurtomschrijving|neighbourhooddescription)$/i, "neighborhood"],
+  [/^(postalcode|postcode|zipcode)$/i, "postcode"],
+  [/^(streetname|street|straat)$/i, "street"],
+  [/^(housenumber|huisnummer)$/i, "houseNumber"],
+  [/^(city|plaats|locality)$/i, "city"],
+  [/^(livingarea|living_area|woonoppervlakte)$/i, "livingAreaM2"],
+  [/^(plotarea|plot_area|perceeloppervlakte)$/i, "plotAreaM2"],
+];
+
+function walkEmbeddedFields(value: unknown, facts: ImportedListingFacts, depth = 0) {
+  if (depth > 8 || value == null) return;
+  if (Array.isArray(value)) {
+    value.slice(0, 40).forEach((item) => walkEmbeddedFields(item, facts, depth + 1));
+    return;
+  }
+  const record = asRecord(value);
+  if (!record) return;
+  for (const [key, raw] of Object.entries(record)) {
+    if (/photo|image|media|floorplan|plattegrond/i.test(key)) continue;
+    const mapped = JSON_FIELD_MAP.find(([pattern]) => pattern.test(key))?.[1];
+    if (mapped && !hasValue(facts[mapped])) {
+      if (mapped === "description" || mapped === "neighborhood") {
+        const text = jsonLdString(raw);
+        if (text && text.length > 40) (facts as Record<string, unknown>)[mapped] = text.slice(0, 20_000);
+      } else if (mapped === "houseNumber") {
+        const number = jsonLdNumber(raw);
+        if (number) facts.houseNumber = number;
+      } else if (mapped === "livingAreaM2" || mapped === "plotAreaM2") {
+        const number = jsonLdNumber(raw);
+        if (number) (facts as Record<string, unknown>)[mapped] = number;
+      } else {
+        const text = jsonLdString(raw);
+        if (text) (facts as Record<string, unknown>)[mapped] = text;
+      }
+    }
+    if (typeof raw === "object") walkEmbeddedFields(raw, facts, depth + 1);
   }
 }
 
@@ -330,13 +550,24 @@ export function extractFundaListingFromHtml(html: string): ImportedListingFacts 
       /* malformed JSON-LD is ignored */
     }
   });
+  $("script#__NEXT_DATA__, script#__NUXT_DATA__, script[type='application/json']").each((_, script) => {
+    try {
+      walkEmbeddedFields(JSON.parse($(script).text()) as unknown, facts);
+    } catch {
+      /* ignore */
+    }
+  });
   for (const [label, value] of kenmerkPairs($)) applyKenmerk(label, value, facts);
+  const free = extractFreeText($);
+  if (free.description) facts.description ??= free.description;
+  if (free.sections.length) facts.sections = free.sections;
   $("script,style,noscript,svg,nav,footer").remove();
   const visible = ($("main").text() || $("body").text() || $.root().text()).replace(/\s+/g, " ").trim();
   const merged = mergeListingFacts(facts, extractListingFacts(visible.slice(0, 25_000)));
   if (merged.askingPrice) {
     merged.notes = uniqueNotes(merged.notes.filter((note) => !/geen overtuigende vraagprijs/i.test(note)));
   }
+  if (merged.description) merged.description = merged.description.slice(0, 20_000);
   return merged;
 }
 
@@ -385,13 +616,50 @@ async function fetchFundaHtml(url: string) {
   }
 }
 
-export async function importFundaListing(sourceUrl: string): Promise<ImportedListingFacts> {
-  if (!isFundaListingUrl(sourceUrl)) {
+export async function inspectFundaListing(sourceUrl: string): Promise<{ facts: ImportedListingFacts; blocked: boolean; sourceUrl: string }> {
+  const normalized = normalizeFundaListingUrl(sourceUrl);
+  if (!normalized) {
     throw new ListingImportError("Dit is geen Funda-advertentielink. Plak de link van één woning, geen zoekresultaat.", "invalid_url");
   }
-  const html = await fetchFundaHtml(sourceUrl);
-  const facts = extractFundaListingFromHtml(html);
-  if (!hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount) && !hasValue(facts.roomCount)) {
+  const urlFacts = factsFromFundaUrl(normalized);
+  try {
+    const html = await fetchFundaHtml(normalized);
+    if (isFundaChallengeHtml(html)) {
+      return {
+        facts: {
+          ...urlFacts,
+          notes: uniqueNotes([
+            ...urlFacts.notes,
+            "Funda vroeg om een mensen-check. We herkennen het adres uit de link; kenmerken en tekst kun je later aanvullen.",
+          ]),
+        },
+        blocked: true,
+        sourceUrl: normalized,
+      };
+    }
+    return { facts: mergeListingFacts(extractFundaListingFromHtml(html), urlFacts), blocked: false, sourceUrl: normalized };
+  } catch (error) {
+    if (error instanceof ListingImportError && error.code === "invalid_url") throw error;
+    const message = error instanceof ListingImportError
+      ? error.message
+      : "Funda gaf de pagina niet vrij. We gebruiken het adres uit de link.";
+    return {
+      facts: { ...urlFacts, notes: uniqueNotes([...urlFacts.notes, message]) },
+      blocked: true,
+      sourceUrl: normalized,
+    };
+  }
+}
+
+export async function importFundaListing(sourceUrl: string): Promise<ImportedListingFacts> {
+  const { facts, blocked } = await inspectFundaListing(sourceUrl);
+  if (blocked && !hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.description)) {
+    throw new ListingImportError(
+      facts.notes[0] ?? "Funda gaf de pagina niet vrij. Plak de vraagprijs of een stuk advertentietekst.",
+      "blocked",
+    );
+  }
+  if (!hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount) && !hasValue(facts.roomCount) && !hasValue(facts.description)) {
     facts.notes = uniqueNotes([
       ...facts.notes,
       "We vonden weinig kenmerken op de pagina. Plak de advertentietekst als aanvulling.",
