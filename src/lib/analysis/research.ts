@@ -177,9 +177,61 @@ async function extractClaims(documents: Document[]) {
 /**
  * Canonical listing DTO shared by the synthesis prompt and the AI report
  * fingerprint — any field change here must invalidate cached reports.
+ * Text fields are bounded once so listingDocuments and the prompt stay in sync.
  */
+const LISTING_MAX_DESCRIPTION_CHARS = 5_000;
+const LISTING_MAX_SECTION_CHARS = 10_000;
+const LISTING_MAX_SECTIONS = 12;
+const LISTING_MAX_EXTRA_KENMERKEN = 40;
+const LISTING_MAX_AGGREGATE_CHARS = 40_000;
+
+type BoundedListingText = {
+  description?: string;
+  extraKenmerken?: Record<string, string>;
+  textSections?: { title: string; text: string }[];
+};
+
+function boundListingText(listing: PropertyListing): BoundedListingText {
+  let remaining = LISTING_MAX_AGGREGATE_CHARS;
+  const take = (value: string, max: number) => {
+    const slice = value.slice(0, Math.min(max, remaining));
+    remaining -= slice.length;
+    return slice;
+  };
+
+  const description = listing.description
+    ? take(listing.description, LISTING_MAX_DESCRIPTION_CHARS)
+    : undefined;
+
+  const extraKenmerken: Record<string, string> = {};
+  let kenmerkCount = 0;
+  for (const [key, value] of Object.entries(listing.extraKenmerken ?? {})) {
+    if (kenmerkCount >= LISTING_MAX_EXTRA_KENMERKEN || remaining <= 0) break;
+    const boundedValue = take(String(value), 500);
+    if (!boundedValue) break;
+    extraKenmerken[key.slice(0, 80)] = boundedValue;
+    kenmerkCount += 1;
+  }
+
+  const textSections: { title: string; text: string }[] = [];
+  for (const section of listing.textSections ?? []) {
+    if (textSections.length >= LISTING_MAX_SECTIONS || remaining <= 0) break;
+    if (!section.text || section.text === listing.description) continue;
+    const text = take(section.text, LISTING_MAX_SECTION_CHARS);
+    if (!text) break;
+    textSections.push({ title: section.title.slice(0, 120), text });
+  }
+
+  return {
+    description: description || undefined,
+    extraKenmerken: Object.keys(extraKenmerken).length ? extraKenmerken : undefined,
+    textSections: textSections.length ? textSections : undefined,
+  };
+}
+
 export function listingSynthesisDto(listing: PropertyListing | null | undefined) {
   if (!listing) return null;
+  const bounded = boundListingText(listing);
   return {
     provider: listing.provider,
     externalId: listing.externalId,
@@ -204,9 +256,9 @@ export function listingSynthesisDto(listing: PropertyListing | null | undefined)
     neighborhood: listing.neighborhood,
     vveContribution: listing.vveContribution,
     vveReserveFund: listing.vveReserveFund,
-    extraKenmerken: listing.extraKenmerken,
-    textSections: listing.textSections,
-    description: listing.description?.slice(0, 5_000),
+    extraKenmerken: bounded.extraKenmerken,
+    textSections: bounded.textSections,
+    description: bounded.description,
   };
 }
 
@@ -215,6 +267,7 @@ function listingDocuments(listing: PropertyListing): Document[] {
   // Funda extension or a paste-import), so it does not need a live,
   // allowlisted fetch to be "trusted" the way an arbitrary web URL would.
   // extractClaims() still treats it as unreliable source data, not instructions.
+  const bounded = boundListingText(listing);
   const httpsUrl = listing.sourceUrl && /^https:\/\//i.test(listing.sourceUrl) ? listing.sourceUrl : "";
   const source: ResearchSource = {
     id: sourceId(httpsUrl || `listing-${listing.provider}-${listing.externalId}`),
@@ -225,12 +278,11 @@ function listingDocuments(listing: PropertyListing): Document[] {
     fetchedAt: listing.fetchedAt,
   };
   const documents: Document[] = [];
-  if (listing.description) documents.push({ source, text: listing.description.slice(0, 25_000) });
-  for (const section of listing.textSections ?? []) {
-    if (!section.text || section.text === listing.description) continue;
+  if (bounded.description) documents.push({ source, text: bounded.description });
+  for (const section of bounded.textSections ?? []) {
     documents.push({
       source: { ...source, id: sourceId(`${source.id}-${section.title}`), title: `Advertentie: ${section.title}` },
-      text: section.text.slice(0, 10_000),
+      text: section.text,
     });
   }
   return documents;
@@ -256,7 +308,7 @@ export async function generateAiPropertyReport(property: Property, analysis: Ana
       property: { addressLabel: property.addressLabel, city: property.city, municipality: property.municipality, buildingYear: property.buildingYear, areaM2: property.areaM2 },
       deterministicAnalysis: { overallScore: analysis.overallScore, domains: analysis.domains, signals: analysis.signals.map(({ key, label, value, score, summary }) => ({ key, label, value, score, summary })) },
       listing: listingDto,
-      untrustedListingDescription: listing?.description ? wrapUntrustedListingText(listing.description.slice(0, 5_000)) : null,
+      untrustedListingDescription: listingDto?.description ? wrapUntrustedListingText(listingDto.description) : null,
       claims,
       sources: sourceManifest,
     }),

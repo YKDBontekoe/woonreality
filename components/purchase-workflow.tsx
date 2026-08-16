@@ -4,7 +4,7 @@ import { AlertTriangle, CalendarClock, Check, ClipboardCheck, PiggyBank, Send, S
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildBidStrategy, negotiationGuidance, type BidScenarioKey } from "@/src/lib/bid-strategy";
 import { estimateBuyerCosts } from "@/src/lib/costs";
-import { computePurchaseDeadlines } from "@/src/lib/deadlines";
+import { computePurchaseDeadlines, daysUntil as calendarDaysUntil } from "@/src/lib/deadlines";
 import { CASE_STAGE_LABELS, CASE_STAGES, normalizeCaseStage, type CaseStage } from "@/src/lib/journey";
 import { formatEuro } from "@/src/lib/purchase";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
@@ -58,7 +58,7 @@ export function PurchaseWorkflow({ caseId, initialStage, analysis, bagVboId }: {
         setTransferDate(body.finance?.transfer_preference ?? body.bid?.transfer_date ?? "");
         setFinancingCondition(body.bid?.conditions?.financingCondition ?? true);
         setInspectionCondition(body.bid?.conditions?.inspectionCondition ?? true);
-        if (body.bid?.conditions?.scenario) setSelectedScenario(body.bid.conditions.scenario);
+        setSelectedScenario(body.bid?.conditions?.scenario ?? "balanced");
         setContractSignedAt(body.bid?.conditions?.contractSignedAt ?? "");
         setContractReceivedAt(body.bid?.conditions?.contractReceivedAt ?? "");
         setFinancingWeeks(body.bid?.conditions?.financingWeeks ?? 6);
@@ -72,7 +72,9 @@ export function PurchaseWorkflow({ caseId, initialStage, analysis, bagVboId }: {
   const negotiation = useMemo(() => negotiationGuidance(strategy, selectedScenario, workspace.buyerProfileConfigured ? workspace.buyerProfile.budget : undefined), [strategy, selectedScenario, workspace.buyerProfile.budget, workspace.buyerProfileConfigured]);
   const costs = useMemo(() => estimateBuyerCosts(offerAmount || askingPrice, workspace.buyerProfile, financingAmount), [askingPrice, financingAmount, offerAmount, workspace.buyerProfile]);
   const currentIndex = Math.max(0, CASE_STAGES.indexOf(currentStage));
-  const daysUntil = transferDate ? Math.ceil((new Date(`${transferDate}T12:00:00`).getTime() - Date.now()) / 86400000) : null;
+  const daysUntil = transferDate
+    ? calendarDaysUntil(new Date(`${transferDate}T00:00:00`))
+    : null;
   const purchaseDeadlines = useMemo(() => {
     const signed = contractSignedAt ? new Date(`${contractSignedAt}T00:00:00`) : null;
     const received = contractReceivedAt ? new Date(`${contractReceivedAt}T00:00:00`) : signed;

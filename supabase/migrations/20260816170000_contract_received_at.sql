@@ -28,8 +28,32 @@ begin
   if p_payload ? 'contractAmount' and p_payload->'contractAmount' <> 'null'::jsonb and (p_payload->>'contractAmount')::numeric < 0 then raise exception 'invalid_contract_amount' using errcode = '22023'; end if;
   if p_payload ? 'financingCondition' and jsonb_typeof(p_payload->'financingCondition') <> 'boolean' then raise exception 'invalid_financing_condition' using errcode = '22023'; end if;
   if p_payload ? 'inspectionCondition' and jsonb_typeof(p_payload->'inspectionCondition') <> 'boolean' then raise exception 'invalid_inspection_condition' using errcode = '22023'; end if;
-  if p_payload ? 'contractSignedAt' and p_payload->'contractSignedAt' <> 'null'::jsonb and jsonb_typeof(p_payload->'contractSignedAt') <> 'string' then raise exception 'invalid_contract_signed_at' using errcode = '22023'; end if;
-  if p_payload ? 'contractReceivedAt' and p_payload->'contractReceivedAt' <> 'null'::jsonb and jsonb_typeof(p_payload->'contractReceivedAt') <> 'string' then raise exception 'invalid_contract_received_at' using errcode = '22023'; end if;
+  if p_payload ? 'contractSignedAt' and p_payload->'contractSignedAt' <> 'null'::jsonb then
+    if jsonb_typeof(p_payload->'contractSignedAt') <> 'string' then raise exception 'invalid_contract_signed_at' using errcode = '22023'; end if;
+    if coalesce(p_payload->>'contractSignedAt', '') <> '' then
+      if p_payload->>'contractSignedAt' !~ '^\d{4}-\d{2}-\d{2}$' then raise exception 'invalid_contract_signed_at' using errcode = '22023'; end if;
+      begin
+        if to_char((p_payload->>'contractSignedAt')::date, 'YYYY-MM-DD') <> p_payload->>'contractSignedAt' then
+          raise exception 'invalid_contract_signed_at' using errcode = '22023';
+        end if;
+      exception when others then
+        raise exception 'invalid_contract_signed_at' using errcode = '22023';
+      end;
+    end if;
+  end if;
+  if p_payload ? 'contractReceivedAt' and p_payload->'contractReceivedAt' <> 'null'::jsonb then
+    if jsonb_typeof(p_payload->'contractReceivedAt') <> 'string' then raise exception 'invalid_contract_received_at' using errcode = '22023'; end if;
+    if coalesce(p_payload->>'contractReceivedAt', '') <> '' then
+      if p_payload->>'contractReceivedAt' !~ '^\d{4}-\d{2}-\d{2}$' then raise exception 'invalid_contract_received_at' using errcode = '22023'; end if;
+      begin
+        if to_char((p_payload->>'contractReceivedAt')::date, 'YYYY-MM-DD') <> p_payload->>'contractReceivedAt' then
+          raise exception 'invalid_contract_received_at' using errcode = '22023';
+        end if;
+      exception when others then
+        raise exception 'invalid_contract_received_at' using errcode = '22023';
+      end;
+    end if;
+  end if;
   if p_payload ? 'financingWeeks' and p_payload->'financingWeeks' <> 'null'::jsonb and (jsonb_typeof(p_payload->'financingWeeks') <> 'number' or (p_payload->>'financingWeeks')::numeric < 0 or (p_payload->>'financingWeeks')::numeric > 52) then raise exception 'invalid_financing_weeks' using errcode = '22023'; end if;
   if p_payload ? 'inspectionWeeks' and p_payload->'inspectionWeeks' <> 'null'::jsonb and (jsonb_typeof(p_payload->'inspectionWeeks') <> 'number' or (p_payload->>'inspectionWeeks')::numeric < 0 or (p_payload->>'inspectionWeeks')::numeric > 52) then raise exception 'invalid_inspection_weeks' using errcode = '22023'; end if;
 
