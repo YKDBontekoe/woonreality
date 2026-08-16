@@ -22,6 +22,8 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 
 When the Supabase URL, publishable key and server-only secret key are present, analysis requests upsert the property and append evidence plus the versioned analysis to Supabase Postgres. Without them, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
 
+For passwordless e-mail login, e-mail confirmation and passkey setup, see [`docs/auth-setup.md`](docs/auth-setup.md).
+
 The heat card remains a first-screening proxy. RIVM noise and air values are official public raster/model sources, but are not a facade measurement or personal exposure assessment.
 
 Funda and Pararius scraping was assessed and intentionally rejected because their current terms restrict automated extraction. The supported data-source roadmap and licensed alternatives are documented in [`docs/listing-data-strategy.md`](docs/listing-data-strategy.md).
