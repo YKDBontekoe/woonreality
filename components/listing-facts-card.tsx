@@ -5,7 +5,9 @@ import type { PropertyListing } from "@/src/lib/types";
 
 function formatDate(value?: string) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium" }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium" }).format(date);
 }
 
 function listingStatusLabel(status: PropertyListing["status"]) {

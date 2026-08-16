@@ -32,6 +32,7 @@ export function ListingIntake() {
     const pastedFacts = extractImportedListingPaste(pastedText);
     const price = Number(askingPrice) || pastedFacts.askingPrice;
     let facts: ImportedListingFacts = price ? { ...pastedFacts, askingPrice: price } : pastedFacts;
+    let notice: string | undefined;
     setBusy(true);
     setAuthContinue(false);
     setMessage("");
@@ -50,16 +51,20 @@ export function ListingIntake() {
         if (importResponse.ok && importBody.facts) {
           facts = mergeListingFacts(facts, importBody.facts);
           if (importBody.blocked) {
-            setMessage("Funda vroeg om een mensen-check. We gebruiken je geplakte tekst voor kenmerken.");
+            notice = "Funda vroeg om een mensen-check. We gebruiken je geplakte tekst voor kenmerken.";
+            setMessage(notice);
           }
         } else {
-          setMessage(importBody.error ?? "Funda gaf de pagina niet vrij. We gebruiken je geplakte tekst.");
+          notice = importBody.error ?? "Funda gaf de pagina niet vrij. We gebruiken je geplakte tekst.";
+          setMessage(notice);
         }
       } catch {
-        setMessage("Funda kon nu niet worden opgehaald. We gebruiken je geplakte tekst.");
+        notice = "Funda kon nu niet worden opgehaald. We gebruiken je geplakte tekst.";
+        setMessage(notice);
       }
     } else if (url) {
-      setMessage("Alleen een Funda-advertentielink wordt automatisch ingelezen. Andere links bewaren we als referentie.");
+      notice = "Alleen een Funda-advertentielink wordt automatisch ingelezen. Andere links bewaren we als referentie.";
+      setMessage(notice);
     }
 
     const draft: UserListingDraft = {
@@ -68,7 +73,8 @@ export function ListingIntake() {
       sourceUrl: url || undefined,
       pastedText: pastedText.trim() || undefined,
       facts,
-      blocked: !facts.askingPrice && !facts.livingAreaM2 && !facts.description,
+      blocked: Boolean(notice) || (!facts.askingPrice && !facts.livingAreaM2 && !facts.description),
+      notice,
     };
     try {
       sessionStorage.setItem(listingStorageKey(result.bagVboId), JSON.stringify(draft));

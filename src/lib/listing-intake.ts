@@ -89,6 +89,7 @@ export type UserListingDraft = {
   pastedText?: string;
   facts?: ExtractedListingFacts;
   blocked?: boolean;
+  notice?: string;
 };
 
 export function isHttpUrl(value: string) {

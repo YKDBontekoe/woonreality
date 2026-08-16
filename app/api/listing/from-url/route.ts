@@ -88,14 +88,14 @@ export async function POST(request: Request) {
         bag_vbo_id: address.bagVboId,
         source_url: inspected.sourceUrl,
         asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
-        pasted_text: facts.description ?? existing?.pasted_text ?? null,
         extracted_json: facts,
         updated_at: fetchedAt,
       }, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
       persisted = true;
     }
-  } catch {
+  } catch (error) {
+    console.warn("user_listings persistence unavailable after from-url import", error);
     persisted = false;
   }
 

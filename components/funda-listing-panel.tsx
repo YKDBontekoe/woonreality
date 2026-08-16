@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardPaste, Link2, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ListingFactsCard } from "@/components/listing-facts-card";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
@@ -21,14 +21,22 @@ function storeDraft(
   listing: PropertyListing,
   facts?: ImportedListingFacts,
   blocked?: boolean,
+  notice?: string,
 ) {
+  let existing: UserListingDraft | null = null;
+  try {
+    const raw = sessionStorage.getItem(listingStorageKey(bagId));
+    existing = raw ? JSON.parse(raw) as UserListingDraft : null;
+  } catch { /* private mode */ }
   const draft: UserListingDraft = {
+    ...existing,
     bagVboId: bagId,
-    askingPrice: listing.askingPrice,
+    askingPrice: listing.askingPrice ?? existing?.askingPrice,
     sourceUrl,
-    pastedText: facts?.description,
-    facts,
-    blocked,
+    pastedText: existing?.pastedText,
+    facts: facts ?? existing?.facts,
+    blocked: blocked ?? existing?.blocked,
+    notice: notice ?? (blocked ? existing?.notice : undefined),
   };
   try {
     sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
@@ -61,8 +69,10 @@ export function FundaListingPanel({
   const [blockedHint, setBlockedHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const sourceUrlTouchedRef = useRef(false);
 
   useEffect(() => {
+    if (sourceUrlTouchedRef.current) return;
     if (isFundaListingUrl(listing?.sourceUrl ?? "")) setSourceUrl(listing?.sourceUrl ?? "");
   }, [listing?.sourceUrl]);
 
@@ -72,6 +82,7 @@ export function FundaListingPanel({
       const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
       if (draft?.blocked) setBlockedHint(true);
       if (draft?.pastedText) setPastedContent((current) => current || draft.pastedText || "");
+      if (draft?.notice) setMessage(draft.notice);
     } catch { /* private mode */ }
   }, [bagId]);
 
@@ -106,15 +117,17 @@ export function FundaListingPanel({
       }
       if (body.listing) {
         onListingChange(body.listing);
-        storeDraft(bagId, url, body.listing, body.facts, body.blocked);
-      }
-      setBlockedHint(Boolean(body.blocked));
-      if (body.blocked) {
-        setMessage("Funda vroeg om een mensen-check. Open de advertentie in je browser, kopieer kenmerken of pagina-HTML, en plak die hier.");
-      } else if (body.persisted) {
-        setMessage("Advertentiegegevens opgehaald en in je dossier bewaard.");
+        const notice = body.blocked
+          ? "Funda vroeg om een mensen-check. Open de advertentie in je browser, kopieer kenmerken of pagina-HTML, en plak die hier."
+          : body.persisted
+            ? "Advertentiegegevens opgehaald en in je dossier bewaard."
+            : "Advertentiegegevens opgehaald op dit apparaat. Log in om ze in je dossier te zetten.";
+        storeDraft(bagId, url, body.listing, body.facts, body.blocked, notice);
+        setBlockedHint(Boolean(body.blocked));
+        setMessage(notice);
       } else {
-        setMessage("Advertentiegegevens opgehaald op dit apparaat. Log in om ze in je dossier te zetten.");
+        setBlockedHint(Boolean(body.blocked));
+        setMessage("Er kwamen geen advertentiegegevens terug. Plak kenmerken of pagina-HTML en probeer opnieuw.");
       }
     } catch {
       setMessage("Geen verbinding. Controleer je netwerk en probeer het opnieuw.");
@@ -140,7 +153,10 @@ export function FundaListingPanel({
           Funda-advertentielink
           <input
             value={sourceUrl}
-            onChange={(event) => setSourceUrl(event.target.value)}
+            onChange={(event) => {
+              sourceUrlTouchedRef.current = true;
+              setSourceUrl(event.target.value);
+            }}
             placeholder="https://www.funda.nl/detail/koop/…"
             inputMode="url"
             autoComplete="url"

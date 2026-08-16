@@ -306,7 +306,7 @@ export function listingFromUserRecord(row: {
     return null;
   }
   return listingFromImportedFacts(
-    sourceUrl || "https://www.funda.nl/",
+    sourceUrl,
     facts,
     row.updated_at ?? new Date().toISOString(),
   );
@@ -473,7 +473,6 @@ function applyJsonLd(node: Record<string, unknown>, facts: ImportedListingFacts)
   if (description && description.length > 40) facts.description ??= description.slice(0, 20_000);
   const address = asRecord(node.address);
   if (address) {
-    facts.street ??= jsonLdString(address.streetAddress)?.replace(/\s+\d.*$/, "") ? undefined : facts.street;
     const streetAddress = jsonLdString(address.streetAddress);
     if (streetAddress) facts.addressLabel ??= streetAddress;
     facts.postcode ??= jsonLdString(address.postalCode);
@@ -631,14 +630,36 @@ async function fetchFundaHtml(url: string) {
     if (length > MAX_BYTES) {
       throw new ListingImportError("De Funda-pagina is te groot om in te lezen. Plak de advertentietekst.", "fetch_failed");
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > MAX_BYTES) {
-      throw new ListingImportError("De Funda-pagina is te groot om in te lezen. Plak de advertentietekst.", "fetch_failed");
+    if (!response.body) {
+      throw new ListingImportError("De Funda-pagina kon niet worden opgehaald. Probeer het later of plak de advertentietekst.", "fetch_failed");
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_BYTES) {
+        await reader.cancel();
+        throw new ListingImportError("De Funda-pagina is te groot om in te lezen. Plak de advertentietekst.", "fetch_failed");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
     }
     return new TextDecoder().decode(bytes);
   } catch (error) {
     if (error instanceof ListingImportError) throw error;
-    throw new ListingImportError("Funda gaf de pagina niet vrij. Plak de vraagprijs of een stuk advertentietekst.", "blocked");
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ListingImportError("Het ophalen van de Funda-pagina duurde te lang. Probeer het later of plak de advertentietekst.", "fetch_failed");
+    }
+    throw new ListingImportError("De Funda-pagina kon niet worden opgehaald. Probeer het later of plak de advertentietekst.", "fetch_failed");
   } finally {
     clearTimeout(timeout);
   }

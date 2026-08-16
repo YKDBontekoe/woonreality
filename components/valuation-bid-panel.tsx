@@ -20,6 +20,7 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
+    setAskingPrice(0);
     setUserEditedAskingPrice(false);
     userEditedAskingPriceRef.current = false;
     let cancelled = false;

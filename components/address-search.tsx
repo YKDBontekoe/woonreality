@@ -20,14 +20,28 @@ type FromUrlResponse = {
   error?: string;
 };
 
-function storeDraft(bagId: string, sourceUrl: string, listing?: PropertyListing, facts?: ImportedListingFacts, blocked?: boolean) {
+function storeDraft(
+  bagId: string,
+  sourceUrl: string,
+  listing?: PropertyListing,
+  facts?: ImportedListingFacts,
+  blocked?: boolean,
+  notice?: string,
+) {
+  let existing: UserListingDraft | null = null;
+  try {
+    const raw = sessionStorage.getItem(listingStorageKey(bagId));
+    existing = raw ? JSON.parse(raw) as UserListingDraft : null;
+  } catch { /* private mode */ }
   const draft: UserListingDraft = {
+    ...existing,
     bagVboId: bagId,
-    askingPrice: listing?.askingPrice ?? facts?.askingPrice,
+    askingPrice: listing?.askingPrice ?? facts?.askingPrice ?? existing?.askingPrice,
     sourceUrl,
-    pastedText: facts?.description,
-    facts,
-    blocked,
+    pastedText: existing?.pastedText,
+    facts: facts ?? existing?.facts,
+    blocked: blocked ?? existing?.blocked,
+    notice: notice ?? existing?.notice,
   };
   try {
     sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
@@ -123,10 +137,10 @@ export function AddressSearch({
         setError(body.error ?? "Deze Funda-link kon niet worden ingelezen.");
         return;
       }
-      storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts, body.blocked);
-      if (body.blocked) {
-        setError("Funda vroeg om een mensen-check. We openen het adres; plak daarna kenmerken of pagina-HTML bij Funda-link.");
-      }
+      const notice = body.blocked
+        ? "Funda vroeg om een mensen-check. Plak kenmerken of pagina-HTML bij Funda-link."
+        : undefined;
+      storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts, body.blocked, notice);
       openResult(body.address);
     } catch {
       setError("Geen verbinding. Controleer je netwerk en probeer het opnieuw.");
@@ -149,7 +163,7 @@ export function AddressSearch({
     if (fundaMode) {
       if (event.key === "Enter") {
         event.preventDefault();
-        if (isFundaListingUrl(query)) void openFundaListing(query.trim());
+        if (!searching && isFundaListingUrl(query)) void openFundaListing(query.trim());
       }
       return;
     }
@@ -175,21 +189,24 @@ export function AddressSearch({
 
   return (
     <div className="search-wrap" id={id}>
-      <div className="search-mode" role="tablist" aria-label="Zoekmodus">
+      <div className="search-mode" role="radiogroup" aria-label="Zoekmodus">
         <button
           type="button"
-          role="tab"
+          role="radio"
           className={mode === "adres" && !isFundaListingUrl(query) ? "search-mode-tab selected" : "search-mode-tab"}
-          aria-selected={mode === "adres" && !isFundaListingUrl(query)}
-          onClick={() => setMode("adres")}
+          aria-checked={mode === "adres" && !isFundaListingUrl(query)}
+          onClick={() => {
+            setQuery("");
+            setMode("adres");
+          }}
         >
           <MapPin size={13} /> Adres
         </button>
         <button
           type="button"
-          role="tab"
+          role="radio"
           className={fundaMode ? "search-mode-tab selected" : "search-mode-tab"}
-          aria-selected={fundaMode}
+          aria-checked={fundaMode}
           onClick={() => setMode("funda")}
         >
           <Link2 size={13} /> Funda-link
@@ -201,6 +218,7 @@ export function AddressSearch({
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
+          if (searching) return;
           if (fundaMode) {
             if (isFundaListingUrl(query)) void openFundaListing(query.trim());
             else setError("Plak de link van één Funda-woning, geen zoekresultaat.");
@@ -228,7 +246,7 @@ export function AddressSearch({
           autoComplete={fundaMode ? "url" : "street-address"}
           inputMode={fundaMode ? "url" : "text"}
         />
-        <button className="search-button" type="submit">
+        <button className="search-button" type="submit" disabled={searching}>
           {searching ? (fundaMode ? "Inlezen…" : "Zoeken…") : (fundaMode ? "Haal woning op" : submitLabel)}
         </button>
       </form>

@@ -41,6 +41,7 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
       ? extractImportedListingPaste(parsed.data.pastedText ?? "")
       : undefined;
     const { data: existing } = await supabase.from("user_listings").select("extracted_json, asking_price").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
+    // pastedFacts first: explicit pasted text wins over stored extracted_json.
     const mergedFacts = pastedFacts
       ? mergeListingFacts(pastedFacts, factsFromUnknown(existing?.extracted_json))
       : undefined;
@@ -50,7 +51,7 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
       updated_at: new Date().toISOString(),
     };
     if (Object.prototype.hasOwnProperty.call(keys, "askingPrice")) {
-      payload.asking_price = parsed.data.askingPrice ?? mergedFacts?.askingPrice ?? existing?.asking_price ?? null;
+      payload.asking_price = parsed.data.askingPrice ?? null;
     } else if (mergedFacts?.askingPrice != null) {
       payload.asking_price = mergedFacts.askingPrice;
     }

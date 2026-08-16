@@ -185,7 +185,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           };
           const mapped = body.listing ? listingFromUserRecord(body.listing) : null;
           if (mapped) {
-            setUserListing(mapped);
+            if (!controller.signal.aborted) setUserListing(mapped);
             return;
           }
         }
@@ -198,7 +198,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           ...(draft.askingPrice ? { askingPrice: draft.askingPrice } : {}),
         };
         if (draft.sourceUrl || facts.askingPrice || facts.livingAreaM2) {
-          setUserListing(listingFromImportedFacts(draft.sourceUrl || "https://www.funda.nl/", facts));
+          if (!controller.signal.aborted) {
+            setUserListing(listingFromImportedFacts(draft.sourceUrl || "", facts));
+          }
         }
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") return;
@@ -363,7 +365,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const askingForAffordability = listing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
+  const askingForAffordability = marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
   const affordability = workspace.mortgageConfigured
     ? computePropertyAffordability({
       state: workspace.mortgageState,
@@ -374,7 +376,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     : null;
 
   async function saveProperty() {
-    await toggleSaved(property, listing?.askingPrice ?? askingForAffordability);
+    await toggleSaved(property, marketListing?.askingPrice ?? askingForAffordability);
   }
 
   return (
