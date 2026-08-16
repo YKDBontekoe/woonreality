@@ -8,7 +8,7 @@ const compat = new FlatCompat({ baseDirectory: directory });
 
 const eslintConfig = [
   {
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts", ".vercel/**"],
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts", ".vercel/**", "extensions/woonreality-funda/dist/**", "public/extension/**"],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];

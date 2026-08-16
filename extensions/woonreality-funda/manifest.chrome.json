@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "WoonReality Funda",
+  "version": "0.1.0",
+  "description": "Bewaar Funda-kenmerken in je WoonReality-dossier terwijl je een advertentie bekijkt.",
+  "action": {
+    "default_title": "WoonReality Funda",
+    "default_popup": "popup.html",
+    "default_icon": { "48": "icon48.png" }
+  },
+  "icons": { "48": "icon48.png" },
+  "permissions": ["storage", "alarms", "tabs"],
+  "host_permissions": [
+    "https://www.funda.nl/*",
+    "https://woonreality.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.funda.nl/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://woonreality.vercel.app/*", "http://localhost:3000/*"],
+      "js": ["pair.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

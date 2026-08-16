@@ -230,6 +230,22 @@ export type UserListingRow = {
   updated_at: string;
 };
 
+export type ListingExtensionTokenRow = {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+};
+
+export type ListingExtensionIngestLogRow = {
+  id: string;
+  user_id: string;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -254,6 +270,8 @@ export type Database = {
       notification_preferences: Table<{ user_id: string; email_enabled: boolean; deadline_reminders: boolean; updated_at: string }>;
       case_events: Table<CaseEventRow>;
       user_listings: Table<UserListingRow>;
+      listing_extension_tokens: Table<ListingExtensionTokenRow>;
+      listing_extension_ingest_log: Table<ListingExtensionIngestLogRow>;
     };
     Views: Record<string, never>;
     Functions: {

@@ -107,7 +107,7 @@ export function nextPurchaseAction(input: NextActionInput): NextAction {
     return { title: "Vul je woonprofiel in", text: "Budget, huishouden en must-haves bepalen wat je wél en niet serieus neemt.", href: "/mijn-aankoop#woonprofiel", urgency: "high" };
   }
   if (!input.savedCount) {
-    return { title: "Voeg je eerste woning toe", text: "Zoek een adres of plak de gegevens uit een advertentie.", href: "/#zoek-adres", urgency: "normal" };
+    return { title: "Voeg je eerste woning toe", text: "Zoek een adres of plak een Funda-link. Kenmerken komen uit de extensie.", href: "/#zoek-adres", urgency: "normal" };
   }
   if (input.openTaskHref && input.openTaskTitle) {
     return { title: input.openTaskTitle, text: "Dit is de eerstvolgende actie in je dossier.", href: input.openTaskHref, urgency: input.openFindings ? "high" : "normal" };

@@ -10,3 +10,7 @@ out/
 *.tsbuildinfo
 .DS_Store
 .vercel
+extensions/woonreality-funda/dist/
+public/extension/*.zip
+public/extension/*.xpi
+public/extension/version.json

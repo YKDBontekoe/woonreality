@@ -14,7 +14,7 @@ export function LandingPage() {
           <div className="eyebrow"><span className="eyebrow-dot" /> Gratis woningcheck</div>
           <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
           <p className="hero-copy">
-            Typ een Nederlands adres of plak een Funda-link. Je krijgt een eerste indruk in gewone taal — wat sterk is, waar je op moet letten, en wat je nu kunt doen. Een account is niet nodig.
+            Typ een Nederlands adres of plak een Funda-link. Kenmerken uit Funda komen via de browser-extensie. Een account is niet nodig voor de woningcheck.
           </p>
           <AddressSearch />
           <ListingIntake />

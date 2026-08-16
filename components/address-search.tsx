@@ -138,7 +138,7 @@ export function AddressSearch({
         return;
       }
       const notice = body.blocked
-        ? "Funda vroeg om een mensen-check. Plak kenmerken of pagina-HTML bij Funda-link."
+        ? "Adres uit de Funda-link gevonden. Open de advertentie met de WoonReality-extensie voor kenmerken."
         : undefined;
       storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts, body.blocked, notice);
       openResult(body.address);
@@ -279,7 +279,7 @@ export function AddressSearch({
         </div>
       )}
       <div className="search-hint">
-        <Sparkles size={13} aria-hidden="true" /> {fundaMode ? "We lezen de advertentiepagina in en zoeken het officiële BAG-adres." : (
+        <Sparkles size={13} aria-hidden="true" /> {fundaMode ? "We zoeken het officiële BAG-adres uit de link. Kenmerken komen uit de extensie." : (
           <>
             Probeer ook{" "}
             <span>een echt Nederlands adres</span>
