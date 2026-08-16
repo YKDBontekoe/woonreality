@@ -477,9 +477,12 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const reference = currentMortgageReference();
 
   const displayLoan = useMemo(() => {
-    if (!result.available) return 0;
-    if (state.askingPrice > 0) return Math.min(Math.max(0, state.askingPrice - funds), result.maxLoanForPurchase);
-    return result.maxLoanForPurchase;
+    if (state.askingPrice > 0) {
+      if (funds >= state.askingPrice) return 0;
+      const maxLoan = result.available ? result.maxLoanForPurchase : 0;
+      return Math.min(state.askingPrice, Math.max(0, maxLoan));
+    }
+    return result.available ? result.maxLoanForPurchase : 0;
   }, [funds, result, state.askingPrice]);
 
   useEffect(() => {

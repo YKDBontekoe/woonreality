@@ -164,7 +164,18 @@ export function MortgageCostInsight({
         <article className={`mortgage-indicator ${fundsTone ? `is-${fundsTone}` : ""}`}>
           <small>Eigen geld nodig</small>
           <strong>{costs ? formatEuro(Math.round(costs.ownFundsNeeded)) : "—"}</strong>
-          {costs ? <FundsMeter needed={costs.ownFundsNeeded} available={ownFunds} /> : <em>Koopsom + kosten koper − hypotheek</em>}
+          {costs ? (
+            <>
+              <em>
+                {costs.cashForPrice > 0
+                  ? `${formatEuro(costs.total)} kosten koper + ${formatEuro(Math.round(costs.cashForPrice))} inleg koopsom`
+                  : `${formatEuro(costs.total)} kosten koper · koopsom in de hypotheek`}
+              </em>
+              <FundsMeter needed={costs.ownFundsNeeded} available={ownFunds} />
+            </>
+          ) : (
+            <em>Vooral kosten koper; de koopsom mag je tot 100% lenen</em>
+          )}
         </article>
         <article className="mortgage-indicator is-hero">
           <small>Netto maandlast</small>

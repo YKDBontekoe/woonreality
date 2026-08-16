@@ -56,7 +56,9 @@ export function FundsMeter({ needed, available }: { needed: number; available: n
       <small>
         {gap > 0
           ? `${formatEuro(Math.round(available))} van ${formatEuro(Math.round(needed))} — ${formatEuro(Math.round(gap))} tekort`
-          : `${formatEuro(Math.round(available))} dekt ${formatEuro(Math.round(needed))}`}
+          : available > 0
+            ? `${formatEuro(Math.round(available))} dekt ${formatEuro(Math.round(needed))} · ${formatEuro(Math.round(-gap))} over`
+            : `${formatEuro(Math.round(needed))} uit eigen middelen`}
       </small>
     </div>
   );

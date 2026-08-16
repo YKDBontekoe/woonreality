@@ -34,6 +34,8 @@ export type BuyerCostEstimate = {
   nonDeductibleTotal: number;
   transferTaxRate: number;
   ownFundsNeeded: number;
+  /** Deel van de koopsom dat niet in de hypotheek past (LTV/leencapaciteit). */
+  cashForPrice: number;
   financingGap: number | null;
   referenceYear: number;
   disclaimer: string;
@@ -86,8 +88,8 @@ export function estimateBuyerCosts(
   const costs = ref.costs;
   const rate = transferTaxRate(profile, purchasePrice, { ...options, reference: ref });
   const thresholdLabel = euroLabel(tax.starterThreshold);
-  const derivedLoan = Math.max(0, purchasePrice - (profile.ownFunds || 0));
-  const loan = financingAmount == null ? derivedLoan : Math.max(0, financingAmount);
+  const derivedLoan = (profile.ownFunds || 0) >= purchasePrice ? 0 : purchasePrice;
+  const loan = financingAmount == null ? derivedLoan : Math.max(0, Math.min(financingAmount, purchasePrice));
   const financed = loan > 0;
   const nhgLimit = nhgKostengrens(Boolean(profile.energySavingMeasures));
   const includeInspection = options.includeInspection !== false;
@@ -252,7 +254,7 @@ export function estimateBuyerCosts(
   const nonDeductibleTotal = total - deductibleTotal;
   const cashForPrice = Math.max(0, purchasePrice - loan);
   const ownFundsNeeded = total + cashForPrice;
-  const financingGap = profile.ownFunds > 0 ? ownFundsNeeded - profile.ownFunds : null;
+  const financingGap = ownFundsNeeded - (profile.ownFunds || 0);
 
   return {
     purchasePrice,
@@ -262,6 +264,7 @@ export function estimateBuyerCosts(
     nonDeductibleTotal,
     transferTaxRate: rate,
     ownFundsNeeded,
+    cashForPrice,
     financingGap,
     referenceYear: ref.year,
     disclaimer: `Dit is een rekenschets op basis van parameters ${ref.year}, geen hypotheekadvies. Notaris- en adviseurstarieven zijn indicaties; NHG, rente en bankvoorwaarden horen bij een erkend adviseur.`,

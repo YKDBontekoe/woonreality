@@ -305,6 +305,24 @@ test("NHG fee is added to buyer costs when NHG is selected under the limit", () 
   assert.ok(overLimit && !overLimit.lines.some((line) => line.key === "nhg"));
 });
 
+test("own funds are for buyer costs when the mortgage can cover the full price", () => {
+  const fullLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false }, 400_000);
+  assert.ok(fullLoan);
+  assert.equal(fullLoan.cashForPrice, 0);
+  assert.equal(fullLoan.ownFundsNeeded, fullLoan.total);
+  assert.ok(fullLoan.financingGap != null && fullLoan.financingGap < 0);
+
+  const defaultLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false });
+  assert.ok(defaultLoan);
+  assert.equal(defaultLoan.cashForPrice, 0);
+  assert.equal(defaultLoan.ownFundsNeeded, defaultLoan.total);
+
+  const partialLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false }, 370_000);
+  assert.ok(partialLoan);
+  assert.equal(partialLoan.cashForPrice, 30_000);
+  assert.equal(partialLoan.ownFundsNeeded, partialLoan.total + 30_000);
+});
+
 test("full-cash purchase keeps zero financing and skips the NHG fee", () => {
   const result = calculateMortgageCapacity(withJob(60_000, { savings: 250_000 }), { askingPrice: 200_000, nhg: true });
   assert.equal(result.financingNeeded, 0);

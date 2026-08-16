@@ -165,7 +165,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
       budget: askingPrice,
       nhg,
       energySavingMeasures: finance.includeEnergyMeasures,
-    }, Math.min(financingNeeded, maxLoanForPurchase))
+    }, financingNeeded === 0 ? 0 : Math.min(askingPrice, maxLoanForPurchase))
     : null;
   const buyerCosts = costs?.total ?? null;
   const ownFundsGap = costs && ownFunds >= 0 ? roundEuro(costs.ownFundsNeeded - ownFunds) : ownFunds > 0 && askingPrice > 0 ? roundEuro(financingNeeded - maxLoanForPurchase) : null;
@@ -180,7 +180,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
       key: "funds-gap",
       label: ownFundsGap > 0 ? "Tekort eigen geld" : "Ruimte in eigen geld",
       amount: ownFundsGap,
-      note: ownFundsGap > 0 ? "Vraagprijs plus kosten koper vragen meer inleg dan je nu opgeeft." : "Je inleg dekt de koopsom (na hypotheek) en de indicatieve kosten koper.",
+      note: ownFundsGap > 0 ? "Kosten koper plus het deel van de koopsom dat buiten je maximale hypotheek valt." : "Je inleg dekt de kosten koper en eventuele rest van de koopsom (tot LTV 100%).",
     });
   }
 
