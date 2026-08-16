@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2, RefreshCw } from "lucide-react";
+import { ClipboardPaste, Link2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ListingFactsCard } from "@/components/listing-facts-card";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
@@ -10,20 +10,37 @@ import type { PropertyListing } from "@/src/lib/types";
 type ImportResponse = {
   listing?: PropertyListing | null;
   facts?: ImportedListingFacts;
+  blocked?: boolean;
   persisted?: boolean;
   error?: string;
 };
 
-function storeDraft(bagId: string, sourceUrl: string, listing: PropertyListing, facts?: ImportedListingFacts) {
+function storeDraft(
+  bagId: string,
+  sourceUrl: string,
+  listing: PropertyListing,
+  facts?: ImportedListingFacts,
+  blocked?: boolean,
+) {
   const draft: UserListingDraft = {
     bagVboId: bagId,
     askingPrice: listing.askingPrice,
     sourceUrl,
+    pastedText: facts?.description,
     facts,
+    blocked,
   };
   try {
     sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
   } catch { /* private mode */ }
+}
+
+function needsPasteFallback(listing: PropertyListing | null, blockedHint: boolean) {
+  if (blockedHint) return true;
+  if (!listing) return false;
+  const notes = listing.notes ?? [];
+  if (notes.some((note) => /mensen-check|niet vrij|pagina-html|niet worden opgehaald/i.test(note))) return true;
+  return listing.askingPrice == null && listing.livingAreaM2 == null && !listing.description;
 }
 
 export function FundaListingPanel({
@@ -40,6 +57,8 @@ export function FundaListingPanel({
   onListingChange: (listing: PropertyListing | null) => void;
 }) {
   const [sourceUrl, setSourceUrl] = useState(isFundaListingUrl(listing?.sourceUrl ?? "") ? listing?.sourceUrl ?? "" : "");
+  const [pastedContent, setPastedContent] = useState("");
+  const [blockedHint, setBlockedHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -47,10 +66,25 @@ export function FundaListingPanel({
     if (isFundaListingUrl(listing?.sourceUrl ?? "")) setSourceUrl(listing?.sourceUrl ?? "");
   }, [listing?.sourceUrl]);
 
-  async function importListing() {
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(listingStorageKey(bagId));
+      const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
+      if (draft?.blocked) setBlockedHint(true);
+      if (draft?.pastedText) setPastedContent((current) => current || draft.pastedText || "");
+    } catch { /* private mode */ }
+  }, [bagId]);
+
+  const showPaste = needsPasteFallback(listing, blockedHint) || Boolean(pastedContent.trim());
+
+  async function importListing(withPaste: boolean) {
     const url = sourceUrl.trim();
     if (!isFundaListingUrl(url)) {
       setMessage("Plak de link van één Funda-woning, geen zoekresultaat.");
+      return;
+    }
+    if (withPaste && !pastedContent.trim()) {
+      setMessage("Plak eerst kenmerken of de pagina-HTML uit Funda.");
       return;
     }
     setBusy(true);
@@ -59,19 +93,29 @@ export function FundaListingPanel({
       const response = await fetch(`/api/listing/user/${encodeURIComponent(bagId)}/import`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sourceUrl: url }),
+        body: JSON.stringify({
+          sourceUrl: url,
+          ...(withPaste || pastedContent.trim() ? { pastedContent: pastedContent.trim() } : {}),
+        }),
       });
       const body = await response.json() as ImportResponse;
       if (!response.ok) {
-        setMessage(body.error ?? "De Funda-pagina kon niet worden opgehaald. Plak de advertentietekst op de startpagina.");
+        setBlockedHint(Boolean(body.blocked) || needsPasteFallback(listing, true));
+        setMessage(body.error ?? "De Funda-pagina kon niet worden opgehaald. Plak kenmerken of de pagina-HTML.");
         return;
       }
       if (body.listing) {
         onListingChange(body.listing);
-        storeDraft(bagId, url, body.listing, body.facts);
+        storeDraft(bagId, url, body.listing, body.facts, body.blocked);
       }
-      if (body.persisted) setMessage("Advertentiegegevens opgehaald en in je dossier bewaard.");
-      else setMessage("Advertentiegegevens opgehaald op dit apparaat. Log in om ze in je dossier te zetten.");
+      setBlockedHint(Boolean(body.blocked));
+      if (body.blocked) {
+        setMessage("Funda vroeg om een mensen-check. Open de advertentie in je browser, kopieer kenmerken of pagina-HTML, en plak die hier.");
+      } else if (body.persisted) {
+        setMessage("Advertentiegegevens opgehaald en in je dossier bewaard.");
+      } else {
+        setMessage("Advertentiegegevens opgehaald op dit apparaat. Log in om ze in je dossier te zetten.");
+      }
     } catch {
       setMessage("Geen verbinding. Controleer je netwerk en probeer het opnieuw.");
     } finally {
@@ -102,10 +146,34 @@ export function FundaListingPanel({
             autoComplete="url"
           />
         </label>
-        <button className="primary-button" type="button" disabled={busy || !sourceUrl.trim()} onClick={() => { void importListing(); }}>
-          {busy ? <RefreshCw size={14} className="spin" /> : <Link2 size={14} />}
-          {busy ? "Gegevens ophalen…" : listing ? "Opnieuw ophalen" : "Haal gegevens op"}
-        </button>
+        {showPaste && (
+          <label className="listing-paste">
+            Kenmerken of pagina-HTML uit Funda
+            <textarea
+              value={pastedContent}
+              onChange={(event) => setPastedContent(event.target.value)}
+              rows={6}
+              placeholder={"Open de Funda-pagina in je browser (mensen-check daar afronden). Kopieer daarna kenmerken, omschrijving, of de pagina-HTML, en plak die hier.\n\nVoorbeeld: Vraagprijs € 525.000 · Woonoppervlakte 128 m² · 4 kamers · Energielabel C"}
+            />
+          </label>
+        )}
+        <div className="funda-listing-actions">
+          <button className="primary-button" type="button" disabled={busy || !sourceUrl.trim()} onClick={() => { void importListing(false); }}>
+            {busy ? <RefreshCw size={14} className="spin" /> : <Link2 size={14} />}
+            {busy ? "Gegevens ophalen…" : listing ? "Opnieuw ophalen" : "Haal gegevens op"}
+          </button>
+          {showPaste && (
+            <button className="secondary-button" type="button" disabled={busy || !sourceUrl.trim() || !pastedTextReady(pastedContent)} onClick={() => { void importListing(true); }}>
+              <ClipboardPaste size={14} />
+              Vul aan met geplakte tekst
+            </button>
+          )}
+          {!showPaste && (
+            <button className="text-link" type="button" onClick={() => setBlockedHint(true)}>
+              Lukt ophalen niet? Plak kenmerken of HTML
+            </button>
+          )}
+        </div>
         {message && <p className="form-message" role="status">{message}</p>}
       </div>
       {!licensedListing && listing && (
@@ -114,11 +182,15 @@ export function FundaListingPanel({
           status="available"
           eyebrow="jouw advertentie"
           title="Jouw advertentie"
-          description="Deze kenmerken komen uit de Funda-link die jij plakte. Ze staan los van BAG en openbare registraties."
+          description="Deze kenmerken komen uit de Funda-link of tekst die jij plakte. Ze staan los van BAG en openbare registraties."
           bagAreaM2={bagAreaM2}
           id="jouw-advertentie"
         />
       )}
     </section>
   );
+}
+
+function pastedTextReady(value: string) {
+  return value.trim().length >= 20;
 }

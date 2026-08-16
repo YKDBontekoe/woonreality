@@ -14,7 +14,7 @@ Use provider adapters with explicit provenance instead:
 2. **Next — official enrichment:** connect EP-Online for labels, CBS neighbourhood data, DSO/KOOP plans and environmental datasets. These improve the address report without copying portal content.
 3. **Commercial market data:** use Kadaster Objectinformatie for the last transaction price and object facts. At review time, the general object block is free and the latest purchase price costs EUR 0.45 per address; access requires a Mijn Kadaster API key.
 4. **Current listings:** request a licensed feed or written permission from Funda/NVM/brainbay, or contract with a property-data API vendor. Keep this behind a `ListingProvider` interface so licensing can change without changing the analysis model.
-5. **User supplied listing:** optionally let a user paste a Funda listing URL, brochure text or export. WoonReality fetches **only the single URL the user submitted**, extracts kenmerken, retains the source URL and timestamp, and never crawls search results or related pages. If Funda blocks the request, the user can still paste the advertentietekst.
+5. **User supplied listing:** optionally let a user paste a Funda listing URL, brochure text, page HTML or export. WoonReality fetches **only the single URL the user submitted**, extracts kenmerken, retains the source URL and timestamp, and never crawls search results or related pages. If Funda blocks the request, the user pastes advertentietekst or page HTML instead — still without bypassing bot protection.
 
 ## User-initiated Funda import
 
@@ -27,7 +27,9 @@ rejected. This is not a catalog scraper: there is no crawl, no photo/floor-plan
 storage, and official BAG/EP-Online facts are never overwritten.
 
 If Funda blocks the fetch with a bot-check, the address is still parsed from the
-listing URL so the woningcheck can open; kenmerken can be added later.
+listing URL so the woningcheck can open. The user can then paste kenmerken or the
+page HTML from Funda (after completing the check in their own browser). We never
+bypass CAPTCHA or bot protection; pasted content is treated as user-supplied.
 
 ## Licensed feed integration
 

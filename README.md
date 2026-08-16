@@ -81,7 +81,8 @@ Users can also paste one Funda listing URL in search (Funda-link mode) or on
 the property page. The app fetches only that page to fill missing asking-price,
 kenmerken and free-text fields, then resolves the official BAG address. It does
 not scrape search results. If Funda shows a bot-check, the address is still
-taken from the URL slug.
+taken from the URL slug; paste kenmerken or page HTML from your browser to fill
+the advertentie (CAPTCHA is never bypassed).
 
 ## Vercel setup
 

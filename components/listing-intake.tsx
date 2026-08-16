@@ -3,8 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AddressSearch } from "@/components/address-search";
-import { extractListingFacts, listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
-import { isFundaListingUrl, mergeListingFacts, type ImportedListingFacts } from "@/src/lib/listing-import";
+import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
+import {
+  extractImportedListingPaste,
+  isFundaListingUrl,
+  mergeListingFacts,
+  type ImportedListingFacts,
+} from "@/src/lib/listing-import";
 import type { AddressSearchResult } from "@/src/lib/types";
 
 export function ListingIntake() {
@@ -24,9 +29,9 @@ export function ListingIntake() {
 
   async function continueWith(result: AddressSearchResult) {
     const url = sourceUrl.trim();
-    const pastedFacts = extractListingFacts(pastedText) as ImportedListingFacts;
+    const pastedFacts = extractImportedListingPaste(pastedText);
     const price = Number(askingPrice) || pastedFacts.askingPrice;
-    let facts = price ? { ...pastedFacts, askingPrice: price } : pastedFacts;
+    let facts: ImportedListingFacts = price ? { ...pastedFacts, askingPrice: price } : pastedFacts;
     setBusy(true);
     setAuthContinue(false);
     setMessage("");
@@ -36,11 +41,17 @@ export function ListingIntake() {
         const importResponse = await fetch(`/api/listing/user/${encodeURIComponent(result.bagVboId)}/import`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sourceUrl: url }),
+          body: JSON.stringify({
+            sourceUrl: url,
+            ...(pastedText.trim() ? { pastedContent: pastedText.trim() } : {}),
+          }),
         });
-        const importBody = await importResponse.json() as { facts?: ImportedListingFacts; error?: string };
+        const importBody = await importResponse.json() as { facts?: ImportedListingFacts; blocked?: boolean; error?: string };
         if (importResponse.ok && importBody.facts) {
           facts = mergeListingFacts(facts, importBody.facts);
+          if (importBody.blocked) {
+            setMessage("Funda vroeg om een mensen-check. We gebruiken je geplakte tekst voor kenmerken.");
+          }
         } else {
           setMessage(importBody.error ?? "Funda gaf de pagina niet vrij. We gebruiken je geplakte tekst.");
         }
@@ -57,6 +68,7 @@ export function ListingIntake() {
       sourceUrl: url || undefined,
       pastedText: pastedText.trim() || undefined,
       facts,
+      blocked: !facts.askingPrice && !facts.livingAreaM2 && !facts.description,
     };
     try {
       sessionStorage.setItem(listingStorageKey(result.bagVboId), JSON.stringify(draft));
@@ -103,7 +115,7 @@ export function ListingIntake() {
         <div className="listing-intake-card">
           <p>
             Plak de Funda-link van één woning. We halen alleen die pagina op voor vraagprijs, kamers en andere kenmerken die open data mist.
-            Zoekresultaten scrapen we niet. Lukt ophalen niet, plak dan zelf de tekst.
+            Zoekresultaten scrapen we niet. Lukt ophalen niet (mensen-check), plak dan kenmerken of de pagina-HTML.
           </p>
           <AddressSearch id="advertentie-adres" submitLabel="Koppel adres" onSelect={setSelected} />
           {selected && <small className="listing-selected">Gekoppeld: {selected.displayName}</small>}
@@ -111,8 +123,8 @@ export function ListingIntake() {
             <label>Vraagprijs<input type="number" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>
             <label>Funda-link<input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://www.funda.nl/detail/koop/…" /></label>
           </div>
-          <label className="listing-paste">Tekst uit brochure of advertentie
-            <textarea value={pastedText} onChange={(event) => setPastedText(event.target.value)} rows={5} placeholder="Fallback: plak hier de omschrijving, m², energielabel of VvE-bijdrage." />
+          <label className="listing-paste">Kenmerken of pagina-HTML uit Funda
+            <textarea value={pastedText} onChange={(event) => setPastedText(event.target.value)} rows={5} placeholder="Fallback bij mensen-check: plak omschrijving, m², energielabel, VvE — of de pagina-HTML." />
           </label>
           {message && <p className="form-message" role="status">{message}</p>}
           {authContinue && selected && (

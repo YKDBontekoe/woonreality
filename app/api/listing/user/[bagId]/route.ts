@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { extractListingFacts, isHttpUrl } from "@/src/lib/listing-intake";
-import { factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
+import { isHttpUrl } from "@/src/lib/listing-intake";
+import { extractImportedListingPaste, factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { userListingBodySchema } from "@/src/lib/validation/workspace";
 
@@ -37,7 +37,9 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
     if (!parsed.success) return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400 });
     if (parsed.data.sourceUrl && !isHttpUrl(parsed.data.sourceUrl)) return NextResponse.json({ error: "De bronlink is geen geldige URL." }, { status: 400 });
     const keys = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-    const pastedFacts = Object.prototype.hasOwnProperty.call(keys, "pastedText") ? extractListingFacts(parsed.data.pastedText ?? "") : undefined;
+    const pastedFacts = Object.prototype.hasOwnProperty.call(keys, "pastedText")
+      ? extractImportedListingPaste(parsed.data.pastedText ?? "")
+      : undefined;
     const { data: existing } = await supabase.from("user_listings").select("extracted_json, asking_price").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
     const mergedFacts = pastedFacts
       ? mergeListingFacts(pastedFacts, factsFromUnknown(existing?.extracted_json))

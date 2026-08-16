@@ -376,6 +376,9 @@ a { color: inherit; text-decoration: none; }
 .funda-listing-form label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
 .funda-listing-form input { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: 12px "DM Sans", sans-serif; }
 .funda-listing-form .primary-button { justify-self: start; }
+.funda-listing-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.funda-listing-form .listing-paste { margin-top: 2px; }
+.funda-listing-form textarea { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: 12px "DM Sans", sans-serif; resize: vertical; min-height: 110px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin .8s linear infinite; }
 .nearby-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }

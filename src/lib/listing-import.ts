@@ -658,7 +658,7 @@ export async function inspectFundaListing(sourceUrl: string): Promise<{ facts: I
           ...urlFacts,
           notes: uniqueNotes([
             ...urlFacts.notes,
-            "Funda vroeg om een mensen-check. We herkennen het adres uit de link; kenmerken en tekst kun je later aanvullen.",
+            "Funda vroeg om een mensen-check. We herkennen het adres uit de link. Plak kenmerken of de pagina-HTML uit Funda om de advertentie aan te vullen.",
           ]),
         },
         blocked: true,
@@ -672,26 +672,81 @@ export async function inspectFundaListing(sourceUrl: string): Promise<{ facts: I
       ? error.message
       : "Funda gaf de pagina niet vrij. We gebruiken het adres uit de link.";
     return {
-      facts: { ...urlFacts, notes: uniqueNotes([...urlFacts.notes, message]) },
+      facts: {
+        ...urlFacts,
+        notes: uniqueNotes([
+          ...urlFacts.notes,
+          message,
+          "Plak kenmerken of de pagina-HTML uit Funda om de advertentie aan te vullen.",
+        ]),
+      },
       blocked: true,
       sourceUrl: normalized,
     };
   }
 }
 
-export async function importFundaListing(sourceUrl: string): Promise<ImportedListingFacts> {
-  const { facts, blocked } = await inspectFundaListing(sourceUrl);
-  if (blocked && !hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.description)) {
+const CHALLENGE_NOTE_RE = /mensen-check|niet vrij|niet worden opgehaald|plak kenmerken of de pagina-html/i;
+
+export function looksLikeListingHtml(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length < 40) return false;
+  return /application\/ld\+json|<dl[\s>]|<dt[\s>]|__NEXT_DATA__|__NUXT_DATA__|itemscope|og:description/i.test(trimmed)
+    || (/<[a-z][\s\S]{20,}>/i.test(trimmed) && /vraagprijs|woonoppervlakte|energielabel|funda/i.test(trimmed));
+}
+
+export function extractImportedListingPaste(value: string): ImportedListingFacts {
+  const trimmed = value.trim();
+  if (!trimmed) return { notes: [] };
+  if (looksLikeListingHtml(trimmed)) {
+    const facts = extractFundaListingFromHtml(trimmed);
+    if (hasValue(facts.askingPrice) || hasValue(facts.livingAreaM2) || hasValue(facts.description) || hasValue(facts.roomCount)) {
+      return facts;
+    }
+  }
+  const textFacts = extractListingFacts(trimmed) as ImportedListingFacts;
+  if (!textFacts.description && trimmed.length > 80 && !looksLikeListingHtml(trimmed)) {
+    textFacts.description = trimmed.slice(0, 20_000);
+  }
+  return textFacts;
+}
+
+export function mergePasteIntoListingFacts(
+  existing: ImportedListingFacts,
+  pasted: ImportedListingFacts,
+): ImportedListingFacts {
+  const merged = mergeListingFacts(existing, pasted);
+  if (hasValue(merged.askingPrice) || hasValue(merged.livingAreaM2) || hasValue(merged.description) || hasValue(merged.roomCount)) {
+    merged.notes = uniqueNotes(merged.notes.filter((note) => !CHALLENGE_NOTE_RE.test(note)));
+  }
+  return merged;
+}
+
+export function listingFactsAreSparse(facts: ImportedListingFacts) {
+  return !hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount)
+    && !hasValue(facts.roomCount) && !hasValue(facts.description);
+}
+
+export async function importFundaListing(sourceUrl: string, pastedContent?: string): Promise<{ facts: ImportedListingFacts; blocked: boolean; sourceUrl: string }> {
+  const inspected = await inspectFundaListing(sourceUrl);
+  let facts = inspected.facts;
+  if (pastedContent?.trim()) {
+    facts = mergePasteIntoListingFacts(facts, extractImportedListingPaste(pastedContent));
+  }
+  if (inspected.blocked && listingFactsAreSparse(facts)) {
     throw new ListingImportError(
-      facts.notes[0] ?? "Funda gaf de pagina niet vrij. Plak de vraagprijs of een stuk advertentietekst.",
+      "Funda vroeg om een mensen-check. Plak kenmerken of de pagina-HTML uit de advertentie en probeer opnieuw.",
       "blocked",
     );
   }
-  if (!hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount) && !hasValue(facts.roomCount) && !hasValue(facts.description)) {
-    facts.notes = uniqueNotes([
-      ...facts.notes,
-      "We vonden weinig kenmerken op de pagina. Plak de advertentietekst als aanvulling.",
-    ]);
+  if (listingFactsAreSparse(facts)) {
+    facts = {
+      ...facts,
+      notes: uniqueNotes([
+        ...facts.notes,
+        "We vonden weinig kenmerken. Plak de advertentietekst of pagina-HTML als aanvulling.",
+      ]),
+    };
   }
-  return facts;
+  return { facts, blocked: inspected.blocked && listingFactsAreSparse(facts), sourceUrl: inspected.sourceUrl };
 }

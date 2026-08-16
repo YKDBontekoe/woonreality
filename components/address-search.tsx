@@ -20,13 +20,14 @@ type FromUrlResponse = {
   error?: string;
 };
 
-function storeDraft(bagId: string, sourceUrl: string, listing?: PropertyListing, facts?: ImportedListingFacts) {
+function storeDraft(bagId: string, sourceUrl: string, listing?: PropertyListing, facts?: ImportedListingFacts, blocked?: boolean) {
   const draft: UserListingDraft = {
     bagVboId: bagId,
     askingPrice: listing?.askingPrice ?? facts?.askingPrice,
     sourceUrl,
     pastedText: facts?.description,
     facts,
+    blocked,
   };
   try {
     sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
@@ -122,9 +123,9 @@ export function AddressSearch({
         setError(body.error ?? "Deze Funda-link kon niet worden ingelezen.");
         return;
       }
-      storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts);
+      storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts, body.blocked);
       if (body.blocked) {
-        setError("Funda gaf de volledige advertentie niet vrij. We openen het adres uit de link; kenmerken kun je later aanvullen.");
+        setError("Funda vroeg om een mensen-check. We openen het adres; plak daarna kenmerken of pagina-HTML bij Funda-link.");
       }
       openResult(body.address);
     } catch {

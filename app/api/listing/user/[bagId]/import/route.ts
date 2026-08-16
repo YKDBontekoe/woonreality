@@ -38,17 +38,20 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
 
   let imported;
   try {
-    imported = await importFundaListing(parsed.data.sourceUrl);
+    imported = await importFundaListing(parsed.data.sourceUrl, parsed.data.pastedContent);
   } catch (error) {
     const message = error instanceof ListingImportError
       ? error.message
-      : "De Funda-pagina kon niet worden opgehaald. Plak de vraagprijs of een stuk advertentietekst.";
-    const status = error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 502;
-    return NextResponse.json({ error: message }, { status });
+      : "De Funda-pagina kon niet worden opgehaald. Plak kenmerken of de pagina-HTML uit de advertentie.";
+    const status = error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 422;
+    return NextResponse.json({
+      error: message,
+      blocked: error instanceof ListingImportError && error.code === "blocked",
+    }, { status });
   }
 
   const fetchedAt = new Date().toISOString();
-  let facts = imported;
+  let facts = imported.facts;
   let persisted = false;
 
   try {
@@ -65,12 +68,13 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
         extractListingFacts(existing?.pasted_text ?? ""),
       );
       if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-      facts = mergeListingFacts(existingFacts, imported);
+      facts = mergeListingFacts(existingFacts, imported.facts);
       const { error } = await supabase.from("user_listings").upsert({
         user_id: user.id,
         bag_vbo_id: bagId,
-        source_url: parsed.data.sourceUrl,
+        source_url: imported.sourceUrl,
         asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
+        pasted_text: parsed.data.pastedContent?.trim() || existing?.pasted_text || facts.description || null,
         extracted_json: facts,
         updated_at: fetchedAt,
       }, { onConflict: "user_id,bag_vbo_id" });
@@ -82,8 +86,9 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
   }
 
   return NextResponse.json({
-    listing: listingFromImportedFacts(parsed.data.sourceUrl, facts, fetchedAt),
+    listing: listingFromImportedFacts(imported.sourceUrl, facts, fetchedAt),
     facts,
+    blocked: imported.blocked,
     persisted,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

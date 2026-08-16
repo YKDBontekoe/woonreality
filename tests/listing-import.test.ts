@@ -4,6 +4,7 @@ import { POST as importFromUrl } from "@/app/api/listing/from-url/route";
 import { POST as importListing } from "@/app/api/listing/user/[bagId]/import/route";
 import {
   extractFundaListingFromHtml,
+  extractImportedListingPaste,
   inspectFundaListing,
   isFundaChallengeHtml,
   isFundaListingUrl,
@@ -164,6 +165,58 @@ test("challenge HTML is detected and inspectFundaListing still returns the URL a
     assert.equal(inspected.facts.houseNumber, 18);
     assert.equal(inspected.facts.city, "Epe");
     assert.ok(inspected.facts.notes.some((note) => /mensen-check|niet vrij/i.test(note)));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pasted page HTML fills kenmerken when Funda shows a people-check", async () => {
+  const pasted = extractImportedListingPaste(FIXTURE_HTML);
+  assert.equal(pasted.askingPrice, 525000);
+  assert.equal(pasted.livingAreaM2, 128);
+  assert.match(pasted.description ?? "", /Lichte hoekwoning/);
+
+  const plain = extractImportedListingPaste("Vraagprijs € 480.000. Woonoppervlakte 110 m2. Energielabel B. 3 slaapkamers.");
+  assert.equal(plain.askingPrice, 480000);
+  assert.equal(plain.livingAreaM2, 110);
+  assert.equal(plain.energyLabel, "B");
+  assert.equal(plain.bedroomCount, 3);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(CHALLENGE_HTML, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
+  try {
+    const response = await importListing(new Request(`http://localhost/api/listing/user/${BAG_ID}/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourceUrl: LISTING_URL, pastedContent: FIXTURE_HTML }),
+    }), { params: Promise.resolve({ bagId: BAG_ID }) });
+    assert.equal(response.status, 200);
+    const body = await response.json() as {
+      listing?: { askingPrice?: number; livingAreaM2?: number; description?: string };
+      blocked?: boolean;
+    };
+    assert.equal(body.listing?.askingPrice, 525000);
+    assert.equal(body.listing?.livingAreaM2, 128);
+    assert.match(body.listing?.description ?? "", /Lichte hoekwoning/);
+    assert.equal(body.blocked, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("import route returns blocked when Funda challenges and no paste is provided", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(CHALLENGE_HTML, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
+  try {
+    const response = await importListing(new Request(`http://localhost/api/listing/user/${BAG_ID}/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sourceUrl: LISTING_URL }),
+    }), { params: Promise.resolve({ bagId: BAG_ID }) });
+    assert.equal(response.status, 422);
+    const body = await response.json() as { error?: string; blocked?: boolean };
+    assert.equal(body.blocked, true);
+    assert.match(body.error ?? "", /mensen-check|pagina-HTML|kenmerken/i);
   } finally {
     globalThis.fetch = originalFetch;
   }

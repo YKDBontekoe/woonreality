@@ -142,11 +142,12 @@ export const workflowBodySchema = z.object({
 export const userListingBodySchema = z.object({
   askingPrice: z.number().finite().nonnegative().nullable().optional(),
   sourceUrl: z.string().url().max(500).nullable().optional(),
-  pastedText: z.string().max(20_000).nullable().optional(),
+  pastedText: z.string().max(100_000).nullable().optional(),
 }).strict();
 
 export const userListingImportBodySchema = z.object({
   sourceUrl: z.string().url().max(500),
+  pastedContent: z.string().max(100_000).optional(),
 }).strict();
 
 export const viewingDebriefSchema = z.object({
