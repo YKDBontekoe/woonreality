@@ -403,6 +403,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const [openDebts, setOpenDebts] = useState(false);
   const [addedDebts, setAddedDebts] = useState<DebtKey[]>([]);
   const [openExplain, setOpenExplain] = useState(false);
+  const [openScenarios, setOpenScenarios] = useState(false);
   const [studentMode, setStudentMode] = useState<"monthly" | "remaining">("monthly");
   const [costOptions, setCostOptions] = useState<CostInsightOptions>({
     newBuild: false,
@@ -783,12 +784,14 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
             <button type="button" className="text-link" onClick={() => setNhg(false)}>Toon zonder NHG-plafond</button>
           </div>}
           <div className="mortgage-result-grid">
-            <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
+            <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand bruto" : "Maandlast bruto"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
+            {housingTax && <div className="is-hero"><small>Netto / maand</small><strong>{formatEuro(housingTax.ongoingMonthlyNet)}</strong></div>}
             <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
             {result.obligationBurden > 0 && <div><small>Lasten in de toets</small><strong>−{formatEuro(result.obligationBurden)}</strong></div>}
-            {result.buyerCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(result.buyerCosts)}</strong></div>}
+            {detailedCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(detailedCosts.total)}</strong></div>}
           </div>
           {fitCopy(result) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result)}</div>}
+          {detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">Kosten en grafieken bekijken</a>}
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenExplain((value) => !value)} aria-expanded={openExplain}>
             {openExplain ? "Verberg rekenregels" : "Hoe komen we op dit bedrag?"}
           </button>
@@ -801,8 +804,11 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               </li>
             ))}
           </ul>}
-          {scenarios.length > 0 && <div className="mortgage-scenarios">
-            <h3>Wat als…</h3>
+          {scenarios.length > 0 && <>
+            <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenScenarios((value) => !value)} aria-expanded={openScenarios}>
+              {openScenarios ? "Verberg scenario’s" : `Wat als… (${scenarios.length})`}
+            </button>
+            {openScenarios && <div className="mortgage-scenarios">
             <p className="mortgage-hint">Andere labels, rentes of lasten — t.o.v. je huidige schets.</p>
             <ul>
               {scenarios.map((scenario) => (
@@ -821,6 +827,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               ))}
             </ul>
           </div>}
+          </>}
         </>}
         {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
         {result.available && market && <p className="mortgage-sources">
@@ -1010,7 +1017,7 @@ export function MortgagePageIntro() {
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
       <h1>Wat kun je lenen — en wat kost het?</h1>
-      <p className="hero-copy">Vul je maandsalaris in. Je ziet het wettelijke maximum volgens de leennormen {MORTGAGE_NORMS_YEAR}, een volledig kostenoverzicht (met aftrekbaarheid), netto maandlast na hypotheekrenteaftrek, en grafieken. Marktrente komt live van DNB/ECB.</p>
+      <p className="hero-copy">Vul je maandsalaris in. Je ziet meteen wat je mag lenen, wat het maandelijks kost, en welke eenmalige kosten erbij komen. Details en grafieken klap je open als je wilt.</p>
     </div>
     <div className="mortgage-heading-note"><Wallet size={16} /> Rekenschets, geen advies. Banken toetsen vaak strenger.</div>
   </div>;

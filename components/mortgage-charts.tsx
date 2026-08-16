@@ -1,8 +1,66 @@
 "use client";
 
+import type { BuyerCostLine } from "@/src/lib/costs";
 import type { MortgageMarketHistorySeries } from "@/src/lib/mortgage";
 import type { MortgageSchedule } from "@/src/lib/mortgage/schedule";
 import { formatEuro } from "@/src/lib/purchase";
+
+const COST_CATEGORY_META: Record<string, { label: string; color: string }> = {
+  tax: { label: "Belasting", color: "#2f6fed" },
+  deed: { label: "Aktes & kadaster", color: "#7a9e8a" },
+  finance: { label: "Financiering", color: "#244b3c" },
+  optional: { label: "Optioneel", color: "#c4a574" },
+};
+
+export function CostCompositionBar({ lines, total }: { lines: BuyerCostLine[]; total: number }) {
+  if (total <= 0) return null;
+  const grouped = (["tax", "deed", "finance", "optional"] as const).map((key) => {
+    const amount = lines.filter((line) => line.category === key).reduce((sum, line) => sum + line.amount, 0);
+    return { key, amount, ...COST_CATEGORY_META[key] };
+  }).filter((group) => group.amount > 0);
+  const deductible = lines.filter((line) => line.deductible).reduce((sum, line) => sum + line.amount, 0);
+  const deductiblePct = Math.round((deductible / total) * 100);
+
+  return (
+    <div className="mortgage-stack">
+      <div className="mortgage-stack-bar" role="img" aria-label="Samenstelling eenmalige kosten">
+        {grouped.map((group) => (
+          <span
+            key={group.key}
+            style={{ width: `${(group.amount / total) * 100}%`, background: group.color }}
+            title={`${group.label}: ${formatEuro(group.amount)}`}
+          />
+        ))}
+      </div>
+      <ul className="mortgage-stack-legend">
+        {grouped.map((group) => (
+          <li key={group.key}>
+            <i style={{ background: group.color }} />
+            {group.label} <strong>{formatEuro(group.amount)}</strong>
+          </li>
+        ))}
+        <li className="is-note">{deductiblePct}% aftrekbaar in jaar 1</li>
+      </ul>
+    </div>
+  );
+}
+
+export function FundsMeter({ needed, available }: { needed: number; available: number }) {
+  if (needed <= 0) return null;
+  const ratio = Math.min(1, Math.max(0, available / needed));
+  const gap = needed - available;
+  const tone = gap <= 0 ? "ok" : gap / needed <= 0.15 ? "tight" : "short";
+  return (
+    <div className={`mortgage-meter is-${tone}`}>
+      <div className="mortgage-meter-track" aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></div>
+      <small>
+        {gap > 0
+          ? `${formatEuro(Math.round(available))} van ${formatEuro(Math.round(needed))} — ${formatEuro(Math.round(gap))} tekort`
+          : `${formatEuro(Math.round(available))} dekt ${formatEuro(Math.round(needed))}`}
+      </small>
+    </div>
+  );
+}
 
 type LineSeries = {
   id: string;
@@ -179,8 +237,10 @@ export function CumulativeInterestChart({ annuity, linear }: { annuity: Mortgage
 
 export function RateImpactChart({
   rows,
+  showTable = false,
 }: {
   rows: { rate: number; firstPayment: number; totalInterest: number }[];
+  showTable?: boolean;
 }) {
   const width = 640;
   const height = 200;
@@ -213,27 +273,29 @@ export function RateImpactChart({
         ))}
         <path d={d} fill="none" stroke="var(--moss)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       </svg>
-      <div className="mortgage-chart-table-wrap">
-        <table className="mortgage-chart-table">
-          <caption className="sr-only">Rente-impact cijfers</caption>
-          <thead>
-            <tr>
-              <th>Rente</th>
-              <th>Maandlast</th>
-              <th>Totale rente</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.rate}>
-                <td>{row.rate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
-                <td>{formatEuro(Math.round(row.firstPayment))}</td>
-                <td>{formatEuro(Math.round(row.totalInterest))}</td>
+      {showTable && (
+        <div className="mortgage-chart-table-wrap">
+          <table className="mortgage-chart-table">
+            <caption className="sr-only">Rente-impact cijfers</caption>
+            <thead>
+              <tr>
+                <th>Rente</th>
+                <th>Maandlast</th>
+                <th>Totale rente</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.rate}>
+                  <td>{row.rate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                  <td>{formatEuro(Math.round(row.firstPayment))}</td>
+                  <td>{formatEuro(Math.round(row.totalInterest))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </figure>
   );
 }
@@ -323,5 +385,44 @@ export function RateHistoryChart({
         ))}
       </ul>
     </figure>
+  );
+}
+
+export function RateSparkline({
+  history,
+  activePeriod,
+}: {
+  history: MortgageMarketHistorySeries[];
+  activePeriod: number;
+}) {
+  const series = history.find((item) => item.period === activePeriod)
+    ?? history.find((item) => item.period === 20 && activePeriod === 30)
+    ?? history[0];
+  if (!series || series.points.length < 2) return null;
+  const values = series.points.map((point) => point.rate);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const last = values[values.length - 1];
+  const first = values[0];
+  const delta = last - first;
+  const width = 160;
+  const height = 36;
+  const d = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * width;
+    const y = height - 4 - ((value - min) / (max - min || 1)) * (height - 8);
+    return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <div className="mortgage-spark">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Rente ${activePeriod} jaar vast`} className="mortgage-spark-svg">
+        <path d={d} fill="none" stroke="var(--moss)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+      <div>
+        <strong>{last.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong>
+        <small className={delta > 0.05 ? "is-down" : delta < -0.05 ? "is-up" : undefined}>
+          {delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pt
+        </small>
+      </div>
+    </div>
   );
 }
