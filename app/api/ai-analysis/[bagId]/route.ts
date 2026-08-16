@@ -4,25 +4,61 @@ import { analyzeProperty } from "@/src/lib/analysis/analyze";
 import { aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingForProperty } from "@/src/lib/sources/listings";
-import { isSupabaseConfigured } from "@/src/lib/supabase/server";
+import { listingFromUserRecord } from "@/src/lib/listing-import";
+import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { aiReportStatus, getAiReport, markAiReportGenerating, persistAiReport, persistAiReportFailure, persistAnalysis } from "@/src/lib/db/repository";
+import type { PropertyListing } from "@/src/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function fingerprint(analysis: Awaited<ReturnType<typeof analyzeProperty>>, listing: Awaited<ReturnType<typeof getListingForProperty>>) {
+function fingerprint(analysis: Awaited<ReturnType<typeof analyzeProperty>>, listing: PropertyListing | null) {
   return createHash("sha256").update(JSON.stringify({
     analysisVersion: analysis.analysisVersion,
     scoringVersion: analysis.scoringVersion,
     property: analysis.property,
     signals: analysis.signals.map((signal) => ({ key: signal.key, value: signal.value, score: signal.score, availability: signal.availability })),
-    listing: listing ? { externalId: listing.externalId, fetchedAt: listing.fetchedAt, lastUpdatedAt: listing.lastUpdatedAt, description: listing.description, askingPrice: listing.askingPrice } : null,
+    listing: listing ? { provider: listing.provider, externalId: listing.externalId, fetchedAt: listing.fetchedAt, lastUpdatedAt: listing.lastUpdatedAt, description: listing.description, askingPrice: listing.askingPrice, extraKenmerken: listing.extraKenmerken, textSections: listing.textSections } : null,
   })).digest("hex");
+}
+
+/**
+ * The Funda browser extension and paste-import both write to `user_listings`.
+ * That is the richest, freshest listing data we have for this address, so it
+ * takes priority over a licensed feed for AI research. Fields the user's
+ * listing doesn't have fall back to the licensed feed, if one is configured.
+ */
+async function loadUserListing(bagId: string): Promise<PropertyListing | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+    if (!user) return null;
+    const { data } = await supabase.from("user_listings").select("source_url, asking_price, extracted_json, updated_at").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
+    return data ? listingFromUserRecord(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+function mergeListings(primary: PropertyListing | null, fallback: PropertyListing | null): PropertyListing | null {
+  if (!primary) return fallback;
+  if (!fallback) return primary;
+  const merged: PropertyListing = { ...fallback, ...primary };
+  merged.extraKenmerken = { ...(fallback.extraKenmerken ?? {}), ...(primary.extraKenmerken ?? {}) };
+  if (!Object.keys(merged.extraKenmerken).length) delete merged.extraKenmerken;
+  return merged;
 }
 
 async function loadContext(bagId: string) {
   const property = await getPropertyById(decodeURIComponent(bagId));
-  const [analysis, listing] = await Promise.all([analyzeProperty(property), getListingForProperty(property).catch(() => null)]);
+  const [analysis, licensedListing, userListing] = await Promise.all([
+    analyzeProperty(property),
+    getListingForProperty(property).catch(() => null),
+    loadUserListing(property.bagVboId).catch(() => null),
+  ]);
+  const listing = mergeListings(userListing, licensedListing);
   return { property, analysis, listing };
 }
 

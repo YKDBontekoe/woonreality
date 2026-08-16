@@ -989,9 +989,15 @@ function AiResearchSection({
           {new Date(report.expiresAt).toLocaleDateString("nl-NL")}
         </summary>
         {report.sources.map((source) => (
-          <a key={source.id} href={source.url} target="_blank" rel="noreferrer">
-            {source.title} · {source.publisher ?? source.url}
-          </a>
+          source.url ? (
+            <a key={source.id} href={source.url} target="_blank" rel="noreferrer">
+              {source.title} · {source.publisher ?? source.url}
+            </a>
+          ) : (
+            <span key={source.id} className="ai-source-no-link">
+              {source.title} · {source.publisher ?? "geen link beschikbaar"}
+            </span>
+          )
         ))}
       </details>
     </section>
