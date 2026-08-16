@@ -78,7 +78,7 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
   }
 
   const hasHomes = workspace.saved.length > 0;
-  const firstRun = workspaceReady && !hasHomes && initialCases.length === 0;
+  const firstRun = !hasHomes && initialCases.length === 0;
 
   return <main className="site-shell"><div className="container purchase-cockpit">
     <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>{firstRun ? "Begin met een adres." : "Jouw aankoopoverzicht."}</h1><p className="hero-copy">{firstRun ? "Zoek een woning, klik op Bewaar, en alles wat je nodig hebt komt hier terug." : "Eén overzicht: wat je zoekt, welke woningen serieus zijn, en wat je nu moet doen."}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link>}</div>
