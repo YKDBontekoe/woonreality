@@ -14,6 +14,9 @@ additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://local
 [auth.email]
 enable_confirmations = true
 
+# Local stack only. Hosted Auth must enable passkeys separately with
+# rp_id = "woonreality.vercel.app" — see docs/auth-setup.md and
+# `npm run db:enable-passkeys`.
 [auth.passkey]
 enabled = true
 
