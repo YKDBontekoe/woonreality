@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -505,6 +506,30 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           licensedListing={listing}
           onListingChange={setUserListing}
         />
+        {listingStatus !== "unavailable" && (
+          <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
+        )}
+        {affordability && (
+          <div className={`buying-power-strip fit-${affordability.fit}`}>
+            <div>
+              <span className="section-kicker">Jouw koopkracht</span>
+              <strong>{fitLabel(affordability.fit)}</strong>
+              <p>{affordability.summary}</p>
+            </div>
+            <div className="buying-power-strip-meta">
+              {affordability.maxPurchasePriceAfterCosts > 0 && <span>Wat je écht kunt uitgeven {formatEuroShared(affordability.maxPurchasePriceAfterCosts)}</span>}
+              {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
+              <Link className="text-link" href={hypotheekHref}>Open hypotheek <ArrowRight size={13} /></Link>
+              <Link className="text-link" href="/mijn-aankoop">Dashboard</Link>
+            </div>
+          </div>
+        )}
+        <ValuationBidPanel
+          bagId={bagId}
+          analysis={analysis}
+          listing={marketListing}
+          caseId={caseId}
+        />
         <details className="later-tools">
           <summary>
             Als je dit huis serieus neemt
@@ -521,20 +546,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
-            {affordability && listingStatus === "unavailable" && (
-              <div className={`buying-power-strip fit-${affordability.fit}`}>
-                <div>
-                  <span className="section-kicker">Jouw koopkracht</span>
-                  <strong>{fitLabel(affordability.fit)}</strong>
-                  <p>{affordability.summary}</p>
-                </div>
-                <div className="buying-power-strip-meta">
-                  {affordability.maxPurchasePrice > 0 && <span>Max. koopsom {formatEuroShared(affordability.maxPurchasePrice)}</span>}
-                  {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
-                  <Link className="text-link" href="/mijn-aankoop">Open dashboard</Link>
-                </div>
-              </div>
-            )}
             {!caseId && (
               <div className="later-tool-link" style={{ alignItems: "center" }}>
                 <span>
@@ -547,32 +558,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             <div id="ai-onderzoek">
               <AiResearchSection report={aiReport} status={aiStatus} />
             </div>
-            {listingStatus !== "unavailable" && (
-              <div>
-                <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
-                {affordability && (
-                  <div className={`buying-power-strip fit-${affordability.fit}`}>
-                    <div>
-                      <span className="section-kicker">Jouw koopkracht</span>
-                      <strong>{fitLabel(affordability.fit)}</strong>
-                      <p>{affordability.summary}</p>
-                    </div>
-                    <div className="buying-power-strip-meta">
-                      {affordability.maxPurchasePrice > 0 && <span>Max. koopsom {formatEuroShared(affordability.maxPurchasePrice)}</span>}
-                      {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
-                      <Link className="text-link" href={hypotheekHref}>Open hypotheek <ArrowRight size={13} /></Link>
-                      <Link className="text-link" href="/mijn-aankoop">Dashboard</Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            <ValuationBidPanel
-              bagId={bagId}
-              analysis={analysis}
-              listing={marketListing}
-              caseId={caseId}
-            />
           </div>
         </details>
         <div className="details-toggle">
@@ -1135,7 +1120,12 @@ function ScoreProfile({ analysis }: { analysis: Analysis }) {
         const score = domain.score ?? 0;
         return (
           <div className="profile-row" key={domain.key}>
-            <span>{domain.label}</span>
+            <span>
+              {domain.label}
+              {domain.hasUnscoredAttention && (
+                <AlertTriangle size={11} aria-label="Open aandachtspunt zonder score" style={{ marginLeft: 4, verticalAlign: -1, color: "#b8860b" }} />
+              )}
+            </span>
             <div className="profile-track">
               <i style={{ width: `${Math.round(score * 10)}%` }} />
             </div>

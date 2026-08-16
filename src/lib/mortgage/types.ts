@@ -107,7 +107,14 @@ export type MortgageCapacity = {
   nhgApplies: boolean;
   nhgCapped: boolean;
   nhgLimit: number | null;
+  /** Hypotheek + eigen geld, zonder kosten koper. Bewaard voor vergelijkbaarheid. */
   maxPurchasePrice: number;
+  /**
+   * De koopsom die je je daadwerkelijk kunt veroorloven: hypotheek plus eigen
+   * geld, ná aftrek van overdrachtsbelasting, notaris, kadaster, taxatie en
+   * keuring. Gebruik dit veld voor "kan ik dit huis betalen"-beslissingen.
+   */
+  maxPurchasePriceAfterCosts: number;
   monthlyPayment: number;
   monthlyPaymentToets: number;
   energyBand: EnergyBand;

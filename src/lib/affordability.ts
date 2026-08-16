@@ -10,6 +10,8 @@ export type PropertyAffordability = {
   fit: AffordabilityFit;
   askingPrice: number;
   maxPurchasePrice: number;
+  /** Koopsom die je echt kunt betalen, ná kosten koper. Gebruik dit voor budgetbeslissingen. */
+  maxPurchasePriceAfterCosts: number;
   maxLoanForPurchase: number;
   monthlyPayment: number;
   buyerCosts: number | null;
@@ -40,6 +42,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     fit: "unknown",
     askingPrice,
     maxPurchasePrice: 0,
+    maxPurchasePriceAfterCosts: 0,
     maxLoanForPurchase: 0,
     monthlyPayment: 0,
     buyerCosts: null,
@@ -69,7 +72,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     };
   }
 
-  const purchaseHeadroom = askingPrice > 0 ? Math.round(capacity.maxPurchasePrice - askingPrice) : null;
+  const purchaseHeadroom = askingPrice > 0 ? Math.round(capacity.maxPurchasePriceAfterCosts - askingPrice) : null;
   const renovationBuffer = capacity.ownFundsGap != null && capacity.ownFundsGap < 0
     ? Math.round(Math.abs(capacity.ownFundsGap))
     : 0;
@@ -79,6 +82,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     fit: capacity.fit,
     askingPrice,
     maxPurchasePrice: capacity.maxPurchasePrice,
+    maxPurchasePriceAfterCosts: capacity.maxPurchasePriceAfterCosts,
     maxLoanForPurchase: capacity.maxLoanForPurchase,
     monthlyPayment: capacity.monthlyPayment,
     buyerCosts: capacity.buyerCosts,
@@ -90,7 +94,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     summary: affordabilitySummary({
       fit: capacity.fit,
       askingPrice,
-      maxPurchasePrice: capacity.maxPurchasePrice,
+      maxPurchasePrice: capacity.maxPurchasePriceAfterCosts,
       purchaseHeadroom,
       renovationBuffer,
       ownFundsGap: capacity.ownFundsGap,
@@ -102,6 +106,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
 export function affordabilitySummary(input: {
   fit: AffordabilityFit;
   askingPrice: number;
+  /** Verwacht de kosten-koper-bewuste koopsom (capacity.maxPurchasePriceAfterCosts). */
   maxPurchasePrice: number;
   purchaseHeadroom: number | null;
   renovationBuffer: number;
@@ -109,10 +114,10 @@ export function affordabilitySummary(input: {
   energyMeasureExtra: number;
 }) {
   if (input.askingPrice <= 0) {
-    return `Je maximale koopsom is ongeveer ${formatEuro(input.maxPurchasePrice)}. Vul een vraagprijs in voor een fit-check.`;
+    return `Je kunt na kosten koper ongeveer ${formatEuro(input.maxPurchasePrice)} uitgeven aan een huis. Vul een vraagprijs in voor een fit-check.`;
   }
   if (input.fit === "fits") {
-    const parts = [`Deze vraagprijs past binnen je maximale koopsom van ${formatEuro(input.maxPurchasePrice)}.`];
+    const parts = [`Deze vraagprijs past, ook na kosten koper (budget ${formatEuro(input.maxPurchasePrice)}).`];
     if (input.purchaseHeadroom != null && input.purchaseHeadroom > 0) {
       parts.push(`Koopruimte: ${formatEuro(input.purchaseHeadroom)}.`);
     }
@@ -126,16 +131,16 @@ export function affordabilitySummary(input: {
   }
   if (input.fit === "tight") {
     const gap = Math.max(0, Math.round(input.askingPrice - input.maxPurchasePrice));
-    return `Krap: je komt ongeveer ${formatEuro(gap)} tekort tot je maximale koopsom van ${formatEuro(input.maxPurchasePrice)}. Extra eigen geld of een lager bod kan het gat dichten.`;
+    return `Krap: je komt ná kosten koper ongeveer ${formatEuro(gap)} tekort tot je budget van ${formatEuro(input.maxPurchasePrice)}. Extra eigen geld of een lager bod kan het gat dichten.`;
   }
   if (input.fit === "over") {
     const gap = Math.max(0, Math.round(input.askingPrice - input.maxPurchasePrice));
-    return `Boven je max: dit huis kost ${formatEuro(input.askingPrice)}. Volgens je hypotheekschets kun je tot ${formatEuro(input.maxPurchasePrice)} — ${formatEuro(gap)} tekort.`;
+    return `Boven je budget: dit huis kost ${formatEuro(input.askingPrice)}. Ná kosten koper kun je tot ${formatEuro(input.maxPurchasePrice)} betalen — ${formatEuro(gap)} tekort.`;
   }
   if (input.ownFundsGap != null && input.ownFundsGap > 0) {
     return `Je hebt ongeveer ${formatEuro(input.ownFundsGap)} extra eigen geld nodig voor kosten koper en inleg.`;
   }
-  return `Maximale koopsom volgens je hypotheekschets: ${formatEuro(input.maxPurchasePrice)}.`;
+  return `Wat je écht kunt uitgeven volgens je hypotheekschets: ${formatEuro(input.maxPurchasePrice)}.`;
 }
 
 export function fitSortRank(fit: AffordabilityFit) {

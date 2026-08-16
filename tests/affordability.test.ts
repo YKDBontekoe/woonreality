@@ -43,7 +43,11 @@ test("capacity sync updates buyer profile budget fields", () => {
   const capacity = calculateMortgageCapacity(calculatorStateToFinance(state), { nhg: true });
   assert.equal(capacity.available, true);
   const next = buyerProfileFromMortgageCapacity(DEFAULT_BUYER_PROFILE, capacity, state);
-  assert.equal(next.budget, capacity.maxPurchasePrice);
+  // Koopbudget wordt gezet op de koopsom ná kosten koper, niet op de bruto
+  // hypotheek + eigen geld — anders belooft het profiel geld dat bij de
+  // notaris al op is.
+  assert.equal(next.budget, capacity.maxPurchasePriceAfterCosts);
+  assert.ok(next.budget < capacity.maxPurchasePrice);
   assert.equal(next.monthlyPayment, capacity.monthlyPayment);
   assert.equal(next.ownFunds, capacity.ownFunds);
   assert.equal(next.nhg, true);

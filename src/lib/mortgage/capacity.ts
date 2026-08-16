@@ -36,6 +36,54 @@ function euro(value: number) {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(roundEuro(value));
 }
 
+function costProfileFor(finance: MortgageFinance, ownFunds: number, nhg: boolean) {
+  return {
+    firstTimeBuyer: finance.starterExemption,
+    buyerAge: finance.buyerAge || 32,
+    selfOccupied: true,
+    priorExemptionUsed: false,
+    ownFunds,
+    budget: Number.POSITIVE_INFINITY,
+    nhg,
+    energySavingMeasures: finance.includeEnergyMeasures,
+  };
+}
+
+/**
+ * Zoekt de hoogste koopsom waarbij de hypotheek (begrensd door
+ * maxLoanForPurchase) plus het eigen geld de koopsom én de kosten koper
+ * dekken. Overdrachtsbelasting kan bij de startersgrens en NHG-provisie bij
+ * de kostengrens van drempel wisselen, dus dit is een numerieke zoektocht in
+ * plaats van een enkele aftreksom.
+ */
+function solveMaxPurchasePriceAfterCosts(
+  finance: MortgageFinance,
+  maxLoanForPurchase: number,
+  ownFunds: number,
+  nhg: boolean,
+): number {
+  if (maxLoanForPurchase + ownFunds <= 0) return 0;
+  const profile = costProfileFor(finance, ownFunds, nhg);
+  const affordableAt = (price: number) => {
+    if (price < 1) return true;
+    const loan = Math.min(price, maxLoanForPurchase);
+    const costs = estimateBuyerCosts(price, profile, loan);
+    const cashForPrice = Math.max(0, price - loan);
+    const needed = (costs?.total ?? 0) + cashForPrice;
+    return needed <= ownFunds;
+  };
+  let low = 0;
+  let high = maxLoanForPurchase + ownFunds;
+  if (!affordableAt(high)) {
+    for (let i = 0; i < 60; i += 1) {
+      const mid = (low + high) / 2;
+      if (affordableAt(mid)) low = mid; else high = mid;
+    }
+    return roundEuro(low);
+  }
+  return roundEuro(high);
+}
+
 export function calculateMortgageCapacity(finance: MortgageFinance, property: MortgagePropertyContext = {}, market?: MortgageMarketSnapshot): MortgageCapacity {
   const nhg = Boolean(property.nhg);
   const applicantIncome = incomeFromPerson(finance.applicant, { nhg });
@@ -67,6 +115,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     nhgCapped: false,
     nhgLimit: null,
     maxPurchasePrice: 0,
+    maxPurchasePriceAfterCosts: 0,
     monthlyPayment: 0,
     monthlyPaymentToets: 0,
     energyBand: band,
@@ -114,11 +163,15 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
   const nhgCapped = nhgApplies && (uncappedMaxLoanForPurchase > NHG.limit || uncappedMaxLoan > nhgLimit);
 
   const maxPurchasePrice = maxLoanForPurchase + ownFunds;
+  const maxPurchasePriceAfterCosts = solveMaxPurchasePriceAfterCosts(finance, maxLoanForPurchase, ownFunds, nhgApplies);
   const financingNeeded = askingPrice > 0 ? Math.max(0, askingPrice - ownFunds) : 0;
+  // Cash-aware: "fits" pas als de hypotheekruimte én het eigen geld ná kosten
+  // koper de vraagprijs dekken. Alleen naar de leenruimte kijken (zonder
+  // kosten koper) laat "Past" zien terwijl de koper bij de notaris tekortkomt.
   let fit: MortgageCapacity["fit"] = "unknown";
   if (askingPrice > 0) {
-    if (financingNeeded <= maxLoanForPurchase) fit = "fits";
-    else if (financingNeeded <= maxLoanForPurchase * 1.06) fit = "tight";
+    if (askingPrice <= maxPurchasePriceAfterCosts) fit = "fits";
+    else if (askingPrice <= maxPurchasePriceAfterCosts * 1.06) fit = "tight";
     else fit = "over";
   }
 
@@ -153,7 +206,8 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     lines.push({ key: "nhg", label: "NHG van toepassing", amount: 0, note: `Onder de kostengrens 2026 ${euro(NHG.limit)}${finance.includeEnergyMeasures ? `, met EBV ${euro(NHG.energyLimit)}` : ""}.` });
   }
   lines.push({ key: "max-loan", label: "Maximale hypotheek voor aankoop", amount: roundEuro(maxLoanForPurchase), note: measureExtra > 0 ? `Plus ${euro(measureExtra)} alleen voor verduurzaming (totaal ${euro(maxLoan)}).` : "Som van inkomenslening en aankoopextra’s, na eventueel NHG-plafond." });
-  lines.push({ key: "max-price", label: "Maximale koopsom", amount: roundEuro(maxPurchasePrice), note: ownFunds > 0 ? `Hypotheek voor aankoop ${euro(maxLoanForPurchase)} + eigen geld ${euro(ownFunds)}.` : "Zonder eigen geld is de maximale koopsom gelijk aan de maximale hypotheek (LTV 100%)." });
+  lines.push({ key: "max-price", label: "Maximale koopsom (vóór kosten koper)", amount: roundEuro(maxPurchasePrice), note: ownFunds > 0 ? `Hypotheek voor aankoop ${euro(maxLoanForPurchase)} + eigen geld ${euro(ownFunds)}. Overdrachtsbelasting, notaris en taxatie moeten hier nog vanaf.` : "Zonder eigen geld is dit gelijk aan de maximale hypotheek (LTV 100%) — kosten koper kunnen hier niet uit betaald worden." });
+  lines.push({ key: "max-price-after-costs", label: "Wat je écht kunt uitgeven", amount: roundEuro(maxPurchasePriceAfterCosts), note: "Koopsom die je eigen geld en hypotheekruimte dekken ná overdrachtsbelasting, notaris, kadaster, taxatie en keuring. Gebruik dit bedrag om te bepalen of een huis past." });
 
   const costs = askingPrice > 0
     ? estimateBuyerCosts(askingPrice, {
@@ -213,6 +267,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     nhgCapped,
     nhgLimit: nhgApplies ? nhgLimit : null,
     maxPurchasePrice: roundEuro(maxPurchasePrice),
+    maxPurchasePriceAfterCosts: roundEuro(maxPurchasePriceAfterCosts),
     monthlyPayment,
     monthlyPaymentToets,
     energyBand: band,
