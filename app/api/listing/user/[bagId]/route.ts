@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { extractListingFacts, isHttpUrl } from "@/src/lib/listing-intake";
+import { factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { userListingBodySchema } from "@/src/lib/validation/workspace";
 
@@ -36,27 +37,31 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
     if (!parsed.success) return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400 });
     if (parsed.data.sourceUrl && !isHttpUrl(parsed.data.sourceUrl)) return NextResponse.json({ error: "De bronlink is geen geldige URL." }, { status: 400 });
     const keys = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-    const facts = Object.prototype.hasOwnProperty.call(keys, "pastedText") ? extractListingFacts(parsed.data.pastedText ?? "") : undefined;
+    const pastedFacts = Object.prototype.hasOwnProperty.call(keys, "pastedText") ? extractListingFacts(parsed.data.pastedText ?? "") : undefined;
+    const { data: existing } = await supabase.from("user_listings").select("extracted_json, asking_price").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
+    const mergedFacts = pastedFacts
+      ? mergeListingFacts(pastedFacts, factsFromUnknown(existing?.extracted_json))
+      : undefined;
     const payload: Record<string, unknown> = {
       user_id: user.id,
       bag_vbo_id: bagId,
       updated_at: new Date().toISOString(),
     };
     if (Object.prototype.hasOwnProperty.call(keys, "askingPrice")) {
-      payload.asking_price = parsed.data.askingPrice ?? facts?.askingPrice ?? null;
-    } else if (facts?.askingPrice != null) {
-      payload.asking_price = facts.askingPrice;
+      payload.asking_price = parsed.data.askingPrice ?? mergedFacts?.askingPrice ?? existing?.asking_price ?? null;
+    } else if (mergedFacts?.askingPrice != null) {
+      payload.asking_price = mergedFacts.askingPrice;
     }
     if (Object.prototype.hasOwnProperty.call(keys, "sourceUrl")) {
       payload.source_url = parsed.data.sourceUrl ?? null;
     }
     if (Object.prototype.hasOwnProperty.call(keys, "pastedText")) {
       payload.pasted_text = parsed.data.pastedText ?? null;
-      payload.extracted_json = facts ?? {};
+      payload.extracted_json = mergedFacts ?? {};
     }
     const { data, error } = await supabase.from("user_listings").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("*").single();
     if (error) throw error;
-    return NextResponse.json({ listing: data, facts: facts ?? data.extracted_json });
+    return NextResponse.json({ listing: data, facts: mergedFacts ?? data.extracted_json });
   } catch {
     return NextResponse.json({ error: "Advertentiegegevens konden niet worden opgeslagen." }, { status: 502 });
   }

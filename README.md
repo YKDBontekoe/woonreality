@@ -60,18 +60,24 @@ GET /api/analysis/:bagId
 GET /api/ai-analysis/:bagId
 POST /api/ai-analysis/:bagId
 GET /api/listing/:bagId
+GET /api/listing/user/:bagId
+PUT /api/listing/user/:bagId
+POST /api/listing/user/:bagId/import
 GET /api/cron/source-health
 GET /api/health
 ```
 
 The source adapters live below `src/lib/sources/`, the normalized contracts are in `src/lib/types.ts`, and score calculation is in `src/lib/scoring/`.
 
-Current listing data is available only through an explicitly configured licensed
+Current listing data can come from an explicitly configured licensed
 provider (`LISTING_PROVIDER_URL`, with optional API key and provider name). The
 provider must accept `bagVboId`, `postcode`, and `houseNumber` query parameters
 and return a normalized JSON object containing at least `externalId` and an
 HTTPS `sourceUrl`. The app does not call or reverse-engineer undocumented Funda
 endpoints.
+
+Users can also paste one Funda listing URL. The app fetches only that page to
+fill missing asking-price and kenmerken fields; it does not scrape search results.
 
 ## Vercel setup
 

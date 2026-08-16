@@ -86,6 +86,10 @@ export const userListingBodySchema = z.object({
   pastedText: z.string().max(20_000).nullable().optional(),
 }).strict();
 
+export const userListingImportBodySchema = z.object({
+  sourceUrl: z.string().url().max(500),
+}).strict();
+
 export const viewingDebriefSchema = z.object({
   decision: z.enum(["continue", "doubt", "drop"]),
   caseId: z.string().uuid().optional(),

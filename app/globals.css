@@ -349,6 +349,15 @@ a { color: inherit; text-decoration: none; }
 .listing-fact-grid strong { margin-top: 5px; color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
 .listing-footer { display: flex; justify-content: space-between; gap: 15px; padding: 13px 16px; color: var(--muted); font-size: 10px; }
 .listing-footer a { color: var(--moss); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.listing-conflict { margin: 0; padding: 12px 21px; border-bottom: 1px solid var(--line); background: #fff8ef; color: #855321; font-size: 12px; line-height: 1.5; }
+.funda-listing-panel { margin: 28px 0 12px; }
+.funda-listing-panel .listing-section { margin: 18px 0 0; }
+.funda-listing-form { margin-top: 0; max-width: none; }
+.funda-listing-form label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.funda-listing-form input { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: 12px "DM Sans", sans-serif; }
+.funda-listing-form .primary-button { justify-self: start; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; }
 .nearby-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .nearby-card { display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--line); border-radius: 11px; padding: 12px 13px; background: rgba(255,255,255,.84); transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
 .nearby-card:hover { border-color: #aec5b2; transform: translateY(-1px); }
