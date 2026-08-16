@@ -269,7 +269,7 @@ export function RateImpactChart({
           </g>
         ))}
         {rows.map((row, index) => (
-          <text key={row.rate} x={sx(index)} y={height - 10} textAnchor="middle" className="mortgage-chart-tick">
+          <text key={index} x={sx(index)} y={height - 10} textAnchor="middle" className="mortgage-chart-tick">
             {row.rate.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%
           </text>
         ))}
@@ -287,8 +287,8 @@ export function RateImpactChart({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.rate}>
+              {rows.map((row, index) => (
+                <tr key={index}>
                   <td>{row.rate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
                   <td>{formatEuro(Math.round(row.firstPayment))}</td>
                   <td>{formatEuro(Math.round(row.totalInterest))}</td>
@@ -321,7 +321,7 @@ export function RateHistoryChart({
 
   const months = [...new Set(displaySeries.flatMap((series) => series.points.map((point) => point.month)))].sort();
   const monthIndex = new Map(months.map((month, index) => [month, index]));
-  const display: LineSeries[] = displaySeries.map((item) => ({
+  const series: LineSeries[] = displaySeries.map((item) => ({
     id: String(item.period),
     label: item.period === 20 ? "20/30 jaar vast" : `${item.period} jaar vast`,
     color: HISTORY_COLORS[item.period] ?? "#1d1d1f",
@@ -334,59 +334,15 @@ export function RateHistoryChart({
 
   const first = months[0] ?? "";
   const last = months[months.length - 1] ?? "";
-  const tickCount = Math.min(5, months.length);
-  const tickIndexes = Array.from({ length: tickCount }, (_, index) => Math.round((index / Math.max(1, tickCount - 1)) * (months.length - 1)));
-  const pad = { top: 16, right: 16, bottom: 36, left: 44 };
-  const innerW = 640 - pad.left - pad.right;
-  const innerH = 220 - pad.top - pad.bottom;
-  const maxX = Math.max(1, months.length - 1);
-  const maxY = niceMax(Math.max(1, ...display.flatMap((item) => item.points.map((point) => point.y))));
-  const sx = (x: number) => pad.left + (x / maxX) * innerW;
-  const sy = (y: number) => pad.top + innerH - (y / maxY) * innerH;
-  const gridYs = [0, 0.25, 0.5, 0.75, 1].map((fraction) => maxY * fraction);
 
   return (
-    <figure className="mortgage-chart">
-      <figcaption>
-        <strong>Marktrente afgelopen jaren</strong>
-        <span>DNB/ECB nieuwe woninghypotheken · {first} – {last}</span>
-      </figcaption>
-      <svg viewBox="0 0 640 220" role="img" aria-label="Historische hypotheekrente DNB ECB" className="mortgage-chart-svg">
-        {gridYs.map((y) => (
-          <g key={`hg-${y}`}>
-            <line x1={pad.left} x2={640 - pad.right} y1={sy(y)} y2={sy(y)} className="mortgage-chart-grid" />
-            <text x={pad.left - 8} y={sy(y) + 3} textAnchor="end" className="mortgage-chart-tick">{y.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%</text>
-          </g>
-        ))}
-        {tickIndexes.map((index) => (
-          <text key={`hx-${index}`} x={sx(index)} y={210} textAnchor="middle" className="mortgage-chart-tick">{months[index]}</text>
-        ))}
-        {display.map((item) => {
-          if (item.points.length === 0) return null;
-          const d = item.points.map((point, i) => `${i === 0 ? "M" : "L"} ${sx(point.x).toFixed(1)} ${sy(point.y).toFixed(1)}`).join(" ");
-          return (
-            <path
-              key={item.id}
-              d={d}
-              fill="none"
-              stroke={item.color}
-              strokeWidth={item.emphasized ? 2.75 : 1.6}
-              strokeOpacity={item.emphasized ? 1 : 0.4}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </svg>
-      <ul className="mortgage-chart-legend">
-        {display.map((item) => (
-          <li key={item.id}>
-            <i style={{ background: item.color, opacity: item.emphasized ? 1 : 0.45 }} />
-            {item.label}
-          </li>
-        ))}
-      </ul>
-    </figure>
+    <LineChart
+      title="Marktrente afgelopen jaren"
+      subtitle={`DNB/ECB nieuwe woninghypotheken · ${first} – ${last}`}
+      series={series}
+      xLabel={(index) => months[index] ?? ""}
+      yFormat={(y) => `${y.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%`}
+    />
   );
 }
 
@@ -421,7 +377,7 @@ export function RateSparkline({
       </svg>
       <div>
         <strong>{last.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong>
-        <small className={delta > 0.05 ? "is-down" : delta < -0.05 ? "is-up" : undefined}>
+        <small className={delta > 0.05 ? "is-worse" : delta < -0.05 ? "is-better" : undefined}>
           {delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pt
         </small>
       </div>

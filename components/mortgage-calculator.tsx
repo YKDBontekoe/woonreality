@@ -415,7 +415,6 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     includeInspection: true,
   });
   const [wozValue, setWozValue] = useState(0);
-  const wozTouched = useRef(false);
 
   useEffect(() => {
     try {
@@ -474,7 +473,8 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   }, market ?? undefined), [market, state, studentMode]);
 
   const funds = fundsTotal(state);
-  const reference = currentMortgageReference();
+  const reference = useMemo(() => currentMortgageReference(), []);
+  const maxDeductionRate = reference.box1.maxHousingDeductionRate;
 
   const displayLoan = useMemo(() => {
     if (state.askingPrice > 0) {
@@ -485,10 +485,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     return result.available ? result.maxLoanForPurchase : 0;
   }, [funds, result, state.askingPrice]);
 
-  useEffect(() => {
-    if (wozTouched.current) return;
-    if (state.askingPrice > 0) setWozValue(state.askingPrice);
-  }, [state.askingPrice]);
+  const effectiveWoz = wozValue > 0 ? wozValue : (state.askingPrice || displayLoan);
 
   const detailedCosts = useMemo(() => {
     if (state.askingPrice <= 0) return null;
@@ -532,12 +529,12 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     if (!activeSchedule || displayLoan <= 0) return null;
     return summarizeHousingTax({
       taxableIncome: result.toetsinkomen,
-      wozValue: wozValue || state.askingPrice || displayLoan,
+      wozValue: effectiveWoz,
       schedule: activeSchedule,
       oneOffDeductibleCosts: detailedCosts?.deductibleTotal ?? 0,
       reference,
     });
-  }, [activeSchedule, detailedCosts?.deductibleTotal, displayLoan, reference, result.toetsinkomen, state.askingPrice, wozValue]);
+  }, [activeSchedule, detailedCosts?.deductibleTotal, displayLoan, effectiveWoz, reference, result.toetsinkomen]);
 
   const impact = useMemo(
     () => (displayLoan > 0 ? rateImpactRows(displayLoan, state.interestRate, state.repayment) : []),
@@ -852,14 +849,14 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
       repayment={state.repayment}
       options={costOptions}
       onOptionsChange={(patch) => setCostOptions((current) => ({ ...current, ...patch }))}
-      wozValue={wozValue}
+      wozValue={effectiveWoz}
       onWozChange={(value) => {
-        wozTouched.current = true;
         setWozValue(value);
       }}
       loanAmount={displayLoan}
       ownFunds={funds}
       referenceYear={reference.year}
+      maxDeductionRate={maxDeductionRate}
       referenceSources={[
         { label: "Overdrachtsbelasting", url: reference.sources.transferTax },
         { label: "NHG", url: reference.sources.nhg },

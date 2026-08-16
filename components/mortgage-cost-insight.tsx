@@ -5,7 +5,8 @@ import { useState, type ReactNode } from "react";
 import type { BuyerCostEstimate, BuyerCostLine } from "@/src/lib/costs";
 import type { HousingTaxSummary } from "@/src/lib/mortgage/tax";
 import type { MortgageMarketSnapshot, MortgageSchedule, RepaymentType } from "@/src/lib/mortgage";
-import { currentMortgageReference, deductionRefund, formatDeductionRate } from "@/src/lib/mortgage";
+import { deductionRefund, formatDeductionRate } from "@/src/lib/mortgage";
+import { LOAN_TERM_YEARS } from "@/src/lib/mortgage/norms-2026";
 import { formatEuro } from "@/src/lib/purchase";
 import {
   BalanceComparisonChart,
@@ -54,6 +55,7 @@ type Props = {
   loanAmount: number;
   ownFunds: number;
   referenceYear: number;
+  maxDeductionRate: number;
   referenceSources: { label: string; url: string }[];
 };
 
@@ -139,6 +141,7 @@ export function MortgageCostInsight({
   loanAmount,
   ownFunds,
   referenceYear,
+  maxDeductionRate,
   referenceSources,
 }: Props) {
   const [open, setOpen] = useState<PanelId | null>(null);
@@ -150,7 +153,8 @@ export function MortgageCostInsight({
   const fundsTone = fundsGap == null ? undefined : fundsGap <= 0 ? "ok" : fundsGap / Math.max(1, costs?.ownFundsNeeded ?? 1) <= 0.15 ? "tight" : "short";
   const interestDelta = showSchedules ? Math.round(annuity.totalInterest - linear.totalInterest) : 0;
   const chosen = repayment === "linear" ? linear : annuity;
-  const deductionRate = tax?.deductionRate ?? currentMortgageReference().box1.maxHousingDeductionRate;
+  const loanTermYears = annuity?.years.length ?? linear?.years.length ?? LOAN_TERM_YEARS;
+  const deductionRate = tax?.deductionRate ?? maxDeductionRate;
   const refundKnown = Boolean(tax);
   const costsRefund = costs ? deductionRefund(costs.deductibleTotal, deductionRate) : 0;
 
@@ -215,7 +219,7 @@ export function MortgageCostInsight({
           {showSchedules ? (
             <>
               <strong>{formatEuro(Math.round(interestDelta))}</strong>
-              <em>minder rente bij lineair over 30 jaar</em>
+              <em>minder rente bij lineair over {loanTermYears} jaar</em>
             </>
           ) : (
             <>

@@ -187,10 +187,9 @@ export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
     const longHistory = historyFromResult(20, long);
     if (fiveHistory) history.push(fiveHistory);
     if (tenHistory) history.push(tenHistory);
-    if (longHistory) {
-      history.push(longHistory);
-      history.push({ period: 30, points: longHistory.points });
-    }
+    // ECB MIR “over 10 years” covers both 20y and 30y indicative rates; do not
+    // publish a duplicate period:30 series (consumers already fall back 30→20).
+    if (longHistory) history.push(longHistory);
     snapshot.history = history;
   }
   return snapshot;

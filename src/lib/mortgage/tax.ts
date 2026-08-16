@@ -27,7 +27,12 @@ export type HousingTaxSummary = {
   deductionRate: number;
   eigenwoningforfait: number;
   year1: HousingTaxYear;
+  /**
+   * First-year ongoing monthly net (interest + forfait/Hillen, without one-off
+   * financing costs). Not a steady-state or term-average figure.
+   */
   ongoingMonthlyNet: number;
+  /** First-year gross monthly payment (schedule year 1), same basis as ongoingMonthlyNet. */
   ongoingMonthlyGross: number;
   /** Indicative tax back from one-off deductible financing costs (year 1). */
   oneOffRefund: number;
@@ -44,6 +49,7 @@ function roundCents(value: number) {
 
 export function box1MarginalRate(taxableIncome: number, ref = currentMortgageReference()) {
   const income = Math.max(0, taxableIncome);
+  // Every box1.brackets array must stay sorted by ascending upTo.
   for (const bracket of ref.box1.brackets) {
     if (income <= bracket.upTo) return bracket.rate;
   }
@@ -65,7 +71,9 @@ export function eigenwoningforfait(wozValue: number, ref = currentMortgageRefere
   for (const band of ref.eigenwoningforfait.bands) {
     if (woz <= band.upTo) return woz * band.rate;
   }
-  return woz * 0.0035;
+  const bands = ref.eigenwoningforfait.bands;
+  const fallbackRate = bands[bands.length - 1]?.rate ?? 0;
+  return woz * fallbackRate;
 }
 
 export function housingTaxForYear(params: {
@@ -116,16 +124,15 @@ export function summarizeHousingTax(input: HousingTaxInput): HousingTaxSummary {
     grossPayment: year1Payment,
   });
 
-  const ongoingInterest = year1Interest;
-  const ongoingPayment = year1Payment;
-  const ongoing = housingTaxForYear({
+  // Year-1 ongoing indication (no one-off costs): not averaged over the term.
+  const ongoingYear1 = housingTaxForYear({
     year: 1,
-    grossInterest: ongoingInterest,
+    grossInterest: year1Interest,
     oneOffDeductible: 0,
     forfait,
     hillenRate: ref.hillenRate,
     deductionRate,
-    grossPayment: ongoingPayment,
+    grossPayment: year1Payment,
   });
 
   return {
@@ -133,10 +140,10 @@ export function summarizeHousingTax(input: HousingTaxInput): HousingTaxSummary {
     deductionRate,
     eigenwoningforfait: roundEuro(forfait),
     year1,
-    ongoingMonthlyNet: ongoing.netMonthlyCost,
-    ongoingMonthlyGross: roundEuro(ongoingPayment / 12),
+    ongoingMonthlyNet: ongoingYear1.netMonthlyCost,
+    ongoingMonthlyGross: roundEuro(year1Payment / 12),
     oneOffRefund: deductionRefund(oneOff, deductionRate),
-    disclaimer: `Hypotheekrenteaftrek-schets ${ref.year}: max aftrektarief ${(ref.box1.maxHousingDeductionRate * 100).toLocaleString("nl-NL", { maximumFractionDigits: 2 })}%, inclusief eigenwoningforfait. Geen aangifteadvies.`,
+    disclaimer: `Hypotheekrenteaftrek-schets ${ref.year}: max aftrektarief ${(ref.box1.maxHousingDeductionRate * 100).toLocaleString("nl-NL", { maximumFractionDigits: 2 })}%, inclusief eigenwoningforfait. Netto maandlast is een jaar-1-indicatie. Geen aangifteadvies.`,
   };
 }
 

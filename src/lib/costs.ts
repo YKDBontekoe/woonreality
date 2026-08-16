@@ -1,4 +1,3 @@
-import { isNhgEligible, nhgKostengrens } from "@/src/lib/mortgage/norms-2026";
 import { currentMortgageReference, type MortgageReference } from "@/src/lib/mortgage/reference";
 import type { BuyerProfile } from "@/src/lib/purchase";
 
@@ -91,7 +90,8 @@ export function estimateBuyerCosts(
   const derivedLoan = (profile.ownFunds || 0) >= purchasePrice ? 0 : purchasePrice;
   const loan = financingAmount == null ? derivedLoan : Math.max(0, Math.min(financingAmount, purchasePrice));
   const financed = loan > 0;
-  const nhgLimit = nhgKostengrens(Boolean(profile.energySavingMeasures));
+  const nhgLimit = profile.energySavingMeasures ? ref.nhg.energyLimit : ref.nhg.limit;
+  const nhgEligible = purchasePrice > 0 && purchasePrice <= nhgLimit;
   const includeInspection = options.includeInspection !== false;
   const includeAdvice = Boolean(options.includeAdvice);
   const includeBankGuarantee = Boolean(options.includeBankGuarantee);
@@ -191,7 +191,7 @@ export function estimateBuyerCosts(
     });
   }
 
-  if (profile.nhg && isNhgEligible(purchasePrice, Boolean(profile.energySavingMeasures)) && loan > 0) {
+  if (profile.nhg && nhgEligible && loan > 0) {
     lines.push({
       key: "nhg",
       label: "NHG-borgtochtprovisie",
