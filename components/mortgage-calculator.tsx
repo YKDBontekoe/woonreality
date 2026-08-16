@@ -6,6 +6,7 @@ import {
   ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
   NHG,
+  buildMortgageScenarios,
   calculateMortgageCapacity,
   defaultDgaSource,
   defaultEmploymentSource,
@@ -455,6 +456,15 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     nhg: state.nhg,
   }, market ?? undefined), [market, state, studentMode]);
 
+  const scenarios = useMemo(() => {
+    if (!result.available) return [];
+    return buildMortgageScenarios(toFinance(state, studentMode), {
+      energyLabel: state.energyLabel,
+      askingPrice: state.askingPrice,
+      nhg: state.nhg,
+    }, market ?? undefined).filter((scenario) => scenario.id !== "current");
+  }, [market, result.available, state, studentMode]);
+
   function patch<K extends keyof CalculatorState>(key: K, value: CalculatorState[K]) {
     setState((current) => ({ ...current, [key]: value }));
   }
@@ -481,7 +491,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
-  const highlightKeys = new Set(["max-loan", "max-price", "lease", "student", "revolving", "funds-gap"]);
+  const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
 
   return <>
     <div className="mortgage-layout">
@@ -630,9 +640,20 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           <h2>Jouw maximum verschijnt hier</h2>
           <p>Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee.</p>
         </> : <>
-          <p className="mortgage-kicker">Je kunt volgens deze schets lenen</p>
-          <div className="mortgage-amount">{formatEuro(result.maxLoan)}</div>
-          <p className="mortgage-result-note">Maximale koopsom {formatEuro(result.maxPurchasePrice)}{funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.</p>
+          <p className="mortgage-kicker">Maximale hypotheek voor aankoop</p>
+          <div className="mortgage-amount">{formatEuro(result.maxLoanForPurchase)}</div>
+          <p className="mortgage-result-note">
+            Maximale koopsom {formatEuro(result.maxPurchasePrice)}
+            {funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.
+            {result.energyMeasureExtra > 0 ? ` Plus ${formatEuro(result.energyMeasureExtra)} alleen voor verduurzaming.` : ""}
+          </p>
+          {result.nhgCapped && <div className="mortgage-nhg-banner">
+            <p>
+              Begrensd door NHG-kostengrens 2026 ({formatEuro(NHG.limit)}).
+              Op inkomen zou {formatEuro(result.uncappedMaxLoanForPurchase)} mogelijk zijn zonder NHG.
+            </p>
+            <button type="button" className="text-link" onClick={() => setNhg(false)}>Toon zonder NHG-plafond</button>
+          </div>}
           <div className="mortgage-result-grid">
             <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
             <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
@@ -652,6 +673,26 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               </li>
             ))}
           </ul>}
+          {scenarios.length > 0 && <div className="mortgage-scenarios">
+            <h3>Wat als…</h3>
+            <p className="mortgage-hint">Andere labels, rentes of lasten — t.o.v. je huidige schets.</p>
+            <ul>
+              {scenarios.map((scenario) => (
+                <li key={scenario.id}>
+                  <span>
+                    {scenario.label}
+                    {scenario.note ? <small>{scenario.note}</small> : null}
+                  </span>
+                  <strong>
+                    {formatEuro(scenario.maxLoanForPurchase)}
+                    <em className={scenario.delta > 0 ? "is-up" : scenario.delta < 0 ? "is-down" : undefined}>
+                      {scenario.delta === 0 ? "±0" : `${scenario.delta > 0 ? "+" : "−"}${formatEuro(Math.abs(scenario.delta))}`}
+                    </em>
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          </div>}
         </>}
         {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
         {result.available && market && <p className="mortgage-sources">
@@ -665,7 +706,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     {result.available && <a className="mortgage-mobile-dock" href="#hypotheek-result">
       <span>
         <small>Maximale hypotheek</small>
-        <strong>{formatEuro(result.maxLoan)}</strong>
+        <strong>{formatEuro(result.maxLoanForPurchase)}</strong>
       </span>
       <em>Zie details</em>
     </a>}
@@ -814,8 +855,8 @@ export function MortgagePageIntro() {
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
       <h1>Wat kun je lenen?</h1>
-      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. De maximale hypotheek volgt de leennormen {MORTGAGE_NORMS_YEAR} terwijl je typt.</p>
+      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. Je ziet het wettelijke maximum voor aankoop volgens de leennormen {MORTGAGE_NORMS_YEAR} — banken komen vaak lager uit.</p>
     </div>
-    <div className="mortgage-heading-note"><Wallet size={16} /> Dit is een wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
+    <div className="mortgage-heading-note"><Wallet size={16} /> Wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
   </div>;
 }

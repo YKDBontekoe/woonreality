@@ -754,6 +754,19 @@ button.text-link { background: none; border: 0; padding: 0; }
 .mortgage-fit.fits { background: var(--mint-soft); color: var(--moss); }
 .mortgage-fit.tight { background: #fff6e4; color: #8a5a16; }
 .mortgage-fit.over { background: #fdece6; color: var(--coral-deep); }
+.mortgage-nhg-banner { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: #fff6e4; color: #8a5a16; display: grid; gap: 8px; }
+.mortgage-nhg-banner p { margin: 0; font-size: 13px; line-height: 1.45; }
+.mortgage-nhg-banner .text-link { justify-self: start; color: #8a5a16; font-weight: 600; }
+.mortgage-scenarios { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.mortgage-scenarios h3 { margin: 0 0 4px; font: 600 16px "Space Grotesk", sans-serif; }
+.mortgage-scenarios ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 0; }
+.mortgage-scenarios li { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.mortgage-scenarios li span { display: grid; gap: 2px; font-size: 13px; color: var(--ink-soft); }
+.mortgage-scenarios li small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.mortgage-scenarios li strong { display: grid; gap: 2px; justify-items: end; font: 600 13px "DM Mono", monospace; color: var(--ink); text-align: right; }
+.mortgage-scenarios li em { font-style: normal; font-size: 11px; color: var(--muted); }
+.mortgage-scenarios li em.is-up { color: var(--moss); }
+.mortgage-scenarios li em.is-down { color: var(--coral-deep); }
 .mortgage-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .mortgage-lines li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .mortgage-lines li.is-key span { color: var(--ink); font-weight: 600; }

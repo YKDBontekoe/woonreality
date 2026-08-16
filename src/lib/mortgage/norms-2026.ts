@@ -81,7 +81,7 @@ export const INDICATIVE_RATES = {
   },
 } as const;
 
-export const MORTGAGE_DISCLAIMER = "Dit is een rekenschets op de wettelijke leennormen 2026, geen hypotheekadvies en geen bankofferte. Een geldverstrekker toetst documenten, BKR en (voor ondernemers) vaak een Inkomensverklaring Ondernemer, en kan strenger zijn.";
+export const MORTGAGE_DISCLAIMER = "Dit is het wettelijke maximum volgens de leennormen 2026, geen hypotheekadvies en geen bankofferte. Banken toetsen strenger (documenten, BKR, ondernemers vaak via IKV) en komen vaak lager uit.";
 
 export function indicativeRate(period: FixedPeriodYears, nhg: boolean) {
   const row = INDICATIVE_RATES.byPeriod[period];
