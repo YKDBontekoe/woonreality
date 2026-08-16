@@ -2,13 +2,13 @@
 
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   ChevronDown,
   Clock3,
   Database,
   GitCompare,
   Heart,
-  Landmark,
   MapPinned,
   Printer,
   RefreshCw,
@@ -20,10 +20,10 @@ import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "@/components/property-map";
 import { SignalCard } from "@/components/signal-card";
-import { SiteHeader } from "@/components/site-header";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { StartCaseButton } from "@/components/start-case-button";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
+import { PageShell } from "@/components/ui/page-shell";
 import {
   calculatePersonalFit,
   DEFAULT_PREFERENCES,
@@ -271,20 +271,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   if (error)
     return (
-      <main className="site-shell">
-        <div className="container">
-          <div className="loading-shell">
-            <Link className="back-link" href="/">
-              <ArrowLeft size={14} /> Terug naar zoeken
-            </Link>
-            <h1>Dit adres lukt nu niet.</h1>
-            <p className="hero-copy">{error}</p>
-            <Link className="secondary-button" href="/">
-              Nieuw adres zoeken
-            </Link>
-          </div>
+      <PageShell current="woning">
+        <div className="loading-shell">
+          <Link className="back-link" href="/">
+            <ArrowLeft size={14} /> Terug naar zoeken
+          </Link>
+          <h1>Dit adres lukt nu niet.</h1>
+          <p className="hero-copy">{error}</p>
+          <Link className="primary-button" href="/">
+            Nieuw adres zoeken
+          </Link>
         </div>
-      </main>
+      </PageShell>
     );
   if (!analysis) return <LoadingDashboard />;
 
@@ -316,9 +314,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
 
   return (
-    <main className="site-shell">
-      <div className="container">
-        <SiteHeader current="woning" />
+    <PageShell current="woning">
         <header className="dashboard-header">
           <Link className="back-link" href="/">
             <ArrowLeft size={14} /> Ander adres
@@ -352,7 +348,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 {isSaved ? "Bewaard" : "Bewaar"}
               </button>
               <button
-                className={`secondary-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
+                className={`ghost-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
                 type="button"
                 onClick={async () => {
                   await toggleCompare(property.bagVboId);
@@ -362,7 +358,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 {workspace.compare.includes(property.bagVboId) ? "In vergelijking" : "Vergelijk"}
               </button>
               <button
-                className="secondary-button share-button"
+                className="ghost-button share-button"
                 type="button"
                 onClick={share}
               >
@@ -387,7 +383,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </div>
         )}
         <section className="simple-overview" id="overzicht">
-          <SimpleVerdict analysis={analysis} />
+          <SimpleVerdict
+            analysis={analysis}
+            facts={[
+              property.areaM2
+                ? `${property.areaM2} m² woonoppervlak`
+                : "Oppervlakte onbekend",
+              property.buildingYear
+                ? `Bouwjaar ${property.buildingYear}`
+                : "Bouwjaar onbekend",
+              `${nearbyProperties.length} woningen dichtbij`,
+            ]}
+          />
           <div id="kaart">
             <PropertyMap
               property={property}
@@ -395,67 +402,77 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             />
           </div>
         </section>
-        <section className="simple-reasons">
-          <div className="section-kicker">Waarom dit oordeel?</div>
-          <h2>Dit zijn de drie dingen die ertoe doen</h2>
-          <EverydayInsights items={analysis.everydayInsights ?? []} />
-          <div className="simple-facts">
-            <span>
-              {property.areaM2
-                ? `${property.areaM2} m² BAG-gebruiksoppervlakte`
-                : "Oppervlakte onbekend"}
-            </span>
-            <span>
-              {property.buildingYear
-                ? `BAG-bouwjaar ${property.buildingYear}`
-                : "Bouwjaar onbekend"}
-            </span>
-            <span>{nearbyProperties.length} woningen dichtbij</span>
-          </div>
-        </section>
-        <PurchaseGuardrails buildingYear={property.buildingYear} />
         <section className="decision-bar" aria-label="Beslis in 30 seconden">
           <div>
             <div className="section-kicker">Wat nu?</div>
             <h2>Bezichtigen, bewaren of laten vallen.</h2>
-            <p>De score is screening. De volgende stap is een actie die een makelaar ook zou voorstellen.</p>
+            <p>Dit is een eerste check, geen aankoopadvies. Kies één volgende stap.</p>
           </div>
           <div className="decision-bar-actions">
             <Link className="primary-button" href={`/woning/${property.bagVboId}/bezichtiging`}>Bezichtiging voorbereiden</Link>
-            {caseId ? <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>Open dossier</Link> : <StartCaseButton bagVboId={property.bagVboId} />}
+            {caseId ? (
+              <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>Open dossier</Link>
+            ) : (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={async () => {
+                  if (!isSaved) await toggleSaved(property);
+                }}
+              >
+                <Heart size={14} />
+                {isSaved ? "Bewaard" : "Bewaar"}
+              </button>
+            )}
           </div>
         </section>
-        <AiResearchSection report={aiReport} status={aiStatus} />
-        {listingStatus !== "unavailable" && (
-          <ListingSection listing={listing} status={listingStatus} />
-        )}
-        <section className="mortgage-cta">
-          <div>
-            <div className="section-kicker"><Landmark size={13} /> hypotheek</div>
-            <h2>Wat kun jij hier lenen?</h2>
-            <p>Open de hypotheekcheck met {energyLabel ? `energielabel ${energyLabel}` : "het energielabel"}{listing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld. Loondienst, zelfstandig, schulden en NHG reken je daar zelf.</p>
-          </div>
-          <Link className="primary-button" href={hypotheekHref}>Bereken je hypotheek</Link>
+        <section className="simple-reasons">
+          <div className="section-kicker">Waarom dit oordeel?</div>
+          <h2>Dit zijn de drie dingen die ertoe doen</h2>
+          <EverydayInsights items={analysis.everydayInsights ?? []} />
         </section>
-        <ValuationBidPanel
-          bagId={bagId}
-          analysis={analysis}
-          listing={listing}
-          caseId={caseId}
-        />
-        {!caseId && (
-        <section className="case-cta">
-          <div>
-            <div className="section-kicker">Volgende stap</div>
-            <h2>Wil je dit adres serieus meenemen?</h2>
-            <p>
-              Bewaar je vragen, documenten en deadlines in één persoonlijk
-              aankoopdossier.
-            </p>
+        <PurchaseGuardrails buildingYear={property.buildingYear} />
+        <details className="later-tools">
+          <summary>
+            Als je dit huis serieus neemt
+            <ChevronDown size={16} aria-hidden="true" />
+          </summary>
+          <div className="later-tools-body">
+            <Link className="later-tool-link" href={hypotheekHref}>
+              <span>
+                <strong>Hypotheek berekenen</strong>
+                <span>
+                  {energyLabel ? `Met energielabel ${energyLabel}` : "Met het energielabel"}
+                  {listing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld.
+                </span>
+              </span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            {!caseId && (
+              <div className="later-tool-link" style={{ alignItems: "center" }}>
+                <span>
+                  <strong>Aankoopdossier starten</strong>
+                  <span>Vragen, documenten en deadlines op één plek.</span>
+                </span>
+                <StartCaseButton bagVboId={property.bagVboId} />
+              </div>
+            )}
+            <div id="ai-onderzoek">
+              <AiResearchSection report={aiReport} status={aiStatus} />
+            </div>
+            {listingStatus !== "unavailable" && (
+              <div id="advertentie">
+                <ListingSection listing={listing} status={listingStatus} />
+              </div>
+            )}
+            <ValuationBidPanel
+              bagId={bagId}
+              analysis={analysis}
+              listing={listing}
+              caseId={caseId}
+            />
           </div>
-          <StartCaseButton bagVboId={property.bagVboId} />
-        </section>
-        )}
+        </details>
         <div className="details-toggle">
           <button
             className="secondary-button"
@@ -490,7 +507,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                   aankoopadvies, taxatie of biedadvies.
                 </p>
                 <div className="fit-score">
-                  <span>Jouw persoonlijke fit</span>
+                  <span>Jouw persoonlijke match</span>
                   <strong>
                     {personalFit == null
                       ? "—"
@@ -784,15 +801,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </span>
             </div>
             <p className="dashboard-disclaimer">
-              WoonReality is een screening- en beslisondersteunend product.
-              Model- en open-data-indicaties vervangen geen bouwkundige keuring,
-              akoestisch onderzoek, funderingsonderzoek, bodemonderzoek,
-              juridisch advies of formele vergunningscheck.
+              WoonReality is een eerste check om te helpen beslissen. Open data
+              vervangt geen bouwkundige keuring, akoestisch onderzoek,
+              funderingsonderzoek, bodemonderzoek, juridisch advies of formele
+              vergunningscheck.
             </p>
           </div>
         )}
-      </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -914,15 +930,15 @@ function EverydayInsights({ items }: { items: EverydayInsight[] }) {
 function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
   const olderBuilding = buildingYear != null && buildingYear < 1945;
   return (
-    <section className="purchase-guardrails">
-      <div>
-        <div className="section-kicker">Voor je een bod doet</div>
-        <h2>Dit weet openbare adresdata niet</h2>
-        <p>
-          Gebruik deze check om vragen te vinden, niet om een maximale koopprijs
-          te bepalen.
-        </p>
-      </div>
+    <details className="purchase-guardrails">
+      <summary>
+        <div>
+          <div className="section-kicker">Voor je een bod doet</div>
+          <h2>Wat openbare data niet weet</h2>
+          <p>Juridisch, bouwkundig en prijs — check dit zelf voor je biedt.</p>
+        </div>
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
       <div className="purchase-guardrail-grid">
         <article>
           <strong>Juridisch & VvE</strong>
@@ -937,7 +953,7 @@ function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
           </strong>
           <p>
             {olderBuilding
-              ? "Bij dit BAG-bouwjaar is fundering een onderzoekspunt. Vraag naar herstel, scheuren, peilmetingen en een onafhankelijk oordeel."
+              ? "Bij dit bouwjaar is fundering een onderzoekspunt. Vraag naar herstel, scheuren, peilmetingen en een onafhankelijk oordeel."
               : "Laat constructie, vocht, installaties, dak en onderhoud onafhankelijk beoordelen."}
           </p>
         </article>
@@ -950,11 +966,17 @@ function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
           </p>
         </article>
       </div>
-    </section>
+    </details>
   );
 }
 
-function SimpleVerdict({ analysis }: { analysis: Analysis }) {
+function SimpleVerdict({
+  analysis,
+  facts,
+}: {
+  analysis: Analysis;
+  facts: string[];
+}) {
   const attentionCount = (analysis.everydayInsights ?? []).filter(
     (item) => item.tone === "attention",
   ).length;
@@ -981,9 +1003,25 @@ function SimpleVerdict({ analysis }: { analysis: Analysis }) {
           };
   return (
     <div className={`simple-verdict ${verdict.tone}`}>
-      <div className="section-kicker">Eerste indruk</div>
+      <div className="simple-verdict-top">
+        <div className="section-kicker">Eerste indruk</div>
+        <div className="simple-verdict-score">
+          <strong>
+            {analysis.overallScore.toLocaleString("nl-NL", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
+          </strong>
+          <span>van 10</span>
+        </div>
+      </div>
       <h2>{verdict.label}</h2>
       <p>{verdict.detail}</p>
+      <div className="simple-verdict-facts">
+        {facts.map((fact) => (
+          <span key={fact}>{fact}</span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1202,8 +1240,8 @@ function InsightList({
 
 function LoadingDashboard() {
   return (
-    <main className="site-shell">
-      <div className="container loading-shell">
+    <PageShell current="woning">
+      <div className="loading-shell">
         <Link className="back-link" href="/">
           <ArrowLeft size={14} /> Terug naar zoeken
         </Link>
@@ -1214,6 +1252,6 @@ function LoadingDashboard() {
           <div className="loading-panel" />
         </div>
       </div>
-    </main>
+    </PageShell>
   );
 }

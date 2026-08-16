@@ -3,7 +3,7 @@
 import { ArrowLeft, CircleHelp, ClipboardCheck, ThumbsDown, ThumbsUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { checklistForAnalysis, mergeChecklistWithDefaults } from "@/src/lib/checklist";
 import type { Analysis, ChecklistItem } from "@/src/lib/types";
@@ -108,12 +108,25 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     }
   }
 
-  if (error) return <main className="site-shell"><div className="container"><SiteHeader current="woning" /><p className="hero-copy">{error}</p></div></main>;
-  if (!analysis) return <main className="site-shell"><div className="container loading-shell"><div className="loading-block" /><div className="loading-block big" /></div></main>;
+  if (error) return (
+    <PageShell current="woning">
+      <div className="loading-shell">
+        <Link className="back-link" href="/"><ArrowLeft size={14} /> Terug naar zoeken</Link>
+        <h1>Deze bezichtiging lukt nu niet.</h1>
+        <p className="hero-copy">{error}</p>
+        <Link className="primary-button" href="/">Nieuw adres zoeken</Link>
+      </div>
+    </PageShell>
+  );
+  if (!analysis) return (
+    <PageShell current="woning">
+      <div className="loading-shell"><div className="loading-block" /><div className="loading-block big" /></div>
+    </PageShell>
+  );
 
   const checked = checklist.filter((item) => item.checked).length;
 
-  return <main className="site-shell viewing-companion"><div className="container"><SiteHeader current="woning" />
+  return <PageShell current="woning" className="viewing-companion">
     <Link className="back-link" href={`/woning/${bagId}`}><ArrowLeft size={14} /> Terug naar de woningcheck</Link>
     <div className="eyebrow"><ClipboardCheck size={13} /> bezichtigingsmodus</div>
     <h1>{analysis.property.street} {analysis.property.houseNumber}</h1>
@@ -139,5 +152,5 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
         <button className="secondary-button" type="button" disabled={busy} onClick={() => { void finish("drop"); }}><ThumbsDown size={16} /> Laten vallen</button>
       </div>
     </section>
-  </div></main>;
+  </PageShell>;
 }

@@ -28,11 +28,11 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
     map.on("load", () => {
       map.addSource("search-radius", { type: "geojson", data: { type: "Feature", geometry: { type: "Point", coordinates: [property.coordinates.lng, property.coordinates.lat] }, properties: {} } });
-      map.addLayer({ id: "search-radius", type: "circle", source: "search-radius", paint: { "circle-radius": 110, "circle-color": "#76b894", "circle-opacity": 0.12, "circle-stroke-color": "#4a8f65", "circle-stroke-opacity": 0.45, "circle-stroke-width": 1 } });
+      map.addLayer({ id: "search-radius", type: "circle", source: "search-radius", paint: { "circle-radius": 110, "circle-color": "#0a84ff", "circle-opacity": 0.10, "circle-stroke-color": "#2770ca", "circle-stroke-opacity": 0.4, "circle-stroke-width": 1 } });
       if (property.buildingGeometry) {
         map.addSource("building", { type: "geojson", data: { type: "Feature", geometry: property.buildingGeometry, properties: {} } });
-        map.addLayer({ id: "building-fill", type: "fill", source: "building", paint: { "fill-color": "#244b3c", "fill-opacity": 0.42 } });
-        map.addLayer({ id: "building-line", type: "line", source: "building", paint: { "line-color": "#173c2d", "line-width": 2 } });
+        map.addLayer({ id: "building-fill", type: "fill", source: "building", paint: { "fill-color": "#184170", "fill-opacity": 0.42 } });
+        map.addLayer({ id: "building-line", type: "line", source: "building", paint: { "line-color": "#102e55", "line-width": 2 } });
       }
       if (nearbyProperties.length) {
         map.addSource("nearby-homes", {
@@ -46,7 +46,7 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
             })),
           },
         });
-        map.addLayer({ id: "nearby-homes", type: "circle", source: "nearby-homes", paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#4a8f65", "circle-stroke-width": 2 } });
+        map.addLayer({ id: "nearby-homes", type: "circle", source: "nearby-homes", paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#2770ca", "circle-stroke-width": 2 } });
         map.on("click", "nearby-homes", (event) => {
           const feature = event.features?.[0];
           if (!feature || !event.lngLat) return;
@@ -55,7 +55,7 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
         map.on("mouseenter", "nearby-homes", () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", "nearby-homes", () => { map.getCanvas().style.cursor = ""; });
       }
-      new mapboxgl.Marker({ color: "#dc795e" }).setLngLat([property.coordinates.lng, property.coordinates.lat]).addTo(map);
+      new mapboxgl.Marker({ color: "#ff9f0a" }).setLngLat([property.coordinates.lng, property.coordinates.lat]).addTo(map);
     });
     mapInstance.current = map;
     return () => { map.remove(); mapInstance.current = null; };
