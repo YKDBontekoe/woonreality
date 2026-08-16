@@ -72,16 +72,16 @@ export const STUDENT_LOAN_GROSS_FACTOR: { maxRate: number; factor: number }[] = 
 
 /** Indicative market rates, not live bank quotes. */
 export const INDICATIVE_RATES = {
-  asOf: "2026-08",
+  asOf: "2026-06",
   byPeriod: {
-    5: { nhg: 3.65, other: 3.85 },
-    10: { nhg: 3.89, other: 4.09 },
-    20: { nhg: 4.15, other: 4.35 },
-    30: { nhg: 4.35, other: 4.55 },
+    5: { nhg: 3.72, other: 3.92 },
+    10: { nhg: 3.54, other: 3.74 },
+    20: { nhg: 3.05, other: 3.25 },
+    30: { nhg: 3.05, other: 3.25 },
   },
 } as const;
 
-export const MORTGAGE_DISCLAIMER = "Dit is een rekenschets op de wettelijke leennormen 2026, geen hypotheekadvies en geen bankofferte. Een geldverstrekker toetst documenten, BKR en (voor ondernemers) vaak een Inkomensverklaring Ondernemer, en kan strenger zijn.";
+export const MORTGAGE_DISCLAIMER = "Dit is het wettelijke maximum volgens de leennormen 2026, geen hypotheekadvies en geen bankofferte. Banken toetsen strenger (documenten, BKR, ondernemers vaak via IKV) en komen vaak lager uit.";
 
 export function indicativeRate(period: FixedPeriodYears, nhg: boolean) {
   const row = INDICATIVE_RATES.byPeriod[period];

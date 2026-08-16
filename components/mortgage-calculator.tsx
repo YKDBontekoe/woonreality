@@ -6,6 +6,7 @@ import {
   ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
   NHG,
+  buildMortgageScenarios,
   calculateMortgageCapacity,
   defaultDgaSource,
   defaultEmploymentSource,
@@ -395,7 +396,6 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const [openFunds, setOpenFunds] = useState(false);
   const [openDebts, setOpenDebts] = useState(false);
   const [addedDebts, setAddedDebts] = useState<DebtKey[]>([]);
-  const [openLoan, setOpenLoan] = useState(false);
   const [openExplain, setOpenExplain] = useState(false);
   const [studentMode, setStudentMode] = useState<"monthly" | "remaining">("monthly");
 
@@ -455,6 +455,15 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     nhg: state.nhg,
   }, market ?? undefined), [market, state, studentMode]);
 
+  const scenarios = useMemo(() => {
+    if (!result.available) return [];
+    return buildMortgageScenarios(toFinance(state, studentMode), {
+      energyLabel: state.energyLabel,
+      askingPrice: state.askingPrice,
+      nhg: state.nhg,
+    }, market ?? undefined).filter((scenario) => scenario.id !== "current");
+  }, [market, result.available, state, studentMode]);
+
   function patch<K extends keyof CalculatorState>(key: K, value: CalculatorState[K]) {
     setState((current) => ({ ...current, [key]: value }));
   }
@@ -475,13 +484,30 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     }));
   }
 
+  function nudgeRate(delta: number) {
+    setState((current) => ({
+      ...current,
+      interestRate: Math.round(Math.max(0, Math.min(15, current.interestRate + delta)) * 100) / 100,
+      rateTouched: true,
+    }));
+  }
+
+  function useMarketRate() {
+    setState((current) => ({
+      ...current,
+      interestRate: marketIndicativeRate(market, current.fixedPeriodYears, current.nhg),
+      rateTouched: false,
+    }));
+  }
+
+  const marketRate = marketIndicativeRate(market, state.fixedPeriodYears, state.nhg);
   const youngSelfEmployed = [state.applicant, state.withPartner ? state.partner : null].some((person) => person && (person.workType === "self_employed" || person.workType === "dga" || person.workType === "mix") && person.monthsActive < 12);
   const funds = fundsTotal(state);
   const debts = debtSummary(state);
   const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
-  const highlightKeys = new Set(["max-loan", "max-price", "lease", "student", "revolving", "funds-gap"]);
+  const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
 
   return <>
     <div className="mortgage-layout">
@@ -518,27 +544,52 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         <div className="mortgage-block">
           <div className="section-kicker">Stap 2 · hypotheek</div>
           <h3>Rente en NHG</h3>
-          <p className="mortgage-hint">10 jaar vast is de standaardtoets. Korter dan 10 jaar wordt wettelijk zwaarder getoetst.</p>
-          <div className="work-chips" role="group" aria-label="Rentevastperiode">
-            {([5, 10, 20, 30] as FixedPeriodYears[]).map((period) => (
-              <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} onClick={() => setPeriod(period)}>{period} jaar</button>
-            ))}
+          <p className="mortgage-hint">Kies je rentevastperiode. De startrente volgt actuele DNB/ECB-cijfers; pas die aan als je een offerte hebt.</p>
+          <div className="work-chips mortgage-period-chips" role="group" aria-label="Rentevastperiode">
+            {([5, 10, 20, 30] as FixedPeriodYears[]).map((period) => {
+              const periodRate = marketIndicativeRate(market, period, state.nhg);
+              return (
+                <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} onClick={() => setPeriod(period)}>
+                  <span>{period} jaar</span>
+                  <small>{periodRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</small>
+                </button>
+              );
+            })}
           </div>
+          <div className="mortgage-rate-row">
+            <span className="mortgage-rate-label">
+              Rente
+              <small>{state.rateTouched ? "Handmatig aangepast" : market?.indicativeRates.live ? `Marktrente ${market.indicativeRates.asOf}` : "Indicatie"}</small>
+            </span>
+            <div className="mortgage-rate-controls">
+              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(-0.1)} aria-label="Rente 0,1 procentpunt lager">−</button>
+              <label className="mortgage-rate-input">
+                <span className="sr-only">Rente in procent</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="15"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={state.interestRate || ""}
+                  onChange={(event) => setState((current) => ({ ...current, interestRate: Number(event.target.value) || 0, rateTouched: true }))}
+                />
+                <em>%</em>
+              </label>
+              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(0.1)} aria-label="Rente 0,1 procentpunt hoger">+</button>
+            </div>
+          </div>
+          {(state.rateTouched || Math.abs(state.interestRate - marketRate) > 0.001) && (
+            <button type="button" className="text-link mortgage-toggle" onClick={useMarketRate}>
+              Gebruik marktrente ({marketRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)
+            </button>
+          )}
+          <p className="mortgage-hint">{rateHint(market, state.fixedPeriodYears, state.nhg)}</p>
           <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot {formatEuro(NHG.limit)}</label>
-          <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenLoan((value) => !value)} aria-expanded={openLoan}>{openLoan ? "Verberg extra hypotheekopties" : "Rente, aflosvorm of verduurzaming aanpassen"}</button>
-          {openLoan && <div className="form-grid">
-            <label>Rente (%)
-              <input type="number" min="0" max="15" step="0.01" value={state.interestRate || ""} onChange={(event) => setState((current) => ({ ...current, interestRate: Number(event.target.value) || 0, rateTouched: true }))} />
-            </label>
-            <label>Aflosvorm
-              <select value={state.repayment} onChange={(event) => patch("repayment", event.target.value as RepaymentType)}>
-                <option value="annuity">Annuïteit</option>
-                <option value="linear">Lineair</option>
-              </select>
-            </label>
-            <label className="mortgage-span"><input type="checkbox" checked={state.includeEnergyMeasures} onChange={(event) => patch("includeEnergyMeasures", event.target.checked)} /> Extra lenen voor verduurzaming (alleen te gebruiken voor energiebesparing)</label>
-            <p className="mortgage-hint mortgage-span">{rateHint(market, state.fixedPeriodYears, state.nhg)}</p>
-          </div>}
+          <div className="work-chips" role="group" aria-label="Aflosvorm">
+            <button type="button" className={state.repayment === "annuity" ? "active" : undefined} onClick={() => patch("repayment", "annuity")}>Annuïteit</button>
+            <button type="button" className={state.repayment === "linear" ? "active" : undefined} onClick={() => patch("repayment", "linear")}>Lineair</button>
+          </div>
         </div>
 
         <Foldable
@@ -555,14 +606,24 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           </div>
         </Foldable>
 
-        <Foldable
-          kicker="Optioneel · lasten"
-          title={debts.length ? debts.join(" · ") : "Lease, studieschuld of andere lasten"}
-          open={openDebts}
-          onToggle={() => setOpenDebts((value) => !value)}
-        >
-          <p className="mortgage-hint">Voeg alleen toe wat je hebt. Een lease van een paar honderd euro per maand kan tienduizenden euro’s leenruimte kosten.</p>
-          {shownDebts.map((key) => {
+        <div className={`mortgage-block ${openDebts || shownDebts.length ? "is-open" : ""}`}>
+          <button type="button" className="mortgage-fold" onClick={() => setOpenDebts((value) => !value)} aria-expanded={openDebts}>
+            <span>
+              <span className="section-kicker">Optioneel · lasten</span>
+              <strong>{debts.length ? debts.join(" · ") : "Lease, studieschuld of andere lasten"}</strong>
+            </span>
+            <ChevronDown size={16} />
+          </button>
+          <p className="mortgage-hint">Voeg toe wat je hebt — een lease van een paar honderd euro kan tienduizenden euro’s schelen.</p>
+          {unusedDebts.length > 0 && <div className="work-chips mortgage-add-debts" role="group" aria-label="Last toevoegen">
+            {unusedDebts.map((item) => (
+              <button type="button" key={item.key} onClick={() => {
+                setAddedDebts((current) => current.includes(item.key) ? current : [...current, item.key]);
+                setOpenDebts(true);
+              }}>+ {item.add}</button>
+            ))}
+          </div>}
+          {(openDebts || shownDebts.length > 0) && shownDebts.map((key) => {
             const field = DEBT_FIELDS.find((item) => item.key === key);
             if (!field) return null;
             return <div className="mortgage-debt-row" key={key}>
@@ -589,15 +650,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               }}>Verwijder</button>
             </div>;
           })}
-          {unusedDebts.length > 0 && <div className="work-chips mortgage-add-debts" role="group" aria-label="Last toevoegen">
-            {unusedDebts.map((item) => (
-              <button type="button" key={item.key} onClick={() => {
-                setAddedDebts((current) => current.includes(item.key) ? current : [...current, item.key]);
-                setOpenDebts(true);
-              }}>+ {item.add}</button>
-            ))}
-          </div>}
-        </Foldable>
+        </div>
 
         <div className="mortgage-block">
           <div className="section-kicker">Optioneel · deze woning</div>
@@ -611,6 +664,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               </select>
             </label>
           </div>
+          <label className="mortgage-check"><input type="checkbox" checked={state.includeEnergyMeasures} onChange={(event) => patch("includeEnergyMeasures", event.target.checked)} /> Extra lenen voor verduurzaming (alleen te gebruiken voor energiebesparing)</label>
           {state.askingPrice > 0 && <>
             <label className="mortgage-check"><input type="checkbox" checked={state.starterExemption} onChange={(event) => patch("starterExemption", event.target.checked)} /> Ik denk recht te hebben op startersvrijstelling (0% overdrachtsbelasting)</label>
             {state.starterExemption && <div className="form-grid"><label>Je leeftijd
@@ -630,9 +684,20 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
           <h2>Jouw maximum verschijnt hier</h2>
           <p>Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee.</p>
         </> : <>
-          <p className="mortgage-kicker">Je kunt volgens deze schets lenen</p>
-          <div className="mortgage-amount">{formatEuro(result.maxLoan)}</div>
-          <p className="mortgage-result-note">Maximale koopsom {formatEuro(result.maxPurchasePrice)}{funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.</p>
+          <p className="mortgage-kicker">Maximale hypotheek voor aankoop</p>
+          <div className="mortgage-amount">{formatEuro(result.maxLoanForPurchase)}</div>
+          <p className="mortgage-result-note">
+            Maximale koopsom {formatEuro(result.maxPurchasePrice)}
+            {funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.
+            {result.energyMeasureExtra > 0 ? ` Plus ${formatEuro(result.energyMeasureExtra)} alleen voor verduurzaming.` : ""}
+          </p>
+          {result.nhgCapped && <div className="mortgage-nhg-banner">
+            <p>
+              Begrensd door NHG-kostengrens 2026 ({formatEuro(NHG.limit)}).
+              Op inkomen zou {formatEuro(result.uncappedMaxLoanForPurchase)} mogelijk zijn zonder NHG.
+            </p>
+            <button type="button" className="text-link" onClick={() => setNhg(false)}>Toon zonder NHG-plafond</button>
+          </div>}
           <div className="mortgage-result-grid">
             <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand" : "Maandlast"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
             <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
@@ -652,6 +717,26 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
               </li>
             ))}
           </ul>}
+          {scenarios.length > 0 && <div className="mortgage-scenarios">
+            <h3>Wat als…</h3>
+            <p className="mortgage-hint">Andere labels, rentes of lasten — t.o.v. je huidige schets.</p>
+            <ul>
+              {scenarios.map((scenario) => (
+                <li key={scenario.id}>
+                  <span>
+                    {scenario.label}
+                    {scenario.note ? <small>{scenario.note}</small> : null}
+                  </span>
+                  <strong>
+                    {formatEuro(scenario.maxLoanForPurchase)}
+                    <em className={scenario.delta > 0 ? "is-up" : scenario.delta < 0 ? "is-down" : undefined}>
+                      {scenario.delta === 0 ? "±0" : `${scenario.delta > 0 ? "+" : "−"}${formatEuro(Math.abs(scenario.delta))}`}
+                    </em>
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          </div>}
         </>}
         {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
         {result.available && market && <p className="mortgage-sources">
@@ -665,7 +750,7 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     {result.available && <a className="mortgage-mobile-dock" href="#hypotheek-result">
       <span>
         <small>Maximale hypotheek</small>
-        <strong>{formatEuro(result.maxLoan)}</strong>
+        <strong>{formatEuro(result.maxLoanForPurchase)}</strong>
       </span>
       <em>Zie details</em>
     </a>}
@@ -798,15 +883,15 @@ function MoneyField({ label, value, onChange, step = 50, hint, className, placeh
 }
 
 function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean) {
-  const rate = marketIndicativeRate(market, period, nhg).toLocaleString("nl-NL", { minimumFractionDigits: 2 });
+  const rate = marketIndicativeRate(market, period, nhg).toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (period < 10) {
     const floor = market?.toetsrente.live ? `${market.toetsrente.rate.toLocaleString("nl-NL")}% (${market.toetsrente.label})` : "minimaal 5%";
-    return `Startrente ${rate}%. Omdat je korter dan 10 jaar vastzet, toetsen we op ${floor}.`;
+    return `Startrente rond ${rate}%. Omdat je korter dan 10 jaar vastzet, toetsen we wettelijk op ${floor}.`;
   }
   if (market?.indicativeRates.live) {
-    return `Startrente ${rate}% uit recente DNB/ECB-cijfers. Pas aan als je een offerte hebt.`;
+    return `Actuele marktrente ${rate}% (DNB/ECB nieuwe woninghypotheken, ${market.indicativeRates.asOf}${nhg ? ", NHG-indicatie" : ""}). Geen bankofferte.`;
   }
-  return `Startrente ${rate}%. Pas aan als je een offerte hebt.`;
+  return `Indicatieve startrente ${rate}%. Pas aan als je een offerte hebt.`;
 }
 
 export function MortgagePageIntro() {
@@ -814,8 +899,8 @@ export function MortgagePageIntro() {
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
       <h1>Wat kun je lenen?</h1>
-      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. De maximale hypotheek volgt de leennormen {MORTGAGE_NORMS_YEAR} terwijl je typt.</p>
+      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. Je ziet het wettelijke maximum voor aankoop volgens de leennormen {MORTGAGE_NORMS_YEAR} — banken komen vaak lager uit.</p>
     </div>
-    <div className="mortgage-heading-note"><Wallet size={16} /> Dit is een wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
+    <div className="mortgage-heading-note"><Wallet size={16} /> Wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
   </div>;
 }

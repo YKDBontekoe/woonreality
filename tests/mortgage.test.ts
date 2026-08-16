@@ -4,6 +4,7 @@ import { estimateBuyerCosts } from "../src/lib/costs";
 import { sampleRecordValid } from "../src/lib/sources/health";
 import {
   calculateMortgageCapacity,
+  buildMortgageScenarios,
   defaultEmploymentSource,
   defaultMortgageFinance,
   defaultSelfEmployedSource,
@@ -168,6 +169,35 @@ test("NHG caps the maximum loan at the 2026 kostengrens", () => {
   const capped = calculateMortgageCapacity(finance, { nhg: true });
   assert.ok(open.maxLoan > NHG.limit);
   assert.equal(capped.maxLoan, NHG.limit);
+  assert.equal(capped.maxLoanForPurchase, NHG.limit);
+  assert.equal(capped.nhgApplies, true);
+  assert.equal(capped.nhgCapped, true);
+  assert.ok(capped.uncappedMaxLoanForPurchase > NHG.limit);
+  assert.equal(capped.uncappedMaxLoanForPurchase, open.maxLoanForPurchase);
+  assert.equal(capped.nhgLimit, NHG.limit);
+});
+
+test("buildMortgageScenarios shows lease, energy and NHG deltas", () => {
+  const finance = withJob(60_000, { privateLeaseMonthly: 400 });
+  const scenarios = buildMortgageScenarios(finance, { nhg: false, energyLabel: "G" });
+  const byId = Object.fromEntries(scenarios.map((row) => [row.id, row]));
+  assert.ok(byId.current);
+  assert.equal(byId.current.delta, 0);
+  assert.ok(byId["no-lease"]);
+  assert.ok(byId["no-lease"].delta > 0);
+  assert.ok(byId["no-debts"]);
+  assert.equal(byId["no-debts"].maxLoanForPurchase, byId["no-lease"].maxLoanForPurchase);
+  assert.ok(byId["energy-a"]);
+  assert.equal(byId["energy-a"].delta, 10_000);
+  assert.ok(byId["with-nhg"] || byId["no-nhg"]);
+  assert.ok(byId["rate-up"]);
+  assert.ok(byId["rate-down"]);
+
+  const high = buildMortgageScenarios(withJob(200_000), { nhg: true });
+  const withoutNhg = high.find((row) => row.id === "no-nhg");
+  assert.ok(withoutNhg);
+  assert.ok(withoutNhg.delta > 0);
+  assert.equal(high.find((row) => row.id === "current")?.maxLoanForPurchase, NHG.limit);
 });
 
 test("mix of salary and winst stacks toetsinkomen", () => {

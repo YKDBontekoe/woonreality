@@ -2,7 +2,7 @@ import { indicativeRate } from "@/src/lib/mortgage/norms-2026";
 import { emptyPerson } from "@/src/lib/mortgage/income";
 import type { MortgageFinance } from "@/src/lib/mortgage/types";
 
-export { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
+export { calculateMortgageCapacity, buildMortgageScenarios } from "@/src/lib/mortgage/capacity";
 export { financieringslastPercentage, WOONQUOTE_SOURCE } from "@/src/lib/mortgage/quotes";
 export {
   AFM_TOETSRENTE_FLOOR,
@@ -65,6 +65,7 @@ export type {
   MortgageLine,
   MortgageMarketSnapshot,
   MortgagePropertyContext,
+  MortgageScenario,
   PersonFinance,
   RepaymentType,
   WorkType,

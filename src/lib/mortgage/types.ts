@@ -100,6 +100,13 @@ export type MortgageCapacity = {
   singleExtra: number;
   maxLoan: number;
   maxLoanForPurchase: number;
+  /** Inkomensruimte vóór NHG-plafond (aankoop). */
+  uncappedMaxLoanForPurchase: number;
+  /** Totale leenruimte vóór NHG-plafond (inclusief EBV). */
+  uncappedMaxLoan: number;
+  nhgApplies: boolean;
+  nhgCapped: boolean;
+  nhgLimit: number | null;
   maxPurchasePrice: number;
   monthlyPayment: number;
   monthlyPaymentToets: number;
@@ -113,6 +120,15 @@ export type MortgageCapacity = {
   fit: "unknown" | "fits" | "tight" | "over";
   lines: MortgageLine[];
   disclaimer: string;
+};
+
+export type MortgageScenario = {
+  id: string;
+  label: string;
+  maxLoanForPurchase: number;
+  maxPurchasePrice: number;
+  delta: number;
+  note?: string;
 };
 
 export type MortgageMarketSnapshot = {
