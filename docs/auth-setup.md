@@ -2,23 +2,40 @@
 
 WoonReality uses Supabase Auth for passwordless accounts. A user first proves ownership of an e-mail address with a magic link, then may add a passkey for future sign-in.
 
+Production currently runs at `https://woonreality.vercel.app`. WebAuthn relying-party settings must use that hostname (or a future custom domain), not a different apex domain.
+
 ## Hosted Supabase project
 
 In **Authentication → Sign In / Providers → Email**:
 
 1. Enable e-mail sign-in and new user sign-ups.
 2. Enable **Confirm email**. This ensures a passkey can only be registered after the account e-mail address is verified.
-3. Set the site URL to the production application URL.
-4. Add both `https://your-domain/auth/callback` and any permitted preview callback URLs to the redirect allow list.
+3. Set the site URL to `https://woonreality.vercel.app`.
+4. Add both `https://woonreality.vercel.app/auth/callback` and any permitted preview callback URLs to the redirect allow list.
 
 In **Authentication → Passkeys**:
 
 1. Enable passkey authentication.
 2. Set the relying-party display name to `WoonReality`.
-3. Set the relying-party ID to the stable production domain only, for example `woonreality.nl`.
-4. Add the matching HTTPS origin, for example `https://woonreality.nl`.
+3. Set the relying-party ID to `woonreality.vercel.app` (must match the production host; `vercel.app` alone is a public suffix and is rejected).
+4. Add the matching HTTPS origin: `https://woonreality.vercel.app`.
+
+Or enable the same settings with a personal access token:
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... node scripts/enable-hosted-passkeys.mjs
+```
 
 Do not change the relying-party ID after users enrol; existing passkeys will no longer work. Passkeys are currently an experimental Supabase Auth feature, so keep the deployed `@supabase/supabase-js` version pinned and review Supabase release notes before upgrading.
+
+If passkeys stay disabled on the hosted project, the app shows that state instead of a generic "kon niet worden toegevoegd" error. Confirm `passkeys_enabled` via:
+
+```bash
+curl -s "https://rpldytzigzhzkivajepe.supabase.co/auth/v1/settings" \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+  -H "Authorization: Bearer $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+  | jq .passkeys_enabled
+```
 
 ## Local development
 
