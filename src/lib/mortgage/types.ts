@@ -131,6 +131,16 @@ export type MortgageScenario = {
   note?: string;
 };
 
+export type MortgageMarketRatePoint = {
+  month: string;
+  rate: number;
+};
+
+export type MortgageMarketHistorySeries = {
+  period: FixedPeriodYears;
+  points: MortgageMarketRatePoint[];
+};
+
 export type MortgageMarketSnapshot = {
   fetchedAt: string;
   toetsrente: { rate: number; label: string; sourceUrl: string; live: boolean };
@@ -141,4 +151,6 @@ export type MortgageMarketSnapshot = {
     live: boolean;
     byPeriod: Record<FixedPeriodYears, { nhg: number; other: number }>;
   };
+  /** Live DNB/ECB monthly history; empty when the fetch failed. */
+  history: MortgageMarketHistorySeries[];
 };

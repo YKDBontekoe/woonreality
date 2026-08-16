@@ -1,16 +1,18 @@
 /**
  * Live marktdata voor de hypotheekcheck.
  * - AFM: kwartaaltoetsrente (officiële publicatie, rentevast < 10 jaar).
- * - ECB/DNB MIR: nieuwe-contractenrente Nederlandse woninghypotheken.
- * Woonquotes, NHG-grenzen en energietoeslagen blijven jaarlijks in de repo (wet/NHG), niet live.
+ * - ECB/DNB MIR: nieuwe-contractenrente Nederlandse woninghypotheken (laatste punt + historie).
+ * Woonquotes, NHG-grenzen en energietoeslagen blijven jaarlijks in reference.ts (wet/NHG), niet live.
  */
 import { AFM_TOETSRENTE_FLOOR, INDICATIVE_RATES, indicativeRate } from "@/src/lib/mortgage/norms-2026";
-import type { FixedPeriodYears, MortgageMarketSnapshot } from "@/src/lib/mortgage/types";
+import type { FixedPeriodYears, MortgageMarketHistorySeries, MortgageMarketRatePoint, MortgageMarketSnapshot } from "@/src/lib/mortgage/types";
 
 export const AFM_TOETSRENTE_URL = "https://www.afm.nl/nl-nl/sector/themas/dienstverlening-aan-consumenten/financiele-producten/hypothecair-krediet";
 export const ECB_MIR_URL = "https://data-api.ecb.europa.eu/service/data/MIR";
 /** NHG vs non-NHG zit niet in ECB/DNB; dit is een gedocumenteerde indicatieve spread, geen bankofferte. */
 export const NHG_RATE_OFFSET = 0.2;
+/** ~5 jaar maandcijfers voor de historische rentegrafiek. */
+export const ECB_HISTORY_OBSERVATIONS = 60;
 
 const ECB_SERIES: Record<FixedPeriodYears, string> = {
   5: "M.NL.B.A2C.I.R.A.2250.EUR.N",
@@ -40,21 +42,38 @@ export function marketIndicativeRate(market: MortgageMarketSnapshot | null | und
   return indicativeRate(period, nhg);
 }
 
-export function parseEcbMirObservation(payload: unknown) {
+type EcbPayload = {
+  dataSets?: { series?: Record<string, { observations?: Record<string, [number, ...unknown[]]> }> }[];
+  structure?: { dimensions?: { observation?: { values?: { id?: string }[] }[] } };
+};
+
+export function parseEcbMirSeries(payload: unknown): MortgageMarketRatePoint[] | null {
   if (!payload || typeof payload !== "object") return null;
-  const record = payload as {
-    dataSets?: { series?: Record<string, { observations?: Record<string, [number, ...unknown[]]> }> }[];
-    structure?: { dimensions?: { observation?: { values?: { id?: string }[] }[] } };
-  };
+  const record = payload as EcbPayload;
   const series = record.dataSets?.[0]?.series;
   if (!series) return null;
   const first = Object.values(series)[0];
   const observations = first?.observations;
   if (!observations) return null;
-  const value = Object.values(observations)[0]?.[0];
-  const period = record.structure?.dimensions?.observation?.[0]?.values?.[0]?.id;
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 20) return null;
-  return { rate: Math.round(value * 100) / 100, period: period ?? "" };
+  const periods = record.structure?.dimensions?.observation?.[0]?.values ?? [];
+  const points: MortgageMarketRatePoint[] = [];
+  for (const [index, observation] of Object.entries(observations)) {
+    const value = observation?.[0];
+    const period = periods[Number(index)]?.id ?? "";
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 20) continue;
+    if (!period) continue;
+    points.push({ month: period, rate: Math.round(value * 100) / 100 });
+  }
+  points.sort((a, b) => a.month.localeCompare(b.month));
+  return points.length > 0 ? points : null;
+}
+
+/** Latest observation only — used by health checks and callers that need a single point. */
+export function parseEcbMirObservation(payload: unknown) {
+  const series = parseEcbMirSeries(payload);
+  if (!series || series.length === 0) return null;
+  const last = series[series.length - 1];
+  return { rate: last.rate, period: last.month };
 }
 
 function fallbackSnapshot(): MortgageMarketSnapshot {
@@ -78,6 +97,7 @@ function fallbackSnapshot(): MortgageMarketSnapshot {
         30: { nhg: indicativeRate(30, true), other: indicativeRate(30, false) },
       },
     },
+    history: [],
   };
 }
 
@@ -93,17 +113,18 @@ async function fetchAfmToetsrente() {
   return parsed;
 }
 
-async function fetchEcbRate(period: FixedPeriodYears) {
-  const url = `${ECB_MIR_URL}/${ECB_SERIES[period]}?lastNObservations=1&format=jsondata`;
+async function fetchEcbSeries(period: FixedPeriodYears) {
+  const url = `${ECB_MIR_URL}/${ECB_SERIES[period]}?lastNObservations=${ECB_HISTORY_OBSERVATIONS}&format=jsondata`;
   const response = await fetch(url, {
     headers: { ...FETCH_HEADERS, Accept: "application/json" },
     next: { revalidate: 86_400 },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`ECB HTTP ${response.status}`);
-  const parsed = parseEcbMirObservation(await response.json());
-  if (!parsed) throw new Error("ECB-rente kon niet worden gelezen");
-  return parsed;
+  const points = parseEcbMirSeries(await response.json());
+  if (!points || points.length === 0) throw new Error("ECB-rente kon niet worden gelezen");
+  const last = points[points.length - 1];
+  return { rate: last.rate, period: last.month, points };
 }
 
 function asIndicativeRate(value: number, nhg: boolean) {
@@ -111,20 +132,28 @@ function asIndicativeRate(value: number, nhg: boolean) {
 }
 
 function bandFromResult(
-  result: PromiseSettledResult<{ rate: number; period: string }>,
+  result: PromiseSettledResult<{ rate: number; period: string; points: MortgageMarketRatePoint[] }>,
   fallback: { nhg: number; other: number },
 ) {
   if (result.status !== "fulfilled") return fallback;
   return { nhg: asIndicativeRate(result.value.rate, true), other: asIndicativeRate(result.value.rate, false) };
 }
 
+function historyFromResult(
+  period: FixedPeriodYears,
+  result: PromiseSettledResult<{ rate: number; period: string; points: MortgageMarketRatePoint[] }>,
+): MortgageMarketHistorySeries | null {
+  if (result.status !== "fulfilled") return null;
+  return { period, points: result.value.points };
+}
+
 export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
   const snapshot = fallbackSnapshot();
   const [afm, five, ten, long] = await Promise.allSettled([
     fetchAfmToetsrente(),
-    fetchEcbRate(5),
-    fetchEcbRate(10),
-    fetchEcbRate(20),
+    fetchEcbSeries(5),
+    fetchEcbSeries(10),
+    fetchEcbSeries(20),
   ]);
   if (afm.status === "fulfilled") {
     snapshot.toetsrente = {
@@ -152,6 +181,16 @@ export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
         30: bandFromResult(long, fallbackBands[30]),
       },
     };
+    const history: MortgageMarketHistorySeries[] = [];
+    const fiveHistory = historyFromResult(5, five);
+    const tenHistory = historyFromResult(10, ten);
+    const longHistory = historyFromResult(20, long);
+    if (fiveHistory) history.push(fiveHistory);
+    if (tenHistory) history.push(tenHistory);
+    // ECB MIR “over 10 years” covers both 20y and 30y indicative rates; do not
+    // publish a duplicate period:30 series (consumers already fall back 30→20).
+    if (longHistory) history.push(longHistory);
+    snapshot.history = history;
   }
   return snapshot;
 }

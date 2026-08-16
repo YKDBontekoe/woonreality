@@ -4,7 +4,7 @@ import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
 
 export const metadata = {
   title: "Hypotheek berekenen — WoonReality",
-  description: "Bereken je maximale hypotheek volgens de leennormen 2026: loondienst, zelfstandig, private lease, eigen geld, NHG en live AFM/DNB-indicatie.",
+  description: "Bereken je maximale hypotheek, kosten koper, hypotheekrenteaftrek en vergelijk annuïteit vs lineair. Live DNB/ECB-rente en leennormen 2026.",
 };
 
 export default async function HypotheekPage({ searchParams }: { searchParams: Promise<{ label?: string; price?: string; nhg?: string }> }) {

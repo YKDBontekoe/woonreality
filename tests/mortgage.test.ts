@@ -1,24 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { estimateBuyerCosts } from "../src/lib/costs";
+import { estimateBuyerCosts, transferTaxRate } from "../src/lib/costs";
 import { sampleRecordValid } from "../src/lib/sources/health";
 import {
+  buildMortgageSchedule,
   calculateMortgageCapacity,
   buildMortgageScenarios,
+  currentReferenceYear,
+  deductionRefund,
   defaultEmploymentSource,
   defaultMortgageFinance,
   defaultSelfEmployedSource,
   emptyPerson,
   emptyTriple,
+  eigenwoningforfait,
   financieringslastPercentage,
+  housingDeductionRate,
   incomeFromSource,
+  mortgageReferenceForYear,
   NHG,
   normalizeEnergyLabel,
   parseAfmToetsrente,
   parseCanonicalEnergyLabel,
   parseEcbMirObservation,
+  parseEcbMirSeries,
   REVOLVING_MONTHLY_FACTOR,
   studentLoanGrossFactor,
+  summarizeHousingTax,
   threeYearToetsinkomen,
   toetsrenteFor,
   buildSalaryBreakdown,
@@ -274,6 +282,7 @@ test("live AFM toetsrente can raise the floor below 10 years fixed", () => {
         30: { nhg: 3, other: 3.2 },
       },
     },
+    history: [],
   };
   const result = calculateMortgageCapacity({ ...withJob(60_000), interestRate: 3.5, fixedPeriodYears: 5 }, {}, market);
   assert.equal(result.toetsrente, 5.2);
@@ -295,6 +304,24 @@ test("NHG fee is added to buyer costs when NHG is selected under the limit", () 
 
   const overLimit = estimateBuyerCosts(500_000, { firstTimeBuyer: false, ownFunds: 50_000, budget: 500_000, nhg: true }, 450_000);
   assert.ok(overLimit && !overLimit.lines.some((line) => line.key === "nhg"));
+});
+
+test("own funds are for buyer costs when the mortgage can cover the full price", () => {
+  const fullLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false }, 400_000);
+  assert.ok(fullLoan);
+  assert.equal(fullLoan.cashForPrice, 0);
+  assert.equal(fullLoan.ownFundsNeeded, fullLoan.total);
+  assert.ok(fullLoan.financingGap != null && fullLoan.financingGap < 0);
+
+  const defaultLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false });
+  assert.ok(defaultLoan);
+  assert.equal(defaultLoan.cashForPrice, 0);
+  assert.equal(defaultLoan.ownFundsNeeded, defaultLoan.total);
+
+  const partialLoan = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 25_000, budget: 400_000, nhg: false }, 370_000);
+  assert.ok(partialLoan);
+  assert.equal(partialLoan.cashForPrice, 30_000);
+  assert.equal(partialLoan.ownFundsNeeded, partialLoan.total + 30_000);
 });
 
 test("full-cash purchase keeps zero financing and skips the NHG fee", () => {
@@ -341,4 +368,121 @@ test("ECB health samples require a valid MIR observation", () => {
   };
   assert.equal(sampleRecordValid(ecb, JSON.stringify(payload)), true);
   assert.equal(sampleRecordValid({ source: "PDOK BAG", url: "https://api.pdok.nl/bag" }, '{"type":"FeatureCollection"}'), true);
+});
+
+test("reference layer selects 2026 until a newer table exists", () => {
+  assert.equal(currentReferenceYear(new Date("2026-08-16")), 2026);
+  assert.equal(mortgageReferenceForYear(2027).year, 2026);
+  assert.equal(mortgageReferenceForYear(2026).transferTax.investorResidentialRate, 0.08);
+  assert.equal(mortgageReferenceForYear(2026).box1.maxHousingDeductionRate, 0.3756);
+});
+
+test("buyer costs split notary and mark deductible financing lines", () => {
+  const costs = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000, nhg: true }, 360_000);
+  assert.ok(costs);
+  assert.ok(costs.lines.some((line) => line.key === "notary-transfer" && !line.deductible));
+  assert.ok(costs.lines.some((line) => line.key === "notary-mortgage" && line.deductible));
+  assert.ok(costs.lines.some((line) => line.key === "kadaster-mortgage" && line.deductible && line.amount === 104));
+  assert.ok(costs.deductibleTotal > 0);
+  assert.ok(costs.nonDeductibleTotal > 0);
+  assert.equal(costs.deductibleTotal + costs.nonDeductibleTotal, costs.total);
+
+  const optionalOff = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000 }, 360_000, {
+    includeAdvice: false,
+    includeInspection: false,
+  });
+  assert.ok(optionalOff && !optionalOff.lines.some((line) => line.key === "advice" || line.key === "inspection"));
+
+  const withAdvice = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000 }, 360_000, {
+    includeAdvice: true,
+  });
+  assert.ok(withAdvice?.lines.some((line) => line.key === "advice" && line.deductible));
+});
+
+test("transfer tax supports investment and new-build v.o.n.", () => {
+  const profile = { firstTimeBuyer: false, selfOccupied: true };
+  assert.equal(transferTaxRate(profile, 400_000), 0.02);
+  assert.equal(transferTaxRate(profile, 400_000, { investment: true }), 0.08);
+  assert.equal(transferTaxRate(profile, 400_000, { newBuild: true }), 0);
+  const newBuild = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000 }, 360_000, { newBuild: true });
+  assert.ok(newBuild);
+  assert.equal(newBuild.transferTaxRate, 0);
+  assert.ok(!newBuild.lines.some((line) => line.key === "notary-transfer" && line.amount > 0));
+  const investment = estimateBuyerCosts(400_000, { firstTimeBuyer: false, ownFunds: 40_000, budget: 400_000 }, 360_000, { investment: true });
+  assert.equal(investment?.transferTaxRate, 0.08);
+  assert.equal(investment?.lines.find((line) => line.key === "transfer-tax")?.amount, 32_000);
+});
+
+test("annuity and linear schedules amortize fully with lower linear total interest", () => {
+  const annuity = buildMortgageSchedule(400_000, 4, "annuity");
+  const linear = buildMortgageSchedule(400_000, 4, "linear");
+  assert.equal(annuity.months.length, 360);
+  assert.equal(linear.months.length, 360);
+  assert.ok(annuity.months[annuity.months.length - 1].balance < 1);
+  assert.ok(linear.months[linear.months.length - 1].balance < 1);
+  assert.ok(linear.firstPayment > annuity.firstPayment);
+  assert.ok(linear.totalInterest < annuity.totalInterest);
+  assert.ok(Math.abs(annuity.firstPayment - 1909.66) < 1);
+  assert.ok(Math.abs(linear.firstPayment - 2444.44) < 1);
+});
+
+test("housing tax caps deduction at schijf-2 rate and treats one-off costs in year 1", () => {
+  assert.equal(housingDeductionRate(100_000), 0.3756);
+  assert.equal(housingDeductionRate(30_000), 0.3575);
+  assert.ok(eigenwoningforfait(400_000) > 0);
+  const schedule = buildMortgageSchedule(400_000, 4, "annuity");
+  const withOneOff = summarizeHousingTax({
+    taxableIncome: 80_000,
+    wozValue: 400_000,
+    schedule,
+    oneOffDeductibleCosts: 5_000,
+  });
+  const withoutOneOff = summarizeHousingTax({
+    taxableIncome: 80_000,
+    wozValue: 400_000,
+    schedule,
+    oneOffDeductibleCosts: 0,
+  });
+  assert.equal(withOneOff.deductionRate, 0.3756);
+  assert.ok(withOneOff.year1.taxBenefit > withoutOneOff.year1.taxBenefit);
+  assert.ok(withOneOff.year1.netMonthlyCost < withoutOneOff.year1.netMonthlyCost);
+  assert.equal(withOneOff.year1.oneOffDeductible, 5_000);
+  assert.equal(withOneOff.oneOffRefund, deductionRefund(5_000, 0.3756));
+  assert.ok(withOneOff.oneOffRefund > 0);
+  assert.ok(withOneOff.eigenwoningforfait > 0);
+});
+
+test("ECB MIR series parser reads multiple observations and keeps single-point payloads", () => {
+  const seriesPayload = {
+    dataSets: [{
+      series: {
+        "0:0": {
+          observations: {
+            "0": [2.1, 0, 0],
+            "1": [3.0, 0, 0],
+            "2": [3.74, 0, 0],
+          },
+        },
+      },
+    }],
+    structure: {
+      dimensions: {
+        observation: [{
+          values: [{ id: "2024-01" }, { id: "2025-01" }, { id: "2026-06" }],
+        }],
+      },
+    },
+  };
+  const series = parseEcbMirSeries(seriesPayload);
+  assert.ok(series);
+  assert.equal(series.length, 3);
+  assert.deepEqual(series[2], { month: "2026-06", rate: 3.74 });
+  assert.deepEqual(parseEcbMirObservation(seriesPayload), { rate: 3.74, period: "2026-06" });
+
+  const single = {
+    dataSets: [{ series: { "0:0": { observations: { "0": [3.74, 0, 0] } } } }],
+    structure: { dimensions: { observation: [{ values: [{ id: "2026-06" }] }] } },
+  };
+  assert.deepEqual(parseEcbMirObservation(single), { rate: 3.74, period: "2026-06" });
+  assert.equal(parseEcbMirSeries(single)?.length, 1);
 });

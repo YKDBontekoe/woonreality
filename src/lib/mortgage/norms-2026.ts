@@ -1,11 +1,14 @@
+import { currentMortgageReference } from "@/src/lib/mortgage/reference";
 import type { EnergyBand, FixedPeriodYears } from "@/src/lib/mortgage/types";
 
-export const MORTGAGE_NORMS_YEAR = 2026;
+const ref = currentMortgageReference();
+
+export const MORTGAGE_NORMS_YEAR = ref.year;
 
 export const MORTGAGE_SOURCE = {
   regulation: "https://wetten.overheid.nl/BWBR0032503/2026-01-01/0",
   energy: "https://www.volkshuisvestingnederland.nl/onderwerpen/huren-en-wonen/tijdelijke-regeling-hypothecair-krediet/maximale-hypotheek-op-basis-van-energielabel",
-  nhg: "https://www.nhg.nl/nhg-actueel/nhg-grens-in-2026-vastgesteld-op-470000/",
+  nhg: ref.sources.nhg,
   ikv: "NHG Toetskaders Inkomensverklaring Ondernemer 01.2026",
 } as const;
 
@@ -16,9 +19,9 @@ export const SINGLE_INCOME_THRESHOLD = 30_000;
 export const AOW_SINGLE_INCOME_THRESHOLD = 29_000;
 
 export const NHG = {
-  limit: 470_000,
-  energyLimit: 498_200,
-  feeRate: 0.004,
+  limit: ref.nhg.limit,
+  energyLimit: ref.nhg.energyLimit,
+  feeRate: ref.nhg.feeRate,
 } as const;
 
 export function nhgKostengrens(energySavingMeasures = false) {
