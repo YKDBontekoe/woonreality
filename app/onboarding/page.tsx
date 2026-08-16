@@ -25,7 +25,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     if (!auth.user) redirect("/login");
 
     if (isSupabaseConfigured()) {
-      const { data: profile } = await supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle();
+      const { data: profile, error: profileError } = await supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle();
+      if (profileError) throw profileError;
       const prefs = record(profile?.preferences_json);
       const buyerProfile = normalizeBuyerProfile(prefs.buyerProfile ?? EMPTY_BUYER_PROFILE);
       const mortgageState = prefs.mortgageState ? restoreCalculatorState(prefs.mortgageState) : null;

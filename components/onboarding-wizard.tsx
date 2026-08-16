@@ -32,7 +32,7 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
     workspace,
     workspaceReady,
     workspaceError,
-    authenticated,
+    authStatus,
     setBuyerProfile,
     setPreferences,
     dismissOnboarding,
@@ -64,8 +64,8 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
   }, [formSyncedFor, step, stepReady, workspace, workspaceReady]);
 
   useEffect(() => {
-    if (workspaceReady && !authenticated) window.location.assign("/login");
-  }, [authenticated, workspaceReady]);
+    if (workspaceReady && authStatus === "anonymous") window.location.assign("/login");
+  }, [authStatus, workspaceReady]);
 
   async function goLater() {
     setBusy(true);
@@ -81,8 +81,13 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
 
   async function finishToCockpit() {
     setBusy(true);
-    await dismissOnboarding();
+    setMessage("");
+    const result = await dismissOnboarding();
     setBusy(false);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
     router.push(suggestPasskey ? "/mijn-aankoop?setup=passkey" : "/mijn-aankoop");
   }
 
@@ -161,16 +166,21 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
             (id === "wishes" && workspace.buyerProfileConfigured) ||
             (id === "priorities" && workspace.preferencesConfigured) ||
             (id === "done" && step === "done");
+          const reachable =
+            id === "mortgage" ||
+            (id === "wishes" && (workspace.mortgageConfigured || mortgageReady)) ||
+            (id === "priorities" && workspace.buyerProfileConfigured) ||
+            (id === "done" && (onboardingComplete(workspace) || workspace.preferencesConfigured));
           return (
             <button
               key={id}
               type="button"
+              disabled={!reachable}
               className={`onboarding-step-pill${active ? " is-active" : ""}${done ? " is-done" : ""}`}
               onClick={() => {
-                if (id === "mortgage") { setFormSyncedFor(null); setStep("mortgage"); }
-                else if (id === "wishes" && (workspace.mortgageConfigured || mortgageReady)) { setFormSyncedFor(null); setStep("wishes"); }
-                else if (id === "priorities" && workspace.buyerProfileConfigured) { setFormSyncedFor(null); setStep("priorities"); }
-                else if (id === "done" && (onboardingComplete(workspace) || workspace.preferencesConfigured)) { setFormSyncedFor(null); setStep("done"); }
+                if (!reachable) return;
+                setFormSyncedFor(null);
+                setStep(id);
               }}
             >
               <span>{ONBOARDING_STEP_META[id].number}</span>

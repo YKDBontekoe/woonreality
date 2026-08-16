@@ -25,11 +25,12 @@ export default async function MyPurchasePage({ searchParams }: { searchParams: P
     if (!auth.user) redirect("/login");
     account = { email: auth.user.email ?? "Je e-mailadres", emailConfirmed: Boolean(auth.user.email_confirmed_at), suggestPasskey: params.setup === "passkey" };
     if (configured) {
-      const [{ data }, { data: profile }] = await Promise.all([
+      const [casesResult, profileResult] = await Promise.all([
         supabase.from("purchase_cases").select("id,title,stage,status,updated_at,properties(bag_vbo_id)").eq("user_id", auth.user.id).order("updated_at", { ascending: false }),
         supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle(),
       ]);
-      const prefs = record(profile?.preferences_json);
+      if (profileResult.error) throw profileResult.error;
+      const prefs = record(profileResult.data?.preferences_json);
       const buyerProfile = normalizeBuyerProfile(prefs.buyerProfile ?? EMPTY_BUYER_PROFILE);
       const mortgageState = prefs.mortgageState ? restoreCalculatorState(prefs.mortgageState) : null;
       if (shouldRedirectToOnboarding({
@@ -39,7 +40,7 @@ export default async function MyPurchasePage({ searchParams }: { searchParams: P
       })) {
         redirect(params.setup === "passkey" ? "/onboarding?setup=passkey" : "/onboarding");
       }
-      cases = (data ?? []).map((row) => {
+      cases = (casesResult.data ?? []).map((row) => {
         const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
         return {
           id: row.id,

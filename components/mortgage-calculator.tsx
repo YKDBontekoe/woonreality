@@ -112,7 +112,10 @@ export function MortgageCalculator({
   variant?: "full" | "onboarding";
   onCapacityChange?: (ready: boolean) => void;
 }) {
+  const onboarding = variant === "onboarding";
   const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
+  const onCapacityChangeRef = useRef(onCapacityChange);
+  onCapacityChangeRef.current = onCapacityChange;
   const [state, setState] = useState<CalculatorState>(() => {
     const defaults = defaultCalculatorState();
     const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
@@ -244,8 +247,8 @@ export function MortgageCalculator({
   }, market ?? undefined), [market, state, studentMode]);
 
   useEffect(() => {
-    onCapacityChange?.(result.available);
-  }, [onCapacityChange, result.available]);
+    onCapacityChangeRef.current?.(result.available);
+  }, [result.available]);
 
   const funds = calculatorFundsTotal(state);
   const reference = useMemo(() => currentMortgageReference(), []);
@@ -291,17 +294,17 @@ export function MortgageCalculator({
   }, [costOptions, displayLoan, funds, reference, state.askingPrice, state.buyerAge, state.includeEnergyMeasures, state.nhg, state.starterExemption]);
 
   const annuitySchedule = useMemo(
-    () => (displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "annuity") : null),
-    [displayLoan, state.interestRate],
+    () => (!onboarding && displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "annuity") : null),
+    [displayLoan, onboarding, state.interestRate],
   );
   const linearSchedule = useMemo(
-    () => (displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "linear") : null),
-    [displayLoan, state.interestRate],
+    () => (!onboarding && displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "linear") : null),
+    [displayLoan, onboarding, state.interestRate],
   );
   const activeSchedule = state.repayment === "linear" ? linearSchedule : annuitySchedule;
 
   const housingTax = useMemo(() => {
-    if (!activeSchedule || displayLoan <= 0) return null;
+    if (onboarding || !activeSchedule || displayLoan <= 0) return null;
     return summarizeHousingTax({
       taxableIncome: result.toetsinkomen,
       wozValue: effectiveWoz,
@@ -309,11 +312,11 @@ export function MortgageCalculator({
       oneOffDeductibleCosts: detailedCosts?.deductibleTotal ?? 0,
       reference,
     });
-  }, [activeSchedule, detailedCosts?.deductibleTotal, displayLoan, effectiveWoz, reference, result.toetsinkomen]);
+  }, [activeSchedule, detailedCosts?.deductibleTotal, displayLoan, effectiveWoz, onboarding, reference, result.toetsinkomen]);
 
   const impact = useMemo(
-    () => (displayLoan > 0 ? rateImpactRows(displayLoan, state.interestRate, state.repayment) : []),
-    [displayLoan, state.interestRate, state.repayment],
+    () => (!onboarding && displayLoan > 0 ? rateImpactRows(displayLoan, state.interestRate, state.repayment) : []),
+    [displayLoan, onboarding, state.interestRate, state.repayment],
   );
 
   const scenarios = useMemo(() => {
@@ -368,8 +371,6 @@ export function MortgageCalculator({
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
   const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
-
-  const onboarding = variant === "onboarding";
 
   return <>
     <div className="mortgage-account-bar" role="status">

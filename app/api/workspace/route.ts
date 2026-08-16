@@ -184,26 +184,17 @@ export async function POST(request: Request) {
       if (error) throw error;
     } else if (body.action === "onboarding") {
       if (!body.dismissOnboarding) return NextResponse.json({ error: "Geef dismissOnboarding mee." }, { status: 400 });
-      const { data: profileRow, error: profileReadError } = await result.supabase
-        .from("profiles")
-        .select("preferences_json, compare_ids")
-        .eq("id", result.user.id)
-        .maybeSingle();
-      if (profileReadError) throw profileReadError;
-      const currentPrefs = record(profileRow?.preferences_json);
-      const nextPrefs = {
-        ...currentPrefs,
-        onboarding: { dismissedAt: now },
-      };
-      if (!preferencesJsonWithinLimit(nextPrefs)) {
+      const onboardingPatch = { dismissedAt: now };
+      if (!preferencesJsonWithinLimit({ onboarding: onboardingPatch })) {
         return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
       }
-      const { error } = await result.supabase.from("profiles").upsert({
-        id: result.user.id,
-        preferences_json: nextPrefs,
-        compare_ids: profileRow?.compare_ids ?? [],
-        updated_at: now,
-      }, { onConflict: "id" });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", {
+        p_preferences: null,
+        p_buyer_profile: null,
+        p_compare_ids: null,
+        p_mortgage: null,
+        p_onboarding: onboardingPatch,
+      });
       if (error) throw error;
     } else {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });

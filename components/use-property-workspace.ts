@@ -7,28 +7,28 @@ import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
 import type { CalculatorState } from "@/src/lib/mortgage/calculator-state";
 
 export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
+export type WorkspaceAuthStatus = "unknown" | "authenticated" | "anonymous";
 
 export function usePropertyWorkspace() {
   const [workspace, setWorkspace] = useState<WorkspaceData>(() => emptyWorkspace());
   const [workspaceError, setWorkspaceError] = useState("");
   const [workspaceReady, setWorkspaceReady] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authStatus, setAuthStatus] = useState<WorkspaceAuthStatus>("unknown");
 
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/workspace", { cache: "no-store" });
       const body = await response.json() as { workspace?: WorkspaceData; error?: string };
       if (response.status === 401) {
-        setAuthenticated(false);
+        setAuthStatus("anonymous");
         setWorkspaceError("Log in om je aankoopomgeving te bewaren.");
         return;
       }
       if (!response.ok || !body.workspace) throw new Error(body.error ?? "Aankoopomgeving kon niet worden geladen.");
       setWorkspace(body.workspace);
-      setAuthenticated(true);
+      setAuthStatus("authenticated");
       setWorkspaceError("");
     } catch (error) {
-      setAuthenticated(false);
       setWorkspaceError(error instanceof Error ? error.message : "Aankoopomgeving kon niet worden geladen.");
     } finally {
       setWorkspaceReady(true);
@@ -41,10 +41,14 @@ export function usePropertyWorkspace() {
     try {
       const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json() as { workspace?: WorkspaceData; error?: string };
-      if (response.status === 401) { window.location.href = "/login"; return { ok: false, error: "Log in om wijzigingen te bewaren." }; }
+      if (response.status === 401) {
+        setAuthStatus("anonymous");
+        window.location.href = "/login";
+        return { ok: false, error: "Log in om wijzigingen te bewaren." };
+      }
       if (!response.ok || !body.workspace) throw new Error(body.error ?? "Wijziging kon niet worden opgeslagen.");
       setWorkspace(body.workspace);
-      setAuthenticated(true);
+      setAuthStatus("authenticated");
       setWorkspaceError("");
       return { ok: true };
     } catch (error) {
@@ -89,7 +93,8 @@ export function usePropertyWorkspace() {
     workspace,
     workspaceReady,
     workspaceError,
-    authenticated,
+    authStatus,
+    authenticated: authStatus === "authenticated",
     toggleSaved,
     toggleCompare,
     setPreferences,
