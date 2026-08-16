@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isHttpUrl } from "@/src/lib/listing-intake";
-import { extractImportedListingPaste, factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
+import { extractImportedListingPaste } from "@/src/lib/listing-extract-html";
+import { factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { userListingBodySchema } from "@/src/lib/validation/workspace";
 

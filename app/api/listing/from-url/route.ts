@@ -10,7 +10,7 @@ import {
   normalizeFundaListingUrl,
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
-import { createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { userListingImportBodySchema } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
@@ -36,11 +36,11 @@ export async function POST(request: Request) {
 
   let inspected;
   try {
-    inspected = await inspectFundaListing(sourceUrl);
+    inspected = inspectFundaListing(sourceUrl);
   } catch (error) {
     const message = error instanceof ListingImportError
       ? error.message
-      : "De Funda-pagina kon niet worden ingelezen.";
+      : "Deze Funda-link kon niet worden herkend.";
     return NextResponse.json({ error: message }, { status: error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 502 });
   }
 
@@ -69,30 +69,32 @@ export async function POST(request: Request) {
   let facts = inspected.facts;
   let persisted = false;
   try {
-    const { supabase, user } = await currentUser();
-    if (user) {
-      const { data: existing } = await supabase
-        .from("user_listings")
-        .select("asking_price, extracted_json, pasted_text")
-        .eq("user_id", user.id)
-        .eq("bag_vbo_id", address.bagVboId)
-        .maybeSingle();
-      const existingFacts = mergeListingFacts(
-        factsFromUnknown(existing?.extracted_json),
-        extractListingFacts(existing?.pasted_text ?? ""),
-      );
-      if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-      facts = mergeListingFacts(existingFacts, inspected.facts);
-      const { error } = await supabase.from("user_listings").upsert({
-        user_id: user.id,
-        bag_vbo_id: address.bagVboId,
-        source_url: inspected.sourceUrl,
-        asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
-        extracted_json: facts,
-        updated_at: fetchedAt,
-      }, { onConflict: "user_id,bag_vbo_id" });
-      if (error) throw error;
-      persisted = true;
+    if (isSupabaseConfigured()) {
+      const { supabase, user } = await currentUser();
+      if (user) {
+        const { data: existing } = await supabase
+          .from("user_listings")
+          .select("asking_price, extracted_json, pasted_text")
+          .eq("user_id", user.id)
+          .eq("bag_vbo_id", address.bagVboId)
+          .maybeSingle();
+        const existingFacts = mergeListingFacts(
+          factsFromUnknown(existing?.extracted_json),
+          extractListingFacts(existing?.pasted_text ?? ""),
+        );
+        if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
+        facts = mergeListingFacts(existingFacts, inspected.facts);
+        const { error } = await supabase.from("user_listings").upsert({
+          user_id: user.id,
+          bag_vbo_id: address.bagVboId,
+          source_url: inspected.sourceUrl,
+          asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
+          extracted_json: facts,
+          updated_at: fetchedAt,
+        }, { onConflict: "user_id,bag_vbo_id" });
+        if (error) throw error;
+        persisted = true;
+      }
     }
   } catch (error) {
     console.warn("user_listings persistence unavailable after from-url import", error);

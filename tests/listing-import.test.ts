@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { POST as importFromUrl } from "@/app/api/listing/from-url/route";
+import { POST as ingestListing } from "@/app/api/listing/extension/ingest/route";
 import { POST as importListing } from "@/app/api/listing/user/[bagId]/import/route";
+import { extractFundaListingFromDocument, isFundaChallengeDocument } from "@/src/lib/listing-extract-dom";
+import { extractFundaListingFromHtml } from "@/src/lib/listing-extract-html";
+import { parseListingCaptureEnvelope } from "@/src/lib/listing-facts-schema";
 import {
-  extractFundaListingFromHtml,
-  extractImportedListingPaste,
   inspectFundaListing,
   isFundaChallengeHtml,
   isFundaListingUrl,
@@ -12,6 +14,8 @@ import {
   mergeListingFacts,
   parseFundaListingAddress,
 } from "@/src/lib/listing-import";
+import { PARSER_VERSION } from "@/src/lib/listing-extract";
+import { parseHTML } from "linkedom";
 
 const BAG_ID = "0200100000000001";
 const LISTING_URL = "https://www.funda.nl/detail/koop/epe/huis-12345678-korenstraat-18/12345678/";
@@ -65,6 +69,10 @@ const CHALLENGE_HTML = `<!doctype html><html><head><title>Je bent bijna op de pa
 <script>grecaptcha.render("fundaCaptchaInput")</script>
 </body></html>`;
 
+function fixtureFacts() {
+  return extractFundaListingFromHtml(FIXTURE_HTML);
+}
+
 test("isFundaListingUrl accepts a listing and rejects search or other hosts", () => {
   assert.equal(isFundaListingUrl(LISTING_URL), true);
   assert.equal(isFundaListingUrl("https://www.funda.nl/koop/epe/huis-12345678-korenstraat-18/"), true);
@@ -116,8 +124,17 @@ test("extractFundaListingFromHtml prefers labelled Wonen over JSON-LD floorSize"
   assert.equal(facts.extraKenmerken?.Wonen, "127 m²");
 });
 
+test("DOM extractor matches HTML extractor on the listing fixture", () => {
+  const { document } = parseHTML(FIXTURE_HTML);
+  const fromDom = extractFundaListingFromDocument(document as unknown as Document);
+  const fromHtml = extractFundaListingFromHtml(FIXTURE_HTML);
+  assert.equal(fromDom.askingPrice, fromHtml.askingPrice);
+  assert.equal(fromDom.livingAreaM2, fromHtml.livingAreaM2);
+  assert.equal(fromDom.roomCount, fromHtml.roomCount);
+});
+
 test("extractFundaListingFromHtml reads JSON-LD, kenmerken and free text", () => {
-  const facts = extractFundaListingFromHtml(FIXTURE_HTML);
+  const facts = fixtureFacts();
   assert.equal(facts.askingPrice, 525000);
   assert.equal(facts.livingAreaM2, 128);
   assert.equal(facts.plotAreaM2, 240);
@@ -154,69 +171,24 @@ test("mergeListingFacts keeps existing values and fills gaps", () => {
   assert.deepEqual(merged.notes, ["Handmatig", "Funda"]);
 });
 
-test("challenge HTML is detected and inspectFundaListing still returns the URL address", async () => {
+test("challenge HTML is detected and inspectFundaListing still returns the URL address without fetching", () => {
   assert.equal(isFundaChallengeHtml(CHALLENGE_HTML), true);
+  const { document } = parseHTML(CHALLENGE_HTML);
+  assert.equal(isFundaChallengeDocument(document as unknown as Document), true);
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(CHALLENGE_HTML, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
+  let fetched = false;
+  globalThis.fetch = (async () => {
+    fetched = true;
+    throw new Error("should not fetch Funda");
+  }) as typeof fetch;
   try {
-    const inspected = await inspectFundaListing(LISTING_URL);
+    const inspected = inspectFundaListing(LISTING_URL);
     assert.equal(inspected.blocked, true);
     assert.equal(inspected.facts.street, "Korenstraat");
     assert.equal(inspected.facts.houseNumber, 18);
     assert.equal(inspected.facts.city, "Epe");
-    assert.ok(inspected.facts.notes.some((note) => /mensen-check|niet vrij/i.test(note)));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("pasted page HTML fills kenmerken when Funda shows a people-check", async () => {
-  const pasted = extractImportedListingPaste(FIXTURE_HTML);
-  assert.equal(pasted.askingPrice, 525000);
-  assert.equal(pasted.livingAreaM2, 128);
-  assert.match(pasted.description ?? "", /Lichte hoekwoning/);
-
-  const plain = extractImportedListingPaste("Vraagprijs € 480.000. Woonoppervlakte 110 m2. Energielabel B. 3 slaapkamers.");
-  assert.equal(plain.askingPrice, 480000);
-  assert.equal(plain.livingAreaM2, 110);
-  assert.equal(plain.energyLabel, "B");
-  assert.equal(plain.bedroomCount, 3);
-
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(CHALLENGE_HTML, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
-  try {
-    const response = await importListing(new Request(`http://localhost/api/listing/user/${BAG_ID}/import`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sourceUrl: LISTING_URL, pastedContent: FIXTURE_HTML }),
-    }), { params: Promise.resolve({ bagId: BAG_ID }) });
-    assert.equal(response.status, 200);
-    const body = await response.json() as {
-      listing?: { askingPrice?: number; livingAreaM2?: number; description?: string };
-      blocked?: boolean;
-    };
-    assert.equal(body.listing?.askingPrice, 525000);
-    assert.equal(body.listing?.livingAreaM2, 128);
-    assert.match(body.listing?.description ?? "", /Lichte hoekwoning/);
-    assert.equal(body.blocked, false);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("import route returns blocked when Funda challenges and no paste is provided", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(CHALLENGE_HTML, { status: 200, headers: { "content-type": "text/html" } })) as typeof fetch;
-  try {
-    const response = await importListing(new Request(`http://localhost/api/listing/user/${BAG_ID}/import`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sourceUrl: LISTING_URL }),
-    }), { params: Promise.resolve({ bagId: BAG_ID }) });
-    assert.equal(response.status, 422);
-    const body = await response.json() as { error?: string; blocked?: boolean };
-    assert.equal(body.blocked, true);
-    assert.match(body.error ?? "", /mensen-check|pagina-HTML|kenmerken/i);
+    assert.ok(inspected.facts.notes.some((note) => /extensie/i.test(note)));
+    assert.equal(fetched, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -251,11 +223,12 @@ test("import route rejects invalid BAG ids and non-listing URLs without fetching
   }
 });
 
-test("import route extracts a fixture page for guests without requiring Supabase", async () => {
+test("import route with a listing URL does not fetch Funda and asks for the extension", async () => {
   const originalFetch = globalThis.fetch;
+  let fetchedFunda = false;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
-    assert.equal(String(input), LISTING_URL);
-    return new Response(FIXTURE_HTML, { status: 200, headers: { "content-type": "text/html" } });
+    if (String(input).includes("funda.nl")) fetchedFunda = true;
+    throw new Error(`unexpected fetch ${String(input)}`);
   }) as typeof fetch;
   try {
     const response = await importListing(new Request(`http://localhost/api/listing/user/${BAG_ID}/import`, {
@@ -264,22 +237,22 @@ test("import route extracts a fixture page for guests without requiring Supabase
       body: JSON.stringify({ sourceUrl: LISTING_URL }),
     }), { params: Promise.resolve({ bagId: BAG_ID }) });
     assert.equal(response.status, 200);
-    const body = await response.json() as { listing?: { askingPrice?: number; livingAreaM2?: number; description?: string }; persisted?: boolean };
-    assert.equal(body.listing?.askingPrice, 525000);
-    assert.equal(body.listing?.livingAreaM2, 128);
-    assert.match(body.listing?.description ?? "", /Lichte hoekwoning/);
+    const body = await response.json() as { listing?: { addressLabel?: string }; blocked?: boolean; persisted?: boolean };
+    assert.equal(body.blocked, true);
+    assert.match(body.listing?.addressLabel ?? "", /Korenstraat 18/);
     assert.equal(body.persisted, false);
+    assert.equal(fetchedFunda, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("from-url route resolves the BAG address from a Funda listing page", async () => {
+test("from-url route resolves the BAG address from the Funda slug without fetching Funda", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.startsWith("https://www.funda.nl/")) {
-      return new Response(FIXTURE_HTML, { status: 200, headers: { "content-type": "text/html" } });
+      throw new Error("should not fetch Funda");
     }
     if (url.includes("location-api")) {
       return Response.json({
@@ -308,14 +281,64 @@ test("from-url route resolves the BAG address from a Funda listing page", async 
     assert.equal(response.status, 200);
     const body = await response.json() as {
       address?: { bagVboId?: string; displayName?: string };
-      listing?: { askingPrice?: number; description?: string };
+      listing?: { askingPrice?: number; addressLabel?: string };
       blocked?: boolean;
     };
     assert.equal(body.address?.bagVboId, BAG_ID);
     assert.match(body.address?.displayName ?? "", /Korenstraat 18/);
-    assert.equal(body.listing?.askingPrice, 525000);
-    assert.match(body.listing?.description ?? "", /Lichte hoekwoning/);
-    assert.equal(body.blocked, false);
+    assert.equal(body.listing?.askingPrice, undefined);
+    assert.match(body.listing?.addressLabel ?? "", /Korenstraat 18/);
+    assert.equal(body.blocked, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("capture envelope rejects HTML payloads and accepts extracted facts", () => {
+  const htmlRejected = parseListingCaptureEnvelope({
+    sourceUrl: LISTING_URL,
+    capturedAt: "2026-08-16T10:00:00.000Z",
+    parserVersion: PARSER_VERSION,
+    facts: { notes: [] },
+    pageHtml: FIXTURE_HTML,
+  });
+  assert.equal(htmlRejected.success, false);
+  if (!htmlRejected.success) assert.match(htmlRejected.error, /geen pagina-HTML/i);
+
+  const facts = fixtureFacts();
+  const ok = parseListingCaptureEnvelope({
+    sourceUrl: LISTING_URL,
+    capturedAt: "2026-08-16T10:00:00.000Z",
+    parserVersion: PARSER_VERSION,
+    facts,
+  });
+  assert.equal(ok.success, true);
+  if (ok.success) {
+    assert.equal(ok.data.sourceUrl, LISTING_URL);
+    assert.equal(ok.data.facts.askingPrice, 525000);
+  }
+});
+
+test("ingest route requires an extension token and never fetches Funda", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchedFunda = false;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input).includes("funda.nl")) fetchedFunda = true;
+    throw new Error(`unexpected fetch ${String(input)}`);
+  }) as typeof fetch;
+  try {
+    const response = await ingestListing(new Request("http://localhost/api/listing/extension/ingest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sourceUrl: LISTING_URL,
+        capturedAt: "2026-08-16T10:00:00.000Z",
+        parserVersion: PARSER_VERSION,
+        facts: fixtureFacts(),
+      }),
+    }));
+    assert.ok(response.status === 401 || response.status === 503);
+    assert.equal(fetchedFunda, false);
   } finally {
     globalThis.fetch = originalFetch;
   }

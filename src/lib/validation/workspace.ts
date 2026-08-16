@@ -147,7 +147,6 @@ export const userListingBodySchema = z.object({
 
 export const userListingImportBodySchema = z.object({
   sourceUrl: z.string().url().max(500),
-  pastedContent: z.string().max(100_000).optional(),
 }).strict();
 
 export const viewingDebriefSchema = z.object({

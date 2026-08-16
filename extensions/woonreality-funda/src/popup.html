@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>WoonReality</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; width: 320px; padding: 14px 16px 16px; color: #0f172a; background: #f8fafc; }
+    h1 { font-size: 15px; margin: 0 0 8px; }
+    p, label { font-size: 13px; line-height: 1.4; margin: 0 0 10px; }
+    button, a.button { display: block; width: 100%; box-sizing: border-box; text-align: center; border: 0; border-radius: 10px; padding: 8px 10px; font: 600 13px system-ui; cursor: pointer; text-decoration: none; margin: 0 0 8px; }
+    .primary { background: #0f766e; color: #fff; }
+    .secondary { background: #e2e8f0; color: #0f172a; }
+    .row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 10px; }
+    small { color: #64748b; }
+  </style>
+</head>
+<body>
+  <h1>WoonReality Funda</h1>
+  <p id="status">Laden…</p>
+  <div id="pair-form" hidden>
+    <p>Plak de koppelcode van /extensie als automatische koppeling niet lukt.</p>
+    <input id="token" placeholder="wr_ext_…" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border:1px solid #cbd5e1;border-radius:8px" />
+    <button class="primary" id="pair" type="button">Koppelen</button>
+  </div>
+  <label class="row"><input id="auto" type="checkbox" /> Automatisch opslaan als ik een advertentie open</label>
+  <button class="primary" id="save" type="button">Deze woning opslaan</button>
+  <a class="button secondary" id="open" href="#" target="_blank" rel="noreferrer">Open laatste woningcheck</a>
+  <a class="button secondary" id="setup" href="https://woonreality.vercel.app/extensie" target="_blank" rel="noreferrer">Koppelpagina</a>
+  <script src="popup.js"></script>
+</body>
+</html>

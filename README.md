@@ -26,7 +26,7 @@ For passwordless e-mail login, e-mail confirmation and passkey setup, see [`docs
 
 The heat card remains a first-screening proxy. RIVM noise and air values are official public raster/model sources, but are not a facade measurement or personal exposure assessment.
 
-Funda and Pararius scraping was assessed and intentionally rejected because their current terms restrict automated extraction. The supported data-source roadmap and licensed alternatives are documented in [`docs/listing-data-strategy.md`](docs/listing-data-strategy.md).
+Funda and Pararius catalog scraping was assessed and intentionally rejected because their current terms restrict automated extraction. WoonReality does not fetch Funda pages from the server. Users paste one listing URL to resolve the BAG address; kenmerken come from the official browser extension after they open that listing. The supported data-source roadmap and licensed alternatives are documented in [`docs/listing-data-strategy.md`](docs/listing-data-strategy.md).
 
 ## Run locally
 
@@ -64,6 +64,10 @@ GET /api/listing/user/:bagId
 PUT /api/listing/user/:bagId
 POST /api/listing/user/:bagId/import
 POST /api/listing/from-url
+POST /api/listing/extension/ingest
+POST /api/listing/extension/token
+GET /api/listing/extension/token
+DELETE /api/listing/extension/token/:id
 GET /api/cron/source-health
 GET /api/health
 ```
@@ -77,12 +81,11 @@ and return a normalized JSON object containing at least `externalId` and an
 HTTPS `sourceUrl`. The app does not call or reverse-engineer undocumented Funda
 endpoints.
 
-Users can also paste one Funda listing URL in search (Funda-link mode) or on
-the property page. The app fetches only that page to fill missing asking-price,
-kenmerken and free-text fields, then resolves the official BAG address. It does
-not scrape search results. If Funda shows a bot-check, the address is still
-taken from the URL slug; paste kenmerken or page HTML from your browser to fill
-the advertentie (CAPTCHA is never bypassed).
+Users can paste one Funda listing URL in search (Funda-link mode) or on the
+property page. The app resolves the official BAG address from the URL slug and
+does not scrape search results or fetch the Funda page. Asking price and
+kenmerken come from the [Funda-extensie](/extensie) after the user opens that
+listing in Chrome, Edge or Firefox. Captcha is never bypassed.
 
 ## Vercel setup
 
