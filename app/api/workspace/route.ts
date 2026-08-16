@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+import { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
+import {
+  buyerProfileFromMortgageCapacity,
+  buildMortgageSnapshot,
+  calculatorStateToFinance,
+  mortgageStateHasCapacity,
+  normalizeMortgageSnapshot,
+  restoreCalculatorState,
+  type CalculatorState,
+} from "@/src/lib/mortgage/calculator-state";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
@@ -29,17 +39,37 @@ async function currentUser() {
 async function readWorkspace() {
   const { supabase, user } = await currentUser();
   if (!user) return { supabase, user: null, workspace: null };
-  const [{ data: profile, error: profileError }, { data: saved, error: savedError }] = await Promise.all([
+  const [{ data: profile, error: profileError }, { data: saved, error: savedError }, { data: listings, error: listingsError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.from("saved_properties").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
+    supabase.from("user_listings").select("bag_vbo_id, asking_price").eq("user_id", user.id),
   ]);
   if (profileError) throw profileError;
   if (savedError) throw savedError;
+  if (listingsError) throw listingsError;
   const profilePreferences = record(profile?.preferences_json);
   const savedProperties = (saved ?? []) as Array<{ bag_vbo_id: string; address_label: string; city: string; postcode: string; stage: string; saved_at: string }>;
   const buyerProfile = normalizeBuyerProfile(profilePreferences.buyerProfile ?? EMPTY_BUYER_PROFILE);
   const preferences = { ...DEFAULT_PREFERENCES, ...record(profilePreferences.personalPreferences) } as PersonalPreferences;
   const propertyStages = Object.fromEntries(savedProperties.map((item) => [item.bag_vbo_id, isStage(item.stage) ? item.stage : "saved"]));
+  const askingPrices = Object.fromEntries(
+    ((listings ?? []) as Array<{ bag_vbo_id: string; asking_price: number | null }>)
+      .filter((item) => typeof item.asking_price === "number" && Number.isFinite(item.asking_price) && item.asking_price > 0)
+      .map((item) => [item.bag_vbo_id, item.asking_price as number]),
+  );
+  const mortgageRaw = profilePreferences.mortgageState;
+  const mortgageRecord = record(mortgageRaw);
+  const mortgageState = mortgageRaw ? restoreCalculatorState(mortgageRaw) : null;
+  const mortgageConfigured = mortgageStateHasCapacity(mortgageState);
+  let mortgageSnapshot = normalizeMortgageSnapshot(mortgageRecord.snapshot) ?? normalizeMortgageSnapshot(profilePreferences.mortgageSnapshot);
+  if (mortgageConfigured && mortgageState && !mortgageSnapshot) {
+    const capacity = calculateMortgageCapacity(calculatorStateToFinance(mortgageState), {
+      nhg: mortgageState.nhg,
+      energyLabel: mortgageState.energyLabel || undefined,
+      askingPrice: mortgageState.askingPrice || undefined,
+    });
+    if (capacity.available) mortgageSnapshot = buildMortgageSnapshot(capacity, mortgageState.nhg);
+  }
   return {
     supabase,
     user,
@@ -48,9 +78,20 @@ async function readWorkspace() {
       preferencesConfigured: Boolean(profilePreferences.personalPreferences),
       buyerProfile,
       buyerProfileConfigured: buyerProfileIsConfigured(buyerProfile, profilePreferences.buyerProfile),
-      saved: savedProperties.map((item): SavedProperty => ({ bagVboId: item.bag_vbo_id, addressLabel: item.address_label, city: item.city, postcode: item.postcode, savedAt: item.saved_at })),
+      mortgageState,
+      mortgageSnapshot,
+      mortgageConfigured,
+      saved: savedProperties.map((item): SavedProperty => ({
+        bagVboId: item.bag_vbo_id,
+        addressLabel: item.address_label,
+        city: item.city,
+        postcode: item.postcode,
+        savedAt: item.saved_at,
+        askingPrice: askingPrices[item.bag_vbo_id] ?? null,
+      })),
       compare: Array.isArray(profile?.compare_ids) ? profile.compare_ids.filter(isBagId).slice(0, 4) : [],
       propertyStages,
+      askingPrices,
     },
   };
 }
@@ -80,6 +121,15 @@ export async function POST(request: Request) {
       if (body.stage !== undefined) savedPayload.stage = body.stage;
       const { error } = await result.supabase.from("saved_properties").upsert(savedPayload, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
+      if (body.askingPrice != null && body.askingPrice > 0) {
+        const { error: listingError } = await result.supabase.from("user_listings").upsert({
+          user_id: result.user.id,
+          bag_vbo_id: body.bagVboId,
+          asking_price: body.askingPrice,
+          updated_at: now,
+        }, { onConflict: "user_id,bag_vbo_id" });
+        if (listingError) throw listingError;
+      }
     } else if (body.action === "unsave") {
       if (!isBagId(body.bagVboId)) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
       const { error } = await result.supabase.from("saved_properties").delete().eq("user_id", result.user.id).eq("bag_vbo_id", body.bagVboId);
@@ -90,12 +140,45 @@ export async function POST(request: Request) {
       if (error) throw error;
     } else if (body.action === "compare") {
       const compare = (body.compare ?? []).filter(isBagId).slice(0, 4);
-      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare, p_mortgage: null });
       if (error) throw error;
     } else if (body.action === "profile") {
       if (!body.preferences && !body.buyerProfile) return NextResponse.json({ error: "Geef voorkeuren of een woonprofiel mee." }, { status: 400 });
       if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
-      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: body.preferences ?? null, p_buyer_profile: body.buyerProfile ?? null, p_compare_ids: null });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: body.preferences ?? null, p_buyer_profile: body.buyerProfile ?? null, p_compare_ids: null, p_mortgage: null });
+      if (error) throw error;
+    } else if (body.action === "mortgage") {
+      if (!body.mortgageState) return NextResponse.json({ error: "Geef hypotheekgegevens mee." }, { status: 400 });
+      const state = restoreCalculatorState(body.mortgageState) as CalculatorState;
+      const capacity = calculateMortgageCapacity(calculatorStateToFinance(state), {
+        nhg: state.nhg,
+        energyLabel: state.energyLabel || undefined,
+        askingPrice: state.askingPrice || undefined,
+      });
+      const snapshot = capacity.available ? buildMortgageSnapshot(capacity, state.nhg) : null;
+      const nextProfile = capacity.available
+        ? buyerProfileFromMortgageCapacity(result.workspace.buyerProfile, capacity, state)
+        : result.workspace.buyerProfile;
+      const mortgagePayload = { ...state, snapshot };
+      if (!preferencesJsonWithinLimit({ mortgageState: mortgagePayload, buyerProfile: nextProfile })) {
+        return NextResponse.json({ error: "Je hypotheekgegevens zijn te groot." }, { status: 413 });
+      }
+      const { error } = await result.supabase.rpc("merge_profile_preferences", {
+        p_preferences: null,
+        p_buyer_profile: nextProfile,
+        p_compare_ids: null,
+        p_mortgage: mortgagePayload,
+      });
+      if (error) throw error;
+    } else if (body.action === "listingPrice") {
+      if (!isBagId(body.bagVboId)) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
+      if (body.askingPrice == null || body.askingPrice < 0) return NextResponse.json({ error: "Ongeldige vraagprijs." }, { status: 400 });
+      const { error } = await result.supabase.from("user_listings").upsert({
+        user_id: result.user.id,
+        bag_vbo_id: body.bagVboId,
+        asking_price: body.askingPrice > 0 ? body.askingPrice : null,
+        updated_at: now,
+      }, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
     } else {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });
