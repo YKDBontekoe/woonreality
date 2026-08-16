@@ -57,10 +57,12 @@ test("starter transfer tax requires age, self-occupancy and unused exemption", (
   assert.equal(transferTaxRate({ ...eligible, buyerAge: 40 }, 500000), 0.02);
   const costs = estimateBuyerCosts(500000, { ...eligible, ownFunds: 70000, budget: 500000 });
   assert.ok(costs);
-  assert.equal(costs.lines[0].amount, 0);
+  assert.equal(costs.lines.find((line) => line.key === "transfer-tax")?.amount, 0);
   const ineligible = estimateBuyerCosts(500000, { firstTimeBuyer: true, ownFunds: 70000, budget: 500000 });
   assert.ok(ineligible);
   assert.equal(ineligible.transferTaxRate, 0.02);
+  assert.ok(costs.lines.some((line) => line.key === "notary-transfer"));
+  assert.ok(typeof costs.deductibleTotal === "number");
 });
 
 test("currency formatting is Dutch and compact", () => {

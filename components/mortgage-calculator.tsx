@@ -7,7 +7,9 @@ import {
   MORTGAGE_NORMS_YEAR,
   NHG,
   buildMortgageScenarios,
+  buildMortgageSchedule,
   calculateMortgageCapacity,
+  currentMortgageReference,
   defaultDgaSource,
   defaultEmploymentSource,
   defaultPensionSource,
@@ -17,6 +19,8 @@ import {
   marketIndicativeRate,
   ownFundsTotal,
   parseCanonicalEnergyLabel,
+  rateImpactRows,
+  summarizeHousingTax,
   type FixedPeriodYears,
   type HolidayMode,
   type IncomeEntry,
@@ -28,7 +32,9 @@ import {
   type WorkType,
   type YearTriple,
 } from "@/src/lib/mortgage";
+import { estimateBuyerCosts } from "@/src/lib/costs";
 import { formatEuro } from "@/src/lib/purchase";
+import { MortgageCostInsight, type CostInsightOptions } from "@/components/mortgage-cost-insight";
 
 const STORAGE_KEY = "woonreality.mortgage.v2";
 const DEBT_FIELDS: { key: DebtKey; label: string; add: string; hint?: string }[] = [
@@ -398,6 +404,17 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
   const [addedDebts, setAddedDebts] = useState<DebtKey[]>([]);
   const [openExplain, setOpenExplain] = useState(false);
   const [studentMode, setStudentMode] = useState<"monthly" | "remaining">("monthly");
+  const [costOptions, setCostOptions] = useState<CostInsightOptions>({
+    newBuild: false,
+    investment: false,
+    includeAdvice: true,
+    includeBankGuarantee: false,
+    includeBuyingAgent: false,
+    includeMoving: false,
+    includeInspection: true,
+  });
+  const [wozValue, setWozValue] = useState(0);
+  const wozTouched = useRef(false);
 
   useEffect(() => {
     try {
@@ -455,6 +472,74 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
     nhg: state.nhg,
   }, market ?? undefined), [market, state, studentMode]);
 
+  const funds = fundsTotal(state);
+  const reference = currentMortgageReference();
+
+  const displayLoan = useMemo(() => {
+    if (!result.available) return 0;
+    if (state.askingPrice > 0) return Math.min(Math.max(0, state.askingPrice - funds), result.maxLoanForPurchase);
+    return result.maxLoanForPurchase;
+  }, [funds, result, state.askingPrice]);
+
+  useEffect(() => {
+    if (wozTouched.current) return;
+    if (state.askingPrice > 0) setWozValue(state.askingPrice);
+  }, [state.askingPrice]);
+
+  const detailedCosts = useMemo(() => {
+    if (state.askingPrice <= 0) return null;
+    return estimateBuyerCosts(
+      state.askingPrice,
+      {
+        firstTimeBuyer: state.starterExemption,
+        buyerAge: state.buyerAge || 32,
+        selfOccupied: !costOptions.investment,
+        priorExemptionUsed: false,
+        ownFunds: funds,
+        budget: state.askingPrice,
+        nhg: state.nhg,
+        energySavingMeasures: state.includeEnergyMeasures,
+      },
+      displayLoan,
+      {
+        newBuild: costOptions.newBuild,
+        investment: costOptions.investment,
+        includeAdvice: costOptions.includeAdvice,
+        includeBankGuarantee: costOptions.includeBankGuarantee,
+        includeBuyingAgent: costOptions.includeBuyingAgent,
+        includeMoving: costOptions.includeMoving,
+        includeInspection: costOptions.includeInspection,
+        reference,
+      },
+    );
+  }, [costOptions, displayLoan, funds, reference, state.askingPrice, state.buyerAge, state.includeEnergyMeasures, state.nhg, state.starterExemption]);
+
+  const annuitySchedule = useMemo(
+    () => (displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "annuity") : null),
+    [displayLoan, state.interestRate],
+  );
+  const linearSchedule = useMemo(
+    () => (displayLoan > 0 ? buildMortgageSchedule(displayLoan, state.interestRate, "linear") : null),
+    [displayLoan, state.interestRate],
+  );
+  const activeSchedule = state.repayment === "linear" ? linearSchedule : annuitySchedule;
+
+  const housingTax = useMemo(() => {
+    if (!activeSchedule || displayLoan <= 0) return null;
+    return summarizeHousingTax({
+      taxableIncome: result.toetsinkomen,
+      wozValue: wozValue || state.askingPrice || displayLoan,
+      schedule: activeSchedule,
+      oneOffDeductibleCosts: detailedCosts?.deductibleTotal ?? 0,
+      reference,
+    });
+  }, [activeSchedule, detailedCosts?.deductibleTotal, displayLoan, reference, result.toetsinkomen, state.askingPrice, wozValue]);
+
+  const impact = useMemo(
+    () => (displayLoan > 0 ? rateImpactRows(displayLoan, state.interestRate, state.repayment) : []),
+    [displayLoan, state.interestRate, state.repayment],
+  );
+
   const scenarios = useMemo(() => {
     if (!result.available) return [];
     return buildMortgageScenarios(toFinance(state, studentMode), {
@@ -502,7 +587,6 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
 
   const marketRate = marketIndicativeRate(market, state.fixedPeriodYears, state.nhg);
   const youngSelfEmployed = [state.applicant, state.withPartner ? state.partner : null].some((person) => person && (person.workType === "self_employed" || person.workType === "dga" || person.workType === "mix") && person.monthsActive < 12);
-  const funds = fundsTotal(state);
   const debts = debtSummary(state);
   const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
@@ -747,6 +831,33 @@ export function MortgageCalculator({ initialEnergyLabel, initialAskingPrice, ini
         </p>}
       </aside>
     </div>
+    <MortgageCostInsight
+      costs={detailedCosts}
+      tax={housingTax}
+      annuity={annuitySchedule}
+      linear={linearSchedule}
+      impactRows={impact}
+      market={market}
+      activePeriod={state.fixedPeriodYears}
+      repayment={state.repayment}
+      options={costOptions}
+      onOptionsChange={(patch) => setCostOptions((current) => ({ ...current, ...patch }))}
+      wozValue={wozValue}
+      onWozChange={(value) => {
+        wozTouched.current = true;
+        setWozValue(value);
+      }}
+      loanAmount={displayLoan}
+      ownFunds={funds}
+      referenceYear={reference.year}
+      referenceSources={[
+        { label: "Overdrachtsbelasting", url: reference.sources.transferTax },
+        { label: "NHG", url: reference.sources.nhg },
+        { label: "Kadaster", url: reference.sources.kadaster },
+        { label: "Box 1 aftrek", url: reference.sources.box1 },
+        { label: "Eigenwoningforfait", url: reference.sources.eigenwoningforfait },
+      ]}
+    />
     {result.available && <a className="mortgage-mobile-dock" href="#hypotheek-result">
       <span>
         <small>Maximale hypotheek</small>
@@ -898,9 +1009,9 @@ export function MortgagePageIntro() {
   return <div className="mortgage-heading">
     <div>
       <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
-      <h1>Wat kun je lenen?</h1>
-      <p className="hero-copy">Vul je maandsalaris in. Vakantiegeld, 13e maand en bonus tel je erbij. Je ziet het wettelijke maximum voor aankoop volgens de leennormen {MORTGAGE_NORMS_YEAR} — banken komen vaak lager uit.</p>
+      <h1>Wat kun je lenen — en wat kost het?</h1>
+      <p className="hero-copy">Vul je maandsalaris in. Je ziet het wettelijke maximum volgens de leennormen {MORTGAGE_NORMS_YEAR}, een volledig kostenoverzicht (met aftrekbaarheid), netto maandlast na hypotheekrenteaftrek, en grafieken. Marktrente komt live van DNB/ECB.</p>
     </div>
-    <div className="mortgage-heading-note"><Wallet size={16} /> Wettelijke rekenschets. Een geldverstrekker kan strenger zijn.</div>
+    <div className="mortgage-heading-note"><Wallet size={16} /> Rekenschets, geen advies. Banken toetsen vaak strenger.</div>
   </div>;
 }

@@ -21,6 +21,30 @@ export {
   toetsrenteFor,
 } from "@/src/lib/mortgage/norms-2026";
 export {
+  currentMortgageReference,
+  currentReferenceYear,
+  mortgageReferenceForYear,
+  mortgageReferences,
+} from "@/src/lib/mortgage/reference";
+export type { MortgageReference } from "@/src/lib/mortgage/reference";
+export {
+  annuityPayment,
+  buildMortgageSchedule,
+  linearFirstMonth,
+  maxPrincipalFromAnnualBurden,
+  rateImpactRows,
+} from "@/src/lib/mortgage/schedule";
+export type { MortgageSchedule, ScheduleMonth, ScheduleYear } from "@/src/lib/mortgage/schedule";
+export {
+  box1MarginalRate,
+  eigenwoningforfait,
+  formatDeductionRate,
+  housingDeductionRate,
+  housingTaxForYear,
+  summarizeHousingTax,
+} from "@/src/lib/mortgage/tax";
+export type { HousingTaxInput, HousingTaxSummary, HousingTaxYear } from "@/src/lib/mortgage/tax";
+export {
   defaultDgaSource,
   defaultEmploymentSource,
   defaultPensionSource,
@@ -51,7 +75,9 @@ export {
   marketIndicativeRate,
   parseAfmToetsrente,
   parseEcbMirObservation,
+  parseEcbMirSeries,
   AFM_TOETSRENTE_URL,
+  ECB_HISTORY_OBSERVATIONS,
   NHG_RATE_OFFSET,
 } from "@/src/lib/mortgage/market";
 export type {
@@ -63,6 +89,8 @@ export type {
   MortgageCapacity,
   MortgageFinance,
   MortgageLine,
+  MortgageMarketHistorySeries,
+  MortgageMarketRatePoint,
   MortgageMarketSnapshot,
   MortgagePropertyContext,
   MortgageScenario,

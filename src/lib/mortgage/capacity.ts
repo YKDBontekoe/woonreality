@@ -19,34 +19,11 @@ import {
   normalizeEnergyLabel,
   toetsrenteFor,
 } from "@/src/lib/mortgage/norms-2026";
+import { annuityPayment, linearFirstMonth, maxPrincipalFromAnnualBurden } from "@/src/lib/mortgage/schedule";
 import type { MortgageCapacity, MortgageFinance, MortgageLine, MortgageMarketSnapshot, MortgagePropertyContext, MortgageScenario, PersonFinance } from "@/src/lib/mortgage/types";
 
 function roundEuro(value: number) {
   return Math.round(value);
-}
-
-function annuityPayment(principal: number, annualRatePercent: number, years = LOAN_TERM_YEARS) {
-  const n = years * 12;
-  const monthly = (annualRatePercent / 100) / 12;
-  if (principal <= 0) return 0;
-  if (monthly <= 0) return principal / n;
-  return principal * monthly * ((1 + monthly) ** n) / (((1 + monthly) ** n) - 1);
-}
-
-function maxPrincipalFromAnnualBurden(annualBurden: number, annualRatePercent: number, years = LOAN_TERM_YEARS) {
-  const monthlyPayment = Math.max(0, annualBurden) / 12;
-  const n = years * 12;
-  const monthly = (annualRatePercent / 100) / 12;
-  if (monthlyPayment <= 0) return 0;
-  if (monthly <= 0) return monthlyPayment * n;
-  return monthlyPayment * (((1 + monthly) ** n) - 1) / (monthly * ((1 + monthly) ** n));
-}
-
-function linearFirstMonth(principal: number, annualRatePercent: number, years = LOAN_TERM_YEARS) {
-  const n = years * 12;
-  const monthly = (annualRatePercent / 100) / 12;
-  if (principal <= 0) return 0;
-  return principal / n + principal * monthly;
 }
 
 function aowForQuote(applicant: PersonFinance, partner: PersonFinance | null, applicantIncome: number, partnerIncome: number) {
@@ -193,7 +170,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
   const buyerCosts = costs?.total ?? null;
   const ownFundsGap = costs && ownFunds >= 0 ? roundEuro(costs.ownFundsNeeded - ownFunds) : ownFunds > 0 && askingPrice > 0 ? roundEuro(financingNeeded - maxLoanForPurchase) : null;
   if (buyerCosts != null) {
-    lines.push({ key: "costs", label: "Kosten koper (indicatie)", amount: buyerCosts, note: "Notaris, taxatie, keuring, kadaster en overdrachtsbelasting. NHG-provisie indien van toepassing." });
+    lines.push({ key: "costs", label: "Kosten koper (indicatie)", amount: buyerCosts, note: "Overdrachtsbelasting, notaris, kadaster, taxatie, keuring en NHG-provisie indien van toepassing. Zie het kostenoverzicht voor aftrekbaarheid." });
   }
   if (ownFunds > 0) {
     lines.push({ key: "own-funds", label: "Eigen geld", amount: roundEuro(ownFunds), note: [finance.savings && "spaargeld", finance.gift && "schenking", finance.saleEquity && "overwaarde"].filter(Boolean).join(", ") || "Inleg voor koopsom en kosten koper." });
