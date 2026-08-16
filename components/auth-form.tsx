@@ -20,7 +20,7 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/mijn-aankoop&setup=passkey`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding&setup=passkey`,
           shouldCreateUser: true,
         },
       });
@@ -45,7 +45,7 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       const { data, error } = await supabase.auth.signInWithPasskey();
       if (error) throw error;
       if (!data.session) throw new Error("Er kon geen sessie met je passkey worden gestart.");
-      window.location.assign("/mijn-aankoop");
+      window.location.assign("/onboarding");
     } catch (error) {
       setMessage(authErrorMessage(error, "Inloggen met passkey lukt nu niet. Probeer e-mail."));
     } finally {

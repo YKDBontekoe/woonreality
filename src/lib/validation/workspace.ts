@@ -88,7 +88,7 @@ export const mortgageStateSchema = z.object({
 }).strict();
 
 export const workspaceBodySchema = z.object({
-  action: z.enum(["save", "unsave", "stage", "compare", "profile", "mortgage", "listingPrice"]),
+  action: z.enum(["save", "unsave", "stage", "compare", "profile", "mortgage", "listingPrice", "onboarding"]),
   bagVboId: z.string().regex(/^\d{16}$/).optional(),
   addressLabel: z.string().min(1).max(240).optional(),
   city: z.string().min(1).max(120).optional(),
@@ -99,6 +99,7 @@ export const workspaceBodySchema = z.object({
   mortgageState: mortgageStateSchema.optional(),
   askingPrice: z.number().finite().nonnegative().nullable().optional(),
   compare: z.array(z.string().regex(/^\d{16}$/)).max(4).optional(),
+  dismissOnboarding: z.boolean().optional(),
 }).strict();
 
 export type WorkspaceRequest = z.infer<typeof workspaceBodySchema>;
