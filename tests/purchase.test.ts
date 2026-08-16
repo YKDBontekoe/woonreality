@@ -154,6 +154,7 @@ test("task engine derives bedenktijd and voorbehoud deadlines once the koopovere
     hasAskingPrice: true,
     hasOffer: true,
     hasContractAmount: true,
+    contractReceivedAt: signedAt,
     contractSignedAt: signedAt,
     financingWeeks: 6,
     inspectionWeeks: 2,
@@ -165,6 +166,9 @@ test("task engine derives bedenktijd and voorbehoud deadlines once the koopovere
   assert.ok(financing?.dueAt);
   assert.ok(inspection?.dueAt);
   assert.ok(new Date(bedenktijd!.dueAt!).getTime() < new Date(financing!.dueAt!).getTime());
+  const due = new Date(bedenktijd!.dueAt!);
+  const midday = new Date(due.getFullYear(), due.getMonth(), due.getDate(), 12, 0, 0);
+  assert.ok(due.getTime() > midday.getTime(), "dueAt must remain valid through midday on the due date");
 });
 
 test("task engine skips deadlines that already passed", () => {

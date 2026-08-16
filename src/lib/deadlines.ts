@@ -14,6 +14,11 @@ function atMidnight(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+/** Inclusive end of the local calendar day — deadlines remain valid until this instant. */
+function atEndOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+}
+
 function addDays(date: Date, days: number): Date {
   return new Date(atMidnight(date).getTime() + days * DAY_MS);
 }
@@ -104,7 +109,7 @@ export function computeBedenktijdEnd(contractReceivedAt: Date): Date {
   while (!isWerkdag(candidate, holidays)) {
     candidate = addDays(candidate, 1);
   }
-  return candidate;
+  return atEndOfDay(candidate);
 }
 
 /**
@@ -114,7 +119,7 @@ export function computeBedenktijdEnd(contractReceivedAt: Date): Date {
  * calendar calculation; no werkdagen-correctie van toepassing.
  */
 export function computeConditionDeadline(contractSignedAt: Date, weeks: number): Date {
-  return addDays(contractSignedAt, Math.max(0, Math.round(weeks)) * 7);
+  return atEndOfDay(addDays(contractSignedAt, Math.max(0, Math.round(weeks)) * 7));
 }
 
 export function daysUntil(target: Date, from: Date = new Date()): number {
@@ -128,17 +133,22 @@ export type PurchaseDeadline = {
 };
 
 export function computePurchaseDeadlines(input: {
-  contractSignedAt: Date;
+  /** Receipt date of the signed koopovereenkomst — drives bedenktijd (Art. 7:2 BW). */
+  contractReceivedAt?: Date | null;
+  /** Signing date — drives ontbindende-voorwaarden deadlines. */
+  contractSignedAt?: Date | null;
   financingWeeks?: number | null;
   inspectionWeeks?: number | null;
 }): PurchaseDeadline[] {
-  const deadlines: PurchaseDeadline[] = [
-    { key: "bedenktijd", label: "Bedenktijd (Art. 7:2 BW) loopt af", dueAt: computeBedenktijdEnd(input.contractSignedAt) },
-  ];
-  if (input.financingWeeks) {
+  const deadlines: PurchaseDeadline[] = [];
+  const receivedAt = input.contractReceivedAt ?? input.contractSignedAt;
+  if (receivedAt) {
+    deadlines.push({ key: "bedenktijd", label: "Bedenktijd (Art. 7:2 BW) loopt af", dueAt: computeBedenktijdEnd(receivedAt) });
+  }
+  if (input.contractSignedAt && input.financingWeeks != null && input.financingWeeks > 0) {
     deadlines.push({ key: "financing", label: "Voorbehoud van financiering vervalt", dueAt: computeConditionDeadline(input.contractSignedAt, input.financingWeeks) });
   }
-  if (input.inspectionWeeks) {
+  if (input.contractSignedAt && input.inspectionWeeks != null && input.inspectionWeeks > 0) {
     deadlines.push({ key: "inspection", label: "Voorbehoud van bouwkundige keuring vervalt", dueAt: computeConditionDeadline(input.contractSignedAt, input.inspectionWeeks) });
   }
   return deadlines;

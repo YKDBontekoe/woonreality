@@ -72,14 +72,16 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
   // hypotheek gelijk aan de volledige koopsom. Klopt dat niet met wat het
   // profiel aankan, dan onderschat dat hoeveel eigen geld iemand nodig heeft.
   const financingAmount = useMemo(() => {
-    if (!workspace.buyerProfileConfigured || askingPrice <= 0) return undefined;
+    const purchasePrice = strategy?.scenarios[selected].amount ?? askingPrice;
+    if (!workspace.buyerProfileConfigured || purchasePrice <= 0) return undefined;
     const { budget, ownFunds } = workspace.buyerProfile;
-    if (ownFunds >= askingPrice) return 0;
+    if (ownFunds >= purchasePrice) return 0;
     if (budget <= 0) return undefined;
     const estimatedMaxLoan = Math.max(0, budget - ownFunds);
-    return Math.min(askingPrice, estimatedMaxLoan);
-  }, [askingPrice, workspace.buyerProfile, workspace.buyerProfileConfigured]);
-  const costs = useMemo(() => estimateBuyerCosts(askingPrice, workspace.buyerProfile, financingAmount), [askingPrice, workspace.buyerProfile, financingAmount]);
+    return Math.min(purchasePrice, estimatedMaxLoan);
+  }, [askingPrice, selected, strategy, workspace.buyerProfile, workspace.buyerProfileConfigured]);
+  const purchasePriceForCosts = strategy?.scenarios[selected].amount ?? askingPrice;
+  const costs = useMemo(() => estimateBuyerCosts(purchasePriceForCosts, workspace.buyerProfile, financingAmount), [purchasePriceForCosts, workspace.buyerProfile, financingAmount]);
   const negotiation = useMemo(() => negotiationGuidance(strategy, selected, workspace.buyerProfileConfigured ? workspace.buyerProfile.budget : undefined), [strategy, selected, workspace.buyerProfile.budget, workspace.buyerProfileConfigured]);
   const bid = strategy?.scenarios[selected].amount ?? 0;
   const overMaximum = workspace.buyerProfileConfigured && workspace.buyerProfile.budget > 0 && bid > workspace.buyerProfile.budget;

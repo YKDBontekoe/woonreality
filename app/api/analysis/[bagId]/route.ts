@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
-import { toUserMessage } from "@/src/lib/errors";
+import { redactError, toUserMessage } from "@/src/lib/errors";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { persistAnalysis } from "@/src/lib/db/repository";
 
@@ -15,12 +15,12 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     try {
       analysis.persistence = await persistAnalysis(analysis);
     } catch (persistenceError) {
-      console.error("WoonReality persistence failed; serving cached analysis", persistenceError);
+      console.error("WoonReality persistence failed; serving cached analysis", redactError(persistenceError));
       analysis.persistence = "cache-only";
     }
     return NextResponse.json(analysis, { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } });
   } catch (error) {
-    console.error("Property analysis failed", error);
+    console.error("Property analysis failed", redactError(error));
     return NextResponse.json({ error: toUserMessage(error, "De woningcheck kon niet worden gemaakt. Probeer het later opnieuw.") }, { status: 502 });
   }
 }

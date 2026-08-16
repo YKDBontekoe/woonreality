@@ -19,6 +19,7 @@ import {
   normalizeEnergyLabel,
   toetsrenteFor,
 } from "@/src/lib/mortgage/norms-2026";
+import { currentMortgageReference } from "@/src/lib/mortgage/reference";
 import { annuityPayment, linearFirstMonth, maxPrincipalFromAnnualBurden } from "@/src/lib/mortgage/schedule";
 import type { MortgageCapacity, MortgageFinance, MortgageLine, MortgageMarketSnapshot, MortgagePropertyContext, MortgageScenario, PersonFinance } from "@/src/lib/mortgage/types";
 
@@ -49,12 +50,36 @@ function costProfileFor(finance: MortgageFinance, ownFunds: number, nhg: boolean
   };
 }
 
+function solveInRange(
+  affordableAt: (price: number) => boolean,
+  low: number,
+  high: number,
+): number {
+  if (high < low) return 0;
+  if (affordableAt(high)) return high;
+  // Cost cliffs sit on the threshold points we split on (e.g. NHG fee drops
+  // the moment price exceeds the limit). If the left edge itself is
+  // unaffordable, start just above it so the post-threshold interval is still searched.
+  let left = low;
+  if (!affordableAt(left)) {
+    left = Math.min(high, low + 1);
+    if (!affordableAt(left)) return 0;
+  }
+  let right = high;
+  for (let i = 0; i < 60; i += 1) {
+    const mid = (left + right) / 2;
+    if (affordableAt(mid)) left = mid; else right = mid;
+  }
+  return left;
+}
+
 /**
  * Zoekt de hoogste koopsom waarbij de hypotheek (begrensd door
  * maxLoanForPurchase) plus het eigen geld de koopsom én de kosten koper
  * dekken. Overdrachtsbelasting kan bij de startersgrens en NHG-provisie bij
  * de kostengrens van drempel wisselen, dus dit is een numerieke zoektocht in
- * plaats van een enkele aftreksom.
+ * plaats van een enkele aftreksom — per interval tussen die drempels, omdat
+ * estimateBuyerCosts daar niet-monotoon kan zijn.
  */
 function solveMaxPurchasePriceAfterCosts(
   finance: MortgageFinance,
@@ -72,16 +97,24 @@ function solveMaxPurchasePriceAfterCosts(
     const needed = (costs?.total ?? 0) + cashForPrice;
     return needed <= ownFunds;
   };
-  let low = 0;
-  let high = maxLoanForPurchase + ownFunds;
-  if (!affordableAt(high)) {
-    for (let i = 0; i < 60; i += 1) {
-      const mid = (low + high) / 2;
-      if (affordableAt(mid)) low = mid; else high = mid;
-    }
-    return roundEuro(low);
+  const ceiling = maxLoanForPurchase + ownFunds;
+  const ref = currentMortgageReference();
+  const thresholds = [
+    0,
+    ref.nhg.limit,
+    ref.nhg.energyLimit,
+    ref.transferTax.starterThreshold,
+    ceiling,
+  ].filter((value, index, all) => value >= 0 && value <= ceiling && all.indexOf(value) === index).sort((a, b) => a - b);
+
+  let best = 0;
+  for (let i = 0; i < thresholds.length - 1; i += 1) {
+    const low = thresholds[i];
+    const high = thresholds[i + 1];
+    const candidate = solveInRange(affordableAt, low, high);
+    if (candidate > best) best = candidate;
   }
-  return roundEuro(high);
+  return roundEuro(best);
 }
 
 export function calculateMortgageCapacity(finance: MortgageFinance, property: MortgagePropertyContext = {}, market?: MortgageMarketSnapshot): MortgageCapacity {

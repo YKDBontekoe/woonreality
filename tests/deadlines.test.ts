@@ -39,13 +39,20 @@ test("condition deadline adds whole weeks with no werkdagen correction", () => {
 
 test("computePurchaseDeadlines always includes bedenktijd and adds conditions only when weeks are given", () => {
   const signed = new Date(2026, 2, 2);
-  const onlyBedenktijd = computePurchaseDeadlines({ contractSignedAt: signed });
+  const onlyBedenktijd = computePurchaseDeadlines({ contractReceivedAt: signed });
   assert.equal(onlyBedenktijd.length, 1);
   assert.equal(onlyBedenktijd[0].key, "bedenktijd");
 
-  const withConditions = computePurchaseDeadlines({ contractSignedAt: signed, financingWeeks: 6, inspectionWeeks: 2 });
+  const withConditions = computePurchaseDeadlines({ contractReceivedAt: signed, contractSignedAt: signed, financingWeeks: 6, inspectionWeeks: 2 });
   assert.equal(withConditions.length, 3);
   assert.deepEqual(withConditions.map((item) => item.key), ["bedenktijd", "financing", "inspection"]);
+});
+
+test("deadline dueAt remains valid for the entire local due date, including midday", () => {
+  const end = computeBedenktijdEnd(new Date(2026, 0, 5));
+  assert.equal(ymd(end), "2026-01-08");
+  const middayOnDueDate = new Date(2026, 0, 8, 12, 0, 0);
+  assert.ok(end.getTime() > middayOnDueDate.getTime(), "dueAt must be end-of-day so midday tasks are not treated as past");
 });
 
 test("daysUntil counts whole calendar days regardless of time of day", () => {

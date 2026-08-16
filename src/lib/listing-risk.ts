@@ -22,7 +22,7 @@ export function listingRiskFlags(listing: PropertyListing | null | undefined): L
   const extraValues = Object.values(listing.extraKenmerken ?? {}).join(" ").toLowerCase();
   const haystack = `${ownership} ${description} ${extraValues}`;
 
-  if (/erfpacht/.test(haystack) && !/eeuwigdurend afgekocht|volledig afgekocht/.test(haystack)) {
+  if (/erfpacht/.test(haystack) && !/geen erfpacht|eeuwigdurend afgekocht|volledig afgekocht/.test(haystack)) {
     flags.push({
       key: "erfpacht",
       title: "Erfpacht: check de canon en looptijd",
@@ -32,18 +32,7 @@ export function listingRiskFlags(listing: PropertyListing | null | undefined): L
     });
   }
 
-  if (listing.vveContribution != null && listing.vveContribution > 0 && listing.vveReserveFund != null) {
-    const monthsOfContributionInReserve = listing.vveReserveFund / listing.vveContribution;
-    if (monthsOfContributionInReserve < 12) {
-      flags.push({
-        key: "vve-reserve-laag",
-        title: "VvE-reservefonds lijkt aan de lage kant",
-        summary: `Het reservefonds (${formatEuroCompact(listing.vveReserveFund)}) staat in geen goede verhouding tot de maandelijkse bijdrage (${formatEuroCompact(listing.vveContribution)}). Dat kan wijzen op een bijzondere bijdrage bij groot onderhoud.`,
-        severity: "medium",
-        action: "Vraag het meerjarenonderhoudsplan (MJOP) en de laatste ALV-notulen op voordat je een bod uitbrengt.",
-      });
-    }
-  } else if (listing.vveContribution != null && listing.vveContribution > 0 && listing.vveReserveFund == null) {
+  if (listing.vveContribution != null && listing.vveContribution > 0 && listing.vveReserveFund == null) {
     flags.push({
       key: "vve-reserve-onbekend",
       title: "VvE-reserve niet vermeld",
@@ -96,6 +85,3 @@ export function listingRiskFlags(listing: PropertyListing | null | undefined): L
   return flags;
 }
 
-function formatEuroCompact(value: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-}

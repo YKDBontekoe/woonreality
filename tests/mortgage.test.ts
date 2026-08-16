@@ -230,6 +230,24 @@ test("asking price fit uses own funds and purchase extra", () => {
   assert.equal(over.fit, "over");
 });
 
+test("maxPurchasePriceAfterCosts searches across the NHG cost discontinuity", () => {
+  const finance = withJob(200_000);
+  const atLimit = NHG.limit;
+  const aboveLimit = NHG.limit + 500;
+  const costsAtLimit = estimateBuyerCosts(atLimit, { firstTimeBuyer: false, ownFunds: 0, budget: atLimit, nhg: true }, atLimit);
+  const costsAbove = estimateBuyerCosts(aboveLimit, { firstTimeBuyer: false, ownFunds: 0, budget: aboveLimit, nhg: true }, atLimit);
+  assert.ok(costsAtLimit && costsAbove);
+  assert.ok(costsAtLimit!.total > costsAbove!.total, "expected NHG fee discontinuity");
+  // Enough cash for the no-fee price just above the limit, but not for the fee-heavy price at the limit.
+  const ownFunds = costsAbove!.total + 500;
+  assert.ok(ownFunds < costsAtLimit!.total);
+  const capacity = calculateMortgageCapacity(finance, { ownFunds, nhg: true, energyLabel: "A" });
+  assert.ok(
+    capacity.maxPurchasePriceAfterCosts >= aboveLimit,
+    `expected capacity past NHG limit despite fee cliff, got ${capacity.maxPurchasePriceAfterCosts}`,
+  );
+});
+
 test("private lease counts the full monthly contract as a BKR OA last", () => {
   const clean = calculateMortgageCapacity(withJob(60_000));
   const lease = calculateMortgageCapacity(withJob(60_000, { privateLeaseMonthly: 400 }));

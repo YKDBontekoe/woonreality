@@ -67,9 +67,9 @@ function ProfessionalGuidancePanel() {
       <p className="muted-copy">
         WoonReality stelt geen &ldquo;beste keuze&rdquo; voor en heeft geen
         eigen netwerk — dat zou net zo min transparant zijn als een
-        aankoopmakelaar met verborgen provisies. Dit zijn de criteria en de
-        officiële, gratis registers om zelf onafhankelijke professionals te
-        vinden en te vergelijken.
+        aankoopmakelaar met verborgen provisies. Dit zijn de criteria om zelf
+        onafhankelijke professionals te vinden en te vergelijken. Waar een
+        officieel register bestaat, staat de link eronder.
       </p>
       <div className="professional-guide-grid">
         {PROFESSIONAL_GUIDES.map((guide) => (
@@ -81,9 +81,11 @@ function ProfessionalGuidancePanel() {
                 <li key={tip}>{tip}</li>
               ))}
             </ul>
-            <a href={guide.registryUrl} target="_blank" rel="noreferrer">
-              {guide.registryLabel}
-            </a>
+            {guide.registryUrl && guide.registryLabel && (
+              <a href={guide.registryUrl} target="_blank" rel="noreferrer">
+                {guide.registryLabel}
+              </a>
+            )}
           </div>
         ))}
       </div>

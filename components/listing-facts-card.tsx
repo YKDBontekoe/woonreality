@@ -1,5 +1,5 @@
 import { isFundaListingUrl } from "@/src/lib/listing-import";
-import { isHttpUrl } from "@/src/lib/listing-intake";
+import { isHttpsUrl } from "@/src/lib/listing-intake";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
 import { formatEuro } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
@@ -21,7 +21,7 @@ function listingStatusLabel(status: PropertyListing["status"]) {
 }
 
 function sourceIsOpenable(url: string) {
-  if (!isHttpUrl(url)) return false;
+  if (!isHttpsUrl(url)) return false;
   if (isFundaListingUrl(url)) return true;
   try {
     const parsed = new URL(url);

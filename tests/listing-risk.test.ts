@@ -15,7 +15,7 @@ function baseListing(overrides: Partial<PropertyListing> = {}): PropertyListing 
 }
 
 test("listingRiskFlags returns nothing for a listing without risk text", () => {
-  const flags = listingRiskFlags(baseListing({ description: "Lichte hoekwoning met tuin op het zuiden." }));
+  const flags = listingRiskFlags(baseListing({ description: "Lichte hoekwoning met tuin op het zuiden.", vveContribution: 150, vveReserveFund: 30_000 }));
   assert.equal(flags.length, 0);
 });
 
@@ -33,14 +33,9 @@ test("listingRiskFlags does not flag erfpacht when fully bought off", () => {
   assert.ok(!flags.some((flag) => flag.key === "erfpacht"));
 });
 
-test("listingRiskFlags flags a thin VvE reserve relative to the monthly contribution", () => {
-  const flags = listingRiskFlags(baseListing({ vveContribution: 150, vveReserveFund: 500 }));
-  assert.ok(flags.some((flag) => flag.key === "vve-reserve-laag"));
-});
-
-test("listingRiskFlags does not flag a healthy VvE reserve", () => {
-  const flags = listingRiskFlags(baseListing({ vveContribution: 150, vveReserveFund: 30_000 }));
-  assert.ok(!flags.some((flag) => flag.key === "vve-reserve-laag"));
+test("listingRiskFlags does not flag erfpacht when the text says geen erfpacht", () => {
+  const flags = listingRiskFlags(baseListing({ description: "Geen erfpacht; volle eigendom." }));
+  assert.ok(!flags.some((flag) => flag.key === "erfpacht"));
 });
 
 test("listingRiskFlags flags a missing reserve fund when a VvE contribution exists", () => {

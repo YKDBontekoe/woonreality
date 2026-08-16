@@ -3,8 +3,9 @@ export type ProfessionalGuide = {
   role: string;
   whatTheyDo: string;
   howToChoose: string[];
-  registryLabel: string;
-  registryUrl: string;
+  /** Official registry search when one exists; omit rather than linking a commercial provider. */
+  registryLabel?: string;
+  registryUrl?: string;
   stage: "finance_inspection" | "transfer";
 };
 
@@ -14,8 +15,8 @@ export type ProfessionalGuide = {
  * why we don't scrape portals in general, and because a curated "best of"
  * list would be an undisclosed recommendation, not a reality check).
  * Instead this gives buyers the same selection criteria an aankoopmakelaar
- * would use, plus the official, free-to-search registry for each
- * profession so they can vet candidates themselves.
+ * would use, plus the official, free-to-search registry for each profession
+ * when one exists.
  */
 export const PROFESSIONAL_GUIDES: ProfessionalGuide[] = [
   {
@@ -39,9 +40,8 @@ export const PROFESSIONAL_GUIDES: ProfessionalGuide[] = [
       "Kies een keurder die onafhankelijk is van de verkopende makelaar — geen gedeelde herkomstpremie of vaste doorverwijzing.",
       "Vraag of het rapport werkt met een puntensysteem/NEN 2767 of vergelijkbare, herleidbare normering.",
       "Loop zelf mee tijdens de keuring; een goed keurder legt ter plekke uit wat hij ziet.",
+      "Vergelijk offertes van minimaal twee onafhankelijke keurders; er is geen wettelijk openbaar register.",
     ],
-    registryLabel: "Vereniging Eigen Huis keuringen",
-    registryUrl: "https://www.eigenhuis.nl/hypotheek-en-financien/bouwtechnische-keuring",
     stage: "finance_inspection",
   },
   {

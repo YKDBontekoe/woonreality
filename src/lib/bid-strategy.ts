@@ -67,7 +67,7 @@ export function negotiationGuidance(strategy: BidStrategy | null, selected: BidS
       title: "Ophoogclausule (escalation clause)",
       summary: "Een ophoogclausule zegt: 'ik bied X, maar ga automatisch Y hoger dan het beste concurrerende bod, tot een maximum van Z.' Dit voorkomt dat je blind moet gokken tegen onbekende concurrentie.",
       whenToUse: "Vooral zinvol bij aantoonbare biedconcurrentie (meerdere kijkers, korte reactietermijn) en als je een keiharde bovengrens hebt.",
-      caution: "De verkoper moet bewijs van het concurrerende bod kunnen tonen; leg dat vooraf vast. Niet elke verkopend makelaar accepteert deze clausule.",
+      caution: "Spreek vooraf met de verkopend makelaar af dat je na afloop het geanonimiseerde biedlogboek ontvangt, zodat je kunt controleren dat de ophoging terecht was. Niet elke verkopend makelaar accepteert deze clausule.",
     },
     walkAwayReminder: maxAmount
       ? `Bepaal vooraf je maximum (nu circa ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(maxAmount)}) en wees bereid om af te haken zodra dat wordt overschreden. Een huis waarvoor je je financiële marge opgeeft, is geen goede koop.`

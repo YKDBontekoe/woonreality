@@ -161,6 +161,7 @@ test("extractFundaListingFromHtml reads JSON-LD, kenmerken and free text", () =>
   assert.equal(listing.pricePerM2, Math.round(525000 / 128));
   assert.match(listing.description ?? "", /Lichte hoekwoning/);
   assert.equal(listing.ownership, "Volle eigendom");
+  assert.match(listing.neighborhood ?? "", /Veluwe/i);
 });
 
 test("mergeListingFacts keeps existing values and fills gaps", () => {

@@ -8,7 +8,7 @@ test("buildBidStrategy returns null for an invalid asking price", () => {
 });
 
 test("buildBidStrategy keeps financingCondition true for first-time buyers even without risk signals", () => {
-  const strategy = buildBidStrategy(400_000, null, { budget: 450_000, firstTimeBuyer: true, ownFunds: 20_000 });
+  const strategy = buildBidStrategy(400_000, { signals: [] } as never, { budget: 450_000, firstTimeBuyer: true, ownFunds: 20_000 });
   assert.ok(strategy);
   assert.equal(strategy!.scenarios.strong.financingCondition, true);
 });

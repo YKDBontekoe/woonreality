@@ -26,7 +26,9 @@ export type TaskEngineInput = {
   hasContractAmount: boolean;
   checklistComplete?: boolean;
   attentionActions?: string[];
-  /** ISO date (yyyy-mm-dd) the koopovereenkomst was signed; drives bedenktijd + voorbehoud deadlines. */
+  /** ISO date (yyyy-mm-dd) the signed koopovereenkomst was received; drives bedenktijd. */
+  contractReceivedAt?: string | null;
+  /** ISO date (yyyy-mm-dd) the koopovereenkomst was signed; drives voorbehoud deadlines. */
   contractSignedAt?: string | null;
   financingWeeks?: number | null;
   inspectionWeeks?: number | null;
@@ -163,11 +165,15 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
     });
   }
 
-  if (input.contractSignedAt) {
-    const signedDate = new Date(`${input.contractSignedAt}T00:00:00`);
-    if (!Number.isNaN(signedDate.getTime())) {
+  if (input.contractSignedAt || input.contractReceivedAt) {
+    const signedDate = input.contractSignedAt ? new Date(`${input.contractSignedAt}T00:00:00`) : null;
+    const receivedDate = input.contractReceivedAt
+      ? new Date(`${input.contractReceivedAt}T00:00:00`)
+      : signedDate;
+    if ((signedDate && !Number.isNaN(signedDate.getTime())) || (receivedDate && !Number.isNaN(receivedDate.getTime()))) {
       const deadlines = computePurchaseDeadlines({
-        contractSignedAt: signedDate,
+        contractReceivedAt: receivedDate && !Number.isNaN(receivedDate.getTime()) ? receivedDate : null,
+        contractSignedAt: signedDate && !Number.isNaN(signedDate.getTime()) ? signedDate : null,
         financingWeeks: input.financingWeeks,
         inspectionWeeks: input.inspectionWeeks,
       });

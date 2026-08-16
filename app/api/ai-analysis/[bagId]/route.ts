@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
-import { aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
+import { aiReportVersions, generateAiPropertyReport, listingSynthesisDto } from "@/src/lib/analysis/research";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingForProperty } from "@/src/lib/sources/listings";
 import { listingFromUserRecord } from "@/src/lib/listing-import";
@@ -18,7 +18,7 @@ function fingerprint(analysis: Awaited<ReturnType<typeof analyzeProperty>>, list
     scoringVersion: analysis.scoringVersion,
     property: analysis.property,
     signals: analysis.signals.map((signal) => ({ key: signal.key, value: signal.value, score: signal.score, availability: signal.availability })),
-    listing: listing ? { provider: listing.provider, externalId: listing.externalId, fetchedAt: listing.fetchedAt, lastUpdatedAt: listing.lastUpdatedAt, description: listing.description, askingPrice: listing.askingPrice, extraKenmerken: listing.extraKenmerken, textSections: listing.textSections } : null,
+    listing: listingSynthesisDto(listing),
   })).digest("hex");
 }
 

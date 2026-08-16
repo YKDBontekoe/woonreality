@@ -100,3 +100,12 @@ export function isHttpUrl(value: string) {
     return false;
   }
 }
+
+/** Research sources and listing source URLs must be HTTPS so the dashboard never renders an insecure external href. */
+export function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}

@@ -137,7 +137,9 @@ export const workflowBodySchema = z.object({
   scenario: z.enum(["cautious", "balanced", "strong"]).optional(),
   reasons: z.array(z.string().max(240)).max(8).optional(),
   stage: caseStageSchema.optional(),
-  /** Datum waarop (de laatste partij van) de koopovereenkomst is ondertekend; start van de wettelijke bedenktijd. */
+  /** Datum waarop de ondertekende koopovereenkomst door de koper is ontvangen; start van de wettelijke bedenktijd (Art. 7:2 BW). */
+  contractReceivedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  /** Datum waarop (de laatste partij van) de koopovereenkomst is ondertekend; start van ontbindende-voorwaarden-termijnen. */
   contractSignedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   /** Aantal weken voorbehoud van financiering vanaf contractSignedAt, zoals afgesproken in de koopovereenkomst. */
   financingWeeks: z.number().finite().min(0).max(52).nullable().optional(),
