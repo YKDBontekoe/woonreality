@@ -383,7 +383,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </div>
         )}
         <section className="simple-overview" id="overzicht">
-          <SimpleVerdict analysis={analysis} />
+          <SimpleVerdict
+            analysis={analysis}
+            facts={[
+              property.areaM2
+                ? `${property.areaM2} m² woonoppervlak`
+                : "Oppervlakte onbekend",
+              property.buildingYear
+                ? `Bouwjaar ${property.buildingYear}`
+                : "Bouwjaar onbekend",
+              `${nearbyProperties.length} woningen dichtbij`,
+            ]}
+          />
           <div id="kaart">
             <PropertyMap
               property={property}
@@ -391,25 +402,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             />
           </div>
         </section>
-        <section className="simple-reasons">
-          <div className="section-kicker">Waarom dit oordeel?</div>
-          <h2>Dit zijn de drie dingen die ertoe doen</h2>
-          <EverydayInsights items={analysis.everydayInsights ?? []} />
-          <div className="simple-facts">
-            <span>
-              {property.areaM2
-                ? `${property.areaM2} m² woonoppervlak`
-                : "Oppervlakte onbekend"}
-            </span>
-            <span>
-              {property.buildingYear
-                ? `Bouwjaar ${property.buildingYear}`
-                : "Bouwjaar onbekend"}
-            </span>
-            <span>{nearbyProperties.length} woningen dichtbij</span>
-          </div>
-        </section>
-        <PurchaseGuardrails buildingYear={property.buildingYear} />
         <section className="decision-bar" aria-label="Beslis in 30 seconden">
           <div>
             <div className="section-kicker">Wat nu?</div>
@@ -434,6 +426,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             )}
           </div>
         </section>
+        <section className="simple-reasons">
+          <div className="section-kicker">Waarom dit oordeel?</div>
+          <h2>Dit zijn de drie dingen die ertoe doen</h2>
+          <EverydayInsights items={analysis.everydayInsights ?? []} />
+        </section>
+        <PurchaseGuardrails buildingYear={property.buildingYear} />
         <details className="later-tools">
           <summary>
             Als je dit huis serieus neemt
@@ -450,27 +448,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
-            <a className="later-tool-link" href="#advertentie">
-              <span>
-                <strong>Advertentie en prijs</strong>
-                <span>Vraagprijs en feiten uit de advertentie, als die beschikbaar zijn.</span>
-              </span>
-              <ArrowRight size={16} aria-hidden="true" />
-            </a>
-            <a className="later-tool-link" href="#ai-onderzoek">
-              <span>
-                <strong>Extra AI-onderzoek</strong>
-                <span>Diepere check op officiële bronnen — optioneel.</span>
-              </span>
-              <ArrowRight size={16} aria-hidden="true" />
-            </a>
-            <a className="later-tool-link" href="#bodconcept">
-              <span>
-                <strong>Bodconcept</strong>
-                <span>Van vraagprijs naar jouw grens — geen taxatie.</span>
-              </span>
-              <ArrowRight size={16} aria-hidden="true" />
-            </a>
             {!caseId && (
               <div className="later-tool-link" style={{ alignItems: "center" }}>
                 <span>
@@ -480,22 +457,22 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 <StartCaseButton bagVboId={property.bagVboId} />
               </div>
             )}
+            <div id="ai-onderzoek">
+              <AiResearchSection report={aiReport} status={aiStatus} />
+            </div>
+            {listingStatus !== "unavailable" && (
+              <div id="advertentie">
+                <ListingSection listing={listing} status={listingStatus} />
+              </div>
+            )}
+            <ValuationBidPanel
+              bagId={bagId}
+              analysis={analysis}
+              listing={listing}
+              caseId={caseId}
+            />
           </div>
         </details>
-        <div id="ai-onderzoek">
-          <AiResearchSection report={aiReport} status={aiStatus} />
-        </div>
-        {listingStatus !== "unavailable" && (
-          <div id="advertentie">
-            <ListingSection listing={listing} status={listingStatus} />
-          </div>
-        )}
-        <ValuationBidPanel
-          bagId={bagId}
-          analysis={analysis}
-          listing={listing}
-          caseId={caseId}
-        />
         <div className="details-toggle">
           <button
             className="secondary-button"
@@ -953,15 +930,15 @@ function EverydayInsights({ items }: { items: EverydayInsight[] }) {
 function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
   const olderBuilding = buildingYear != null && buildingYear < 1945;
   return (
-    <section className="purchase-guardrails">
-      <div>
-        <div className="section-kicker">Voor je een bod doet</div>
-        <h2>Dit weet openbare adresdata niet</h2>
-        <p>
-          Gebruik deze check om vragen te vinden, niet om een maximale koopprijs
-          te bepalen.
-        </p>
-      </div>
+    <details className="purchase-guardrails">
+      <summary>
+        <div>
+          <div className="section-kicker">Voor je een bod doet</div>
+          <h2>Wat openbare data niet weet</h2>
+          <p>Juridisch, bouwkundig en prijs — check dit zelf voor je biedt.</p>
+        </div>
+        <ChevronDown size={18} aria-hidden="true" />
+      </summary>
       <div className="purchase-guardrail-grid">
         <article>
           <strong>Juridisch & VvE</strong>
@@ -976,7 +953,7 @@ function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
           </strong>
           <p>
             {olderBuilding
-              ? "Bij dit BAG-bouwjaar is fundering een onderzoekspunt. Vraag naar herstel, scheuren, peilmetingen en een onafhankelijk oordeel."
+              ? "Bij dit bouwjaar is fundering een onderzoekspunt. Vraag naar herstel, scheuren, peilmetingen en een onafhankelijk oordeel."
               : "Laat constructie, vocht, installaties, dak en onderhoud onafhankelijk beoordelen."}
           </p>
         </article>
@@ -989,11 +966,17 @@ function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
           </p>
         </article>
       </div>
-    </section>
+    </details>
   );
 }
 
-function SimpleVerdict({ analysis }: { analysis: Analysis }) {
+function SimpleVerdict({
+  analysis,
+  facts,
+}: {
+  analysis: Analysis;
+  facts: string[];
+}) {
   const attentionCount = (analysis.everydayInsights ?? []).filter(
     (item) => item.tone === "attention",
   ).length;
@@ -1020,9 +1003,25 @@ function SimpleVerdict({ analysis }: { analysis: Analysis }) {
           };
   return (
     <div className={`simple-verdict ${verdict.tone}`}>
-      <div className="section-kicker">Eerste indruk</div>
+      <div className="simple-verdict-top">
+        <div className="section-kicker">Eerste indruk</div>
+        <div className="simple-verdict-score">
+          <strong>
+            {analysis.overallScore.toLocaleString("nl-NL", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
+          </strong>
+          <span>van 10</span>
+        </div>
+      </div>
       <h2>{verdict.label}</h2>
       <p>{verdict.detail}</p>
+      <div className="simple-verdict-facts">
+        {facts.map((fact) => (
+          <span key={fact}>{fact}</span>
+        ))}
+      </div>
     </div>
   );
 }
