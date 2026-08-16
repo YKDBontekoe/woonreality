@@ -3,13 +3,20 @@
 import { ArrowRight, Check, CircleAlert, FileText, Home, Landmark, MapPin, Pencil, PiggyBank, Plus, Search, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AddressSearch } from "@/components/address-search";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Notice } from "@/components/ui/notice";
 import { calculatePersonalFit } from "@/src/lib/personalization";
-import { nextPurchaseAction, normalizeCaseStage } from "@/src/lib/journey";
+import { CASE_STAGE_LABELS, nextPurchaseAction, normalizeCaseStage } from "@/src/lib/journey";
 import { EMPTY_BUYER_PROFILE, HOUSEHOLD_LABELS, PROPERTY_STAGE_LABELS, PROPERTY_STAGE_ORDER, PROPERTY_TYPE_LABELS, formatEuro, profileCompletion, type BuyerProfile, type HouseholdType, type PropertyStage, type SoughtPropertyType } from "@/src/lib/purchase";
 import type { Analysis } from "@/src/lib/types";
 
 type CaseSummary = { id: string; title: string; stage: string; status: string; updated_at: string; bagVboId?: string | null };
+
+function caseStageLabel(stage: string) {
+  return CASE_STAGE_LABELS[normalizeCaseStage(stage)];
+}
 
 export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases?: CaseSummary[]; focusCase?: string }) {
   const { workspace, workspaceReady, workspaceError, setBuyerProfile, setPropertyStage } = usePropertyWorkspace();
@@ -70,37 +77,62 @@ export function PurchaseCockpit({ initialCases = [], focusCase }: { initialCases
     setProfile((current) => ({ ...current, [key]: Number(value) || 0 }));
   }
 
+  const hasHomes = workspace.saved.length > 0;
+  const firstRun = workspaceReady && !hasHomes && initialCases.length === 0;
+
   return <main className="site-shell"><div className="container purchase-cockpit">
-    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>Jouw aankoopbegeleider.</h1><p className="hero-copy">Eén overzicht: wat je zoekt, welke woningen serieus zijn, en wat je nu moet doen.</p></div><Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link></div>
+    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>{firstRun ? "Begin met een adres." : "Jouw aankoopoverzicht."}</h1><p className="hero-copy">{firstRun ? "Zoek een woning, klik op Bewaar, en alles wat je nodig hebt komt hier terug." : "Eén overzicht: wat je zoekt, welke woningen serieus zijn, en wat je nu moet doen."}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link>}</div>
 
-    {focusCase && <div className="cockpit-toast"><Check size={15} /> Je aankoopdossier is gestart. Vul eerst je woonprofiel aan.</div>}
-    {workspaceError && <div className="cockpit-toast warning"><CircleAlert size={15} /> {workspaceError} <Link href="/login">Inloggen</Link></div>}
+    {focusCase && <Notice><Check size={15} /> Je aankoopdossier is gestart. Vul eerst je woonprofiel aan.</Notice>}
+    {workspaceError && <Notice tone="warning" role="alert"><CircleAlert size={15} /> {workspaceError} <Link href="/login">Inloggen</Link></Notice>}
 
-    <section className="cockpit-stats" aria-label="Jouw woningsituatie">
-      <div><span><WalletCards size={14} /> Koopbudget</span><strong>{profileConfigured ? formatEuro(profile.budget) : "—"}</strong><small>{profileConfigured ? "maximale koopsom" : "Na invullen van je profiel"}</small></div>
-      <div><span><PiggyBank size={14} /> Eigen geld</span><strong>{profileConfigured ? formatEuro(profile.ownFunds) : "—"}</strong><small>{profileConfigured ? "voor kosten koper en inleg" : "Na invullen van je profiel"}</small></div>
-      <div><span><Home size={14} /> Actieve woningen</span><strong>{activeHomes.length}</strong><small>{activeHomes.length === 1 ? "woning in beeld" : "woningen in beeld"}</small></div>
-      <div><span><CircleAlert size={14} /> Eerstvolgende</span><strong className="stat-action">{nextAction.title}</strong><small>{nextAction.text}</small></div>
-    </section>
-
-    <div className="cockpit-grid">
-      <section className="cockpit-card profile-card" id="woonprofiel">
-        <div className="card-heading"><div><div className="section-kicker">Stap 01 · Mijn woonprofiel</div><h2>Wat moet jouw volgende huis kunnen?</h2><p>Budget, huishouden en must-haves sturen de check. Geen marketingvoorkeuren, wel harde grenzen.</p></div><button className="icon-button" type="button" onClick={() => setEditingProfile((value) => !value)} aria-label="Woonprofiel bewerken"><Pencil size={15} /></button></div>
-        {editingProfile ? <ProfileForm profile={profile} setProfile={setProfile} updateNumber={updateNumber} onSave={saveProfile} /> : <ProfileSummary profile={profile} completion={completion} configured={profileConfigured} onEdit={() => setEditingProfile(true)} />}
+    {firstRun ? (
+      <section className="cockpit-first-run" aria-label="Eerste woning toevoegen">
+        <EmptyState
+          icon={<Home size={20} />}
+          title="Nog geen woningen bewaard"
+          text="Zoek een adres hieronder. Op de woningcheck klik je op Bewaar — daarna verschijnt het huis hier."
+        />
+        <AddressSearch submitLabel="Bekijk adres" />
       </section>
-      <section className="cockpit-card next-action-card"><div className="section-kicker">Jouw volgende stap</div><h2>{nextAction.title}</h2><p>{nextAction.text}</p><Link className="primary-button" href={nextAction.href as never}>Open stap <ArrowRight size={15} /></Link><div className="action-note"><ShieldCheck size={14} /> WoonReality verstuurt geen bod en vervangt geen notaris of keurder.</div></section>
-    </div>
+    ) : (
+      <>
+        <section className="cockpit-stats" aria-label="Jouw woningsituatie">
+          <div><span><WalletCards size={14} /> Koopbudget</span><strong>{profileConfigured ? formatEuro(profile.budget) : "—"}</strong><small>{profileConfigured ? "maximale koopsom" : "Na invullen van je profiel"}</small></div>
+          <div><span><PiggyBank size={14} /> Eigen geld</span><strong>{profileConfigured ? formatEuro(profile.ownFunds) : "—"}</strong><small>{profileConfigured ? "voor kosten koper en inleg" : "Na invullen van je profiel"}</small></div>
+          <div><span><Home size={14} /> Actieve woningen</span><strong>{activeHomes.length}</strong><small>{activeHomes.length === 1 ? "woning in beeld" : "woningen in beeld"}</small></div>
+          <div><span><CircleAlert size={14} /> Eerstvolgende</span><strong className="stat-action">{nextAction.title}</strong><small>{nextAction.text}</small></div>
+        </section>
 
-    <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> stap 02 · mijn woningen</div><h2>Je woningbord</h2><p>Status volgt je acties zoveel mogelijk. Je kunt hem zelf bijstellen als de praktijk anders loopt.</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> Adres zoeken</Link></div>
-      {!workspace.saved.length ? <div className="cockpit-empty"><div className="empty-icon"><Home size={20} /></div><h3>Nog geen woningen opgeslagen</h3><p>Open een woningcheck en klik op “Bewaar”. Daarna verschijnt de woning hier automatisch.</p><Link className="primary-button" href="/#zoek-adres">Check je eerste adres <ArrowRight size={14} /></Link></div> : <div className="home-board">{activeHomes.map((saved) => {
-        const linkedCase = initialCases.find((item) => item.bagVboId === saved.bagVboId);
-        return <HomeBoardCard key={saved.bagVboId} saved={saved} analysis={analyses[saved.bagVboId]} preferences={workspace.preferences} stage={workspace.propertyStages[saved.bagVboId] ?? "saved"} caseId={linkedCase?.id} onStageChange={(stage) => setPropertyStage(saved.bagVboId, stage)} loading={loadingAnalyses && !analyses[saved.bagVboId]} />;
-      })}</div>}
-    </section>
+        <div className="cockpit-grid">
+          <section className="cockpit-card profile-card" id="woonprofiel">
+            <div className="card-heading"><div><div className="section-kicker">Stap 01 · Mijn woonprofiel</div><h2>Wat moet jouw volgende huis kunnen?</h2><p>Budget, huishouden en must-haves sturen de check. Geen marketingvoorkeuren, wel harde grenzen.</p></div><button className="icon-button" type="button" onClick={() => setEditingProfile((value) => !value)} aria-label="Woonprofiel bewerken"><Pencil size={15} /></button></div>
+            {editingProfile ? <ProfileForm profile={profile} setProfile={setProfile} updateNumber={updateNumber} onSave={saveProfile} /> : <ProfileSummary profile={profile} completion={completion} configured={profileConfigured} onEdit={() => setEditingProfile(true)} />}
+          </section>
+          <section className="cockpit-card next-action-card"><div className="section-kicker">Jouw volgende stap</div><h2>{nextAction.title}</h2><p>{nextAction.text}</p><Link className="primary-button" href={nextAction.href as never}>Open stap <ArrowRight size={15} /></Link><div className="action-note"><ShieldCheck size={14} /> WoonReality verstuurt geen bod en vervangt geen notaris of keurder.</div></section>
+        </div>
 
-    {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> stap 03 · koopdossier</div><h2>Actieve dossiers</h2><p>Documenten, taken en deadlines op één plek.</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{purchaseCase.stage}</span><strong>{purchaseCase.title}</strong><span>Open dossier <ArrowRight size={13} /></span></Link>)}</div></section>}
+        <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> stap 02 · mijn woningen</div><h2>Je woningbord</h2><p>Status volgt je acties zoveel mogelijk. Je kunt hem zelf bijstellen als de praktijk anders loopt.</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> Adres zoeken</Link></div>
+          {!hasHomes ? (
+            <EmptyState
+              icon={<Home size={20} />}
+              title="Nog geen woningen opgeslagen"
+              text="Open een woningcheck en klik op Bewaar. Daarna verschijnt de woning hier automatisch."
+              action={<Link className="primary-button" href="/#zoek-adres">Check je eerste adres <ArrowRight size={14} /></Link>}
+            />
+          ) : (
+            <div className="home-board">{activeHomes.map((saved) => {
+              const linkedCase = initialCases.find((item) => item.bagVboId === saved.bagVboId);
+              return <HomeBoardCard key={saved.bagVboId} saved={saved} analysis={analyses[saved.bagVboId]} preferences={workspace.preferences} stage={workspace.propertyStages[saved.bagVboId] ?? "saved"} caseId={linkedCase?.id} onStageChange={(stage) => setPropertyStage(saved.bagVboId, stage)} loading={loadingAnalyses && !analyses[saved.bagVboId]} />;
+            })}</div>
+          )}
+        </section>
 
-    <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> de aankoopcockpit</div><h2>Alles wat je nodig hebt na de advertentie</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title="Woningcheck" text="Feiten, bronnen, omgeving en risico's per adres." href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title="Documentdossier" text="Uploaden, lezen en tegenstrijdigheden vinden." href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : "/login"} /><Module icon={<WalletCards size={17} />} number="03" title="Waarde & bod" text="Vraagprijs, risico's, voorwaarden en je maximum — geen neptaxatie." href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#waarde-bod` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title="Hypotheek" text="Maximale lening op de leennormen 2026, ook als zelfstandige." href="/hypotheek" /></div></section>
+        {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> stap 03 · koopdossier</div><h2>Actieve dossiers</h2><p>Documenten, taken en deadlines op één plek.</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{caseStageLabel(purchaseCase.stage)}</span><strong>{purchaseCase.title}</strong><span>Open dossier <ArrowRight size={13} /></span></Link>)}</div></section>}
+
+        <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> de aankoopcockpit</div><h2>Alles wat je nodig hebt na de advertentie</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title="Woningcheck" text="Feiten, bronnen, omgeving en risico's per adres." href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title="Documentdossier" text="Uploaden, lezen en tegenstrijdigheden vinden." href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : "/login"} /><Module icon={<WalletCards size={17} />} number="03" title="Waarde & bod" text="Vraagprijs, risico's, voorwaarden en je maximum — geen neptaxatie." href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#bodconcept` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title="Hypotheek" text="Maximale lening op de leennormen 2026, ook als zelfstandige." href="/hypotheek" /></div></section>
+      </>
+    )}
   </div></main>;
 }
 
@@ -115,7 +147,7 @@ function ProfileForm({ profile, setProfile, updateNumber, onSave }: { profile: B
 function HomeBoardCard({ saved, analysis, preferences, stage, caseId, onStageChange, loading }: { saved: { bagVboId: string; addressLabel: string; city: string; postcode: string }; analysis?: Analysis; preferences: Parameters<typeof calculatePersonalFit>[1]; stage: PropertyStage; caseId?: string; onStageChange: (stage: PropertyStage) => void; loading: boolean }) {
   const personalFit = analysis ? calculatePersonalFit(analysis, preferences) : null;
   const attention = analysis?.highlights?.find((item) => item.type === "attention")?.text;
-  return <article className="home-board-card"><div className="home-card-top"><div className="home-card-address"><span className="home-card-icon"><MapPin size={15} /></span><div><h3>{saved.addressLabel.split(",")[0]}</h3><span>{saved.postcode} {saved.city}</span></div></div><span className="match-pill">{loading ? "…" : personalFit != null ? `${personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} fit` : analysis ? `${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} score` : "Onderzoek"}</span></div><div className="home-card-meta">{analysis?.property.areaM2 ? <span>{analysis.property.areaM2} m²</span> : <span>Oppervlakte laden</span>}{analysis?.property.buildingYear ? <span>Bouwjaar {analysis.property.buildingYear}</span> : null}</div>{attention && <div className="home-card-alert"><CircleAlert size={13} /> {attention}</div>}<div className="home-card-footer"><select aria-label={`Status van ${saved.addressLabel}`} value={stage} onChange={(event) => onStageChange(event.target.value as PropertyStage)}>{PROPERTY_STAGE_ORDER.map((option) => <option value={option} key={option}>{PROPERTY_STAGE_LABELS[option]}</option>)}</select><Link className="text-link" href={caseId ? `/mijn-aankoop/${caseId}` : `/woning/${saved.bagVboId}`}>{caseId ? "Open dossier" : "Open woningcheck"} <ArrowRight size={13} /></Link></div></article>;
+  return <article className="home-board-card"><div className="home-card-top"><div className="home-card-address"><span className="home-card-icon"><MapPin size={15} /></span><div><h3>{saved.addressLabel.split(",")[0]}</h3><span>{saved.postcode} {saved.city}</span></div></div><span className="match-pill">{loading ? "…" : personalFit != null ? `${personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} match` : analysis ? `${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} score` : "Onderzoek"}</span></div><div className="home-card-meta">{analysis?.property.areaM2 ? <span>{analysis.property.areaM2} m²</span> : <span>Oppervlakte laden</span>}{analysis?.property.buildingYear ? <span>Bouwjaar {analysis.property.buildingYear}</span> : null}</div>{attention && <div className="home-card-alert"><CircleAlert size={13} /> {attention}</div>}<div className="home-card-footer"><select aria-label={`Status van ${saved.addressLabel}`} value={stage} onChange={(event) => onStageChange(event.target.value as PropertyStage)}>{PROPERTY_STAGE_ORDER.map((option) => <option value={option} key={option}>{PROPERTY_STAGE_LABELS[option]}</option>)}</select><Link className="text-link" href={caseId ? `/mijn-aankoop/${caseId}` : `/woning/${saved.bagVboId}`}>{caseId ? "Open dossier" : "Open woningcheck"} <ArrowRight size={13} /></Link></div></article>;
 }
 
 function Module({ icon, number, title, text, href }: { icon: React.ReactNode; number: string; title: string; text: string; href: string }) {
