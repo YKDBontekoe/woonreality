@@ -1,15 +1,28 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { KeyRound, MailCheck } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/browser";
 import { authErrorMessage } from "@/src/lib/supabase/auth-message";
+import { fetchPasskeyAvailability } from "@/src/lib/supabase/passkey-availability";
 
 export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState(initialMessage);
   const [busy, setBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeysEnabled, setPasskeysEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetchPasskeyAvailability().then((availability) => {
+      if (!active) return;
+      if (availability.status === "enabled") setPasskeysEnabled(true);
+      else if (availability.status === "disabled") setPasskeysEnabled(false);
+      else setPasskeysEnabled(null);
+    });
+    return () => { active = false; };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,6 +47,10 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
   }
 
   async function signInWithPasskey() {
+    if (passkeysEnabled === false) {
+      setMessage(authErrorMessage({ code: "passkey_disabled" }, "Passkeys staan nog uit in dit project."));
+      return;
+    }
     if (!window.PublicKeyCredential) {
       setMessage("Deze browser ondersteunt nog geen passkeys. Ga verder met e-mail.");
       return;
@@ -59,8 +76,10 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       <input id="email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jij@email.nl" />
       <button className="primary-button" type="submit" disabled={busy}><MailCheck size={15} />{busy ? "Link wordt verstuurd…" : "Ga verder met e-mail"}</button>
     </form>
-    <div className="auth-divider"><span>of</span></div>
-    <button className="secondary-button passkey-login" type="button" onClick={signInWithPasskey} disabled={passkeyBusy}><KeyRound size={15} />{passkeyBusy ? "Passkey wordt gecontroleerd…" : "Log in met passkey"}</button>
+    {passkeysEnabled !== false && <>
+      <div className="auth-divider"><span>of</span></div>
+      <button className="secondary-button passkey-login" type="button" onClick={signInWithPasskey} disabled={passkeyBusy || passkeysEnabled === null}><KeyRound size={15} />{passkeyBusy ? "Passkey wordt gecontroleerd…" : "Log in met passkey"}</button>
+    </>}
     {message && <p className="form-message" role="status">{message}</p>}
     <p className="auth-helper">Nieuw hier? Je eerste e-maillink bevestigt je adres. Daarna kun je vrijblijvend een passkey toevoegen.</p>
   </div>;

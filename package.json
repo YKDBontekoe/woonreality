@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
+    "db:enable-passkeys": "node scripts/enable-hosted-passkeys.mjs",
     "vercel:link": "vercel link --yes --project woonreality",
     "vercel:deploy": "vercel --prod --yes"
   },
