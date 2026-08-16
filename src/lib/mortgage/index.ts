@@ -101,6 +101,26 @@ export type {
   YearTriple,
 } from "@/src/lib/mortgage/types";
 export { ENERGY_LABELS, parseCanonicalEnergyLabel } from "@/src/lib/mortgage/types";
+export {
+  MORTGAGE_STORAGE_KEY,
+  WORK_TYPES,
+  buyerProfileFromMortgageCapacity,
+  buildMortgageSnapshot,
+  calculatorFundsTotal,
+  calculatorStateToFinance,
+  defaultCalculatorState,
+  emptyPersonForm,
+  mortgageStateHasCapacity,
+  normalizeMortgageSnapshot,
+  personFinanceFromForm,
+  restoreCalculatorState,
+  switchIncomeEntry,
+} from "@/src/lib/mortgage/calculator-state";
+export type {
+  CalculatorState,
+  MortgageSnapshot,
+  PersonForm,
+} from "@/src/lib/mortgage/calculator-state";
 
 export function defaultMortgageFinance(nhg = false): MortgageFinance {
   return {

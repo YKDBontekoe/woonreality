@@ -332,6 +332,16 @@ a { color: inherit; text-decoration: none; }
 .ai-sources { margin-top: 18px; color: var(--muted); font-size: 11px; }
 .ai-sources a { display: block; margin-top: 8px; color: var(--moss); text-decoration: underline; text-underline-offset: 2px; }
 .listing-loading, .listing-card { border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.9); box-shadow: 0 7px 18px rgba(22,55,41,.025); }
+.buying-power-strip { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(180px, .6fr); gap: 1rem; margin-top: 12px; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 14px; background: #f7faf7; }
+.buying-power-strip.fit-fits { border-color: #c9dfcf; }
+.buying-power-strip.fit-tight { border-color: #efd6cc; background: #fcf8f5; }
+.buying-power-strip.fit-over { border-color: #e8c4c0; background: #fbf5f4; }
+.buying-power-strip strong { display: block; margin: .35rem 0 .4rem; font: 600 20px/1.1 "Space Grotesk", sans-serif; letter-spacing: -.04em; }
+.buying-power-strip p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.buying-power-strip-meta { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; justify-content: center; color: var(--muted); font-size: 11px; }
+@media (max-width: 700px) {
+  .buying-power-strip { grid-template-columns: 1fr; }
+}
 .listing-loading { padding: 18px; color: var(--muted); font-size: 12px; }
 .listing-card { overflow: hidden; }
 .listing-price-row { display: flex; justify-content: space-between; gap: 20px; padding: 21px; background: var(--accent-soft); border-bottom: 1px solid var(--mint-border); }
@@ -481,6 +491,21 @@ a { color: inherit; text-decoration: none; }
 .cockpit-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 1.5rem; margin: 1.4rem 0 2.2rem; }
 .cockpit-heading h1 { margin: .7rem 0 .6rem; font: 600 clamp(42px, 6vw, 66px)/.96 "Space Grotesk", sans-serif; letter-spacing: -.08em; }
 .cockpit-heading .hero-copy { max-width: 620px; margin: 0; }
+.buying-power-hero { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 1.2rem; margin-bottom: 1.2rem; padding: 1.35rem 1.45rem; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(135deg, #f4f8f4 0%, #fff 55%); }
+.buying-power-copy h2 { margin: .4rem 0 .55rem; font: 600 28px/1.05 "Space Grotesk", sans-serif; letter-spacing: -.055em; }
+.buying-power-copy p { max-width: 420px; margin: 0 0 1rem; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+.buying-power-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--line); align-self: stretch; }
+.buying-power-stats > div { min-width: 0; padding: 1rem 1.1rem; background: white; }
+.buying-power-stats span { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
+.buying-power-stats span svg { color: var(--moss); }
+.buying-power-stats strong { display: block; overflow: hidden; margin: .55rem 0 .2rem; color: var(--moss); font: 600 22px/1 "Space Grotesk", sans-serif; letter-spacing: -.05em; text-overflow: ellipsis; white-space: nowrap; }
+.buying-power-stats small { display: block; color: var(--muted); font-size: 10px; }
+.pipeline-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin-bottom: 1.2rem; border: 1px solid var(--line); border-radius: 16px; background: var(--line); }
+.pipeline-item { min-width: 0; padding: 1rem 1.1rem; background: white; }
+.pipeline-item strong { display: block; margin-bottom: .25rem; color: var(--moss); font: 600 22px/1 "Space Grotesk", sans-serif; letter-spacing: -.05em; }
+.pipeline-item strong.stat-action { color: var(--ink); font-size: 14px; white-space: normal; }
+.pipeline-item span { color: var(--muted); font-size: 10px; }
+.pipeline-next { background: #f7faf7; }
 .cockpit-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin-bottom: 1.2rem; border: 1px solid var(--line); border-radius: 16px; background: var(--line); }
 .cockpit-stats > div { min-width: 0; padding: 1.1rem 1.2rem; background: white; }
 .cockpit-stats span { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
@@ -524,6 +549,28 @@ a { color: inherit; text-decoration: none; }
 .cockpit-section { margin-top: 3.8rem; scroll-margin-top: 20px; }
 .home-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
 .home-board-card { min-width: 0; padding: 1.1rem; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.home-board-card.fit-fits { border-color: #c9dfcf; }
+.home-board-card.fit-tight { border-color: #efd6cc; }
+.home-board-card.fit-over { border-color: #e8c4c0; }
+.home-card-money { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; margin: .85rem 0 .55rem; }
+.home-card-money label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+.home-card-money input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; font: 12px "DM Mono", monospace; background: #fbfcfa; }
+.fit-badge { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.fit-badge.fit-fits { color: #1f5a3a; background: #e5f3ea; }
+.fit-badge.fit-tight { color: #8d523b; background: #fcf0eb; }
+.fit-badge.fit-over { color: #8a2f2f; background: #f8e6e4; }
+.fit-badge.fit-unknown { color: var(--muted); background: #f1f3ef; }
+.home-card-afford { margin: 0 0 .7rem; padding: .7rem .75rem; border-radius: 10px; background: #f6f8f4; }
+.home-card-afford p { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+.renovation-chip { display: inline-flex; align-items: center; gap: 5px; margin-top: .55rem; margin-right: .4rem; padding: .3rem .55rem; border-radius: 999px; color: #1f5a3a; background: #e5f3ea; font-size: 10px; font-weight: 600; }
+.renovation-chip.muted { color: var(--muted); background: #eef1ec; font-weight: 500; }
+.profile-mortgage-note { margin: .85rem 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.profile-mortgage-note a { color: var(--moss); font-weight: 600; }
+.account-section .account-panel { display: grid; gap: 1rem; padding: 1.2rem 1.3rem; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.account-email { display: grid; gap: 4px; }
+.account-email small { color: var(--muted); font-size: 10px; }
+.account-email strong { font-size: 14px; }
+.account-section .secondary-button { align-self: start; }
 .home-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .home-card-address { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .home-card-icon { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 9px; color: var(--moss); background: #eaf4eb; }
@@ -618,6 +665,8 @@ a { color: inherit; text-decoration: none; }
 .workflow-date > span.date-warning { color: var(--coral-deep); }
 .workflow-disclaimer { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; padding: 11px 13px; border: 1px dashed #cbd9ce; border-radius: 10px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 @media (max-width: 850px) {
+  .buying-power-hero, .pipeline-strip { grid-template-columns: 1fr; }
+  .buying-power-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cockpit-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cockpit-grid { grid-template-columns: 1fr; }
   .home-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -628,7 +677,7 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 620px) {
   .cockpit-heading { display: grid; align-items: start; }
   .cockpit-heading .primary-button { width: 100%; justify-content: center; }
-  .cockpit-stats, .home-board, .case-mini-grid, .module-grid { grid-template-columns: 1fr; }
+  .cockpit-stats, .home-board, .case-mini-grid, .module-grid, .pipeline-strip, .buying-power-stats { grid-template-columns: 1fr; }
   .profile-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bid-options { grid-template-columns: 1fr; }
@@ -871,6 +920,9 @@ button.text-link { background: none; border: 0; padding: 0; }
 .mortgage-heading h1 { max-width: 640px; margin: 16px 0 14px; font: 600 clamp(36px, 4.6vw, 58px)/1.02 "Space Grotesk", sans-serif; letter-spacing: -.06em; }
 .mortgage-heading-note { max-width: 280px; display: flex; gap: 10px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .mortgage-heading-note svg { flex: none; color: var(--moss); margin-top: 2px; }
+.mortgage-account-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid var(--line); border-radius: 12px; background: #f7faf7; color: var(--muted); font-size: 13px; }
+.mortgage-account-bar span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mortgage-account-bar a { color: var(--moss); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .mortgage-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 22px; align-items: start; }
 .mortgage-form-card, .mortgage-result-card { background: white; border: 1px solid var(--line); border-radius: 20px; padding: 22px; box-shadow: 0 12px 36px rgba(36, 75, 60, .05); }
 .mortgage-result-card { position: sticky; top: 18px; scroll-margin-top: 18px; }
