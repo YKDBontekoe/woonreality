@@ -11,6 +11,7 @@ export type WorkspaceData = {
   mortgageState: CalculatorState | null;
   mortgageSnapshot: MortgageSnapshot | null;
   mortgageConfigured: boolean;
+  onboardingDismissed: boolean;
   saved: SavedProperty[];
   compare: string[];
   propertyStages: Record<string, PropertyStage>;
@@ -25,6 +26,7 @@ export const emptyWorkspace = (): WorkspaceData => ({
   mortgageState: null,
   mortgageSnapshot: null,
   mortgageConfigured: false,
+  onboardingDismissed: false,
   saved: [],
   compare: [],
   propertyStages: {},

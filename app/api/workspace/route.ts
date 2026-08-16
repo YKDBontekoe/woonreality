@@ -9,6 +9,7 @@ import {
   restoreCalculatorState,
   type CalculatorState,
 } from "@/src/lib/mortgage/calculator-state";
+import { parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
@@ -81,6 +82,7 @@ async function readWorkspace() {
       mortgageState,
       mortgageSnapshot,
       mortgageConfigured,
+      onboardingDismissed: parseOnboardingDismissed(profilePreferences),
       saved: savedProperties.map((item): SavedProperty => ({
         bagVboId: item.bag_vbo_id,
         addressLabel: item.address_label,
@@ -179,6 +181,20 @@ export async function POST(request: Request) {
         asking_price: body.askingPrice > 0 ? body.askingPrice : null,
         updated_at: now,
       }, { onConflict: "user_id,bag_vbo_id" });
+      if (error) throw error;
+    } else if (body.action === "onboarding") {
+      if (!body.dismissOnboarding) return NextResponse.json({ error: "Geef dismissOnboarding mee." }, { status: 400 });
+      const onboardingPatch = { dismissedAt: now };
+      if (!preferencesJsonWithinLimit({ onboarding: onboardingPatch })) {
+        return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
+      }
+      const { error } = await result.supabase.rpc("merge_profile_preferences", {
+        p_preferences: null,
+        p_buyer_profile: null,
+        p_compare_ids: null,
+        p_mortgage: null,
+        p_onboarding: onboardingPatch,
+      });
       if (error) throw error;
     } else {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });

@@ -2,7 +2,14 @@ import { redirect } from "next/navigation";
 import { PurchaseCockpit } from "@/components/purchase-cockpit";
 import { SiteHeader } from "@/components/site-header";
 import { normalizeCaseStage } from "@/src/lib/journey";
+import { parseOnboardingDismissed, shouldRedirectToOnboarding } from "@/src/lib/onboarding";
+import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, normalizeBuyerProfile } from "@/src/lib/purchase";
+import { mortgageStateHasCapacity, restoreCalculatorState } from "@/src/lib/mortgage/calculator-state";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
 
 export default async function MyPurchasePage({ searchParams }: { searchParams: Promise<{ case?: string; setup?: string }> }) {
   const params = await searchParams;
@@ -18,8 +25,22 @@ export default async function MyPurchasePage({ searchParams }: { searchParams: P
     if (!auth.user) redirect("/login");
     account = { email: auth.user.email ?? "Je e-mailadres", emailConfirmed: Boolean(auth.user.email_confirmed_at), suggestPasskey: params.setup === "passkey" };
     if (configured) {
-      const { data } = await supabase.from("purchase_cases").select("id,title,stage,status,updated_at,properties(bag_vbo_id)").eq("user_id", auth.user.id).order("updated_at", { ascending: false });
-      cases = (data ?? []).map((row) => {
+      const [casesResult, profileResult] = await Promise.all([
+        supabase.from("purchase_cases").select("id,title,stage,status,updated_at,properties(bag_vbo_id)").eq("user_id", auth.user.id).order("updated_at", { ascending: false }),
+        supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle(),
+      ]);
+      if (profileResult.error) throw profileResult.error;
+      const prefs = record(profileResult.data?.preferences_json);
+      const buyerProfile = normalizeBuyerProfile(prefs.buyerProfile ?? EMPTY_BUYER_PROFILE);
+      const mortgageState = prefs.mortgageState ? restoreCalculatorState(prefs.mortgageState) : null;
+      if (shouldRedirectToOnboarding({
+        mortgageConfigured: mortgageStateHasCapacity(mortgageState),
+        buyerProfileConfigured: buyerProfileIsConfigured(buyerProfile, prefs.buyerProfile),
+        onboardingDismissed: parseOnboardingDismissed(prefs),
+      })) {
+        redirect(params.setup === "passkey" ? "/onboarding?setup=passkey" : "/onboarding");
+      }
+      cases = (casesResult.data ?? []).map((row) => {
         const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
         return {
           id: row.id,
