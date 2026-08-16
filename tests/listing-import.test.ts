@@ -152,12 +152,15 @@ test("extractFundaListingFromHtml reads JSON-LD, kenmerken and free text", () =>
   assert.match(facts.description ?? "", /Lichte hoekwoning/);
   assert.ok(facts.sections?.some((section) => /Buurt/i.test(section.title) && /Veluwe/i.test(section.text)));
   assert.equal(facts.extraKenmerken?.["Eigendomssituatie"], "Volle eigendom");
+  assert.equal(facts.ownership, "Volle eigendom");
+  assert.match(facts.neighborhood ?? "", /Veluwe/i);
   assert.ok(facts.notes.some((note) => /erfpacht/i.test(note)));
   const listing = listingFromImportedFacts(LISTING_URL, facts, "2026-08-16T10:00:00.000Z");
   assert.equal(listing.provider, "Funda (door jou toegevoegd)");
   assert.equal(listing.externalId, "12345678");
   assert.equal(listing.pricePerM2, Math.round(525000 / 128));
   assert.match(listing.description ?? "", /Lichte hoekwoning/);
+  assert.equal(listing.ownership, "Volle eigendom");
 });
 
 test("mergeListingFacts keeps existing values and fills gaps", () => {

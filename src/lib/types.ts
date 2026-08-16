@@ -156,6 +156,10 @@ export type PropertyListing = {
   municipality?: string;
   province?: string;
   description?: string;
+  /** Eigendomssituatie van de grond, bv. "Eigen grond" of "Erfpacht". Niet in BAG. */
+  ownership?: string;
+  /** Buurtomschrijving uit de advertentie. Geen woningwaardering. */
+  neighborhood?: string;
   extraKenmerken?: Record<string, string>;
   textSections?: { title: string; text: string }[];
   notes?: string[];

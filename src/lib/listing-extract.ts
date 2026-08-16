@@ -252,6 +252,8 @@ export function listingFromImportedFacts(
     pricePerM2,
     description: facts.description,
     addressLabel: facts.addressLabel,
+    ownership: facts.ownership,
+    neighborhood: facts.neighborhood,
     extraKenmerken: facts.extraKenmerken && Object.keys(facts.extraKenmerken).length ? facts.extraKenmerken : undefined,
     textSections: facts.sections?.length ? facts.sections : undefined,
     notes: facts.notes.length ? facts.notes : undefined,
