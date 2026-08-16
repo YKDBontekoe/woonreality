@@ -29,6 +29,7 @@ type VboFeature = GeoJsonFeature & {
     oppervlakte?: number;
     pand?: { href?: string }[] | string[];
     "pand.href"?: string[];
+    gebruiksdoel?: string | string[];
   };
 };
 
@@ -54,19 +55,32 @@ function firstIdFromHref(value: unknown) {
   return href.split("/").pop()?.split("?")[0];
 }
 
+function pandIdsFromProps(props: VboFeature["properties"]) {
+  const relationValues = Array.isArray(props["pand.href"]) ? props["pand.href"] : props.pand;
+  return Array.isArray(relationValues)
+    ? relationValues.flatMap((item) => typeof item === "string" ? [item.split("/").pop()?.split("?")[0]] : [firstIdFromHref(item)])
+        .filter((id): id is string => Boolean(id))
+    : [];
+}
+
+function usagePurposesFromProps(props: VboFeature["properties"]) {
+  const raw = props.gebruiksdoel;
+  if (Array.isArray(raw)) return raw.filter((value): value is string => typeof value === "string");
+  return typeof raw === "string" ? [raw] : [];
+}
+
 export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
   const vboCollection = await getJson<{ features?: VboFeature[] }>(pdokBagVboSearchUrl(bagVboId), 604_800);
   const vbo = vboCollection.features?.[0];
   if (!vbo) throw new Error(`BAG verblijfsobject ${bagVboId} not found`);
 
   const props = vbo.properties;
-  const relationValues = Array.isArray(props["pand.href"])
-    ? props["pand.href"]
-    : props.pand;
-  const pandIds = Array.isArray(relationValues)
-    ? relationValues.flatMap((item) => typeof item === "string" ? [item.split("/").pop()?.split("?")[0]] : [firstIdFromHref(item)])
-        .filter((id): id is string => Boolean(id))
-    : [];
+  const pandIds = pandIdsFromProps(props);
+  const usagePurposes = usagePurposesFromProps(props);
+  // Only mark non-residential when BAG explicitly reports gebruiksdoel(en)
+  // that exclude "woonfunctie" — an empty/missing list means "unknown", not
+  // "not residential", so we should not warn on it.
+  const isResidential = usagePurposes.length === 0 || usagePurposes.includes("woonfunctie");
 
   const pandFeatures = await Promise.all(
     pandIds.slice(0, 3).map((id) => getJson<PandFeature>(pdokBagFeatureUrl("pand", id), 604_800)),
@@ -94,6 +108,8 @@ export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
     buildingYear: primaryPand?.properties?.bouwjaar,
     areaM2: props.oppervlakte,
     buildingGeometry: primaryPand?.geometry,
+    usagePurposes,
+    isResidential,
   };
 }
 
@@ -128,12 +144,14 @@ export async function getNearbyProperties(property: Property, radiusM = 150): Pr
     const city = typeof feature.properties.woonplaats_naam === "string" ? feature.properties.woonplaats_naam : "";
     const postcode = typeof feature.properties.postcode === "string" ? feature.properties.postcode : "";
     const areaM2 = typeof feature.properties.oppervlakte === "number" ? feature.properties.oppervlakte : undefined;
+    const pandIds = pandIdsFromProps(feature.properties);
     return [{
       bagVboId,
       addressLabel: `${street} ${houseNumber}${suffix ? `-${suffix}` : ""}${postcode || city ? `, ${postcode} ${city}`.trimEnd() : ""}`,
       areaM2,
       distanceM: Math.round(distanceM),
       coordinates,
+      pandIds: pandIds.length ? pandIds : undefined,
     }];
   }).sort((a, b) => a.distanceM - b.distanceM).slice(0, 12);
 }

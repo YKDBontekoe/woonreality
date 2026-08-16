@@ -45,6 +45,8 @@ export type DomainSummary = {
   signalKeys: string[];
   available: boolean;
   summary: string;
+  /** True when a signal in this domain (e.g. fundering) is flagged "attention" but has no numeric score, so the average above understates the real risk. */
+  hasUnscoredAttention: boolean;
 };
 
 export type EverydayInsight = {
@@ -98,6 +100,10 @@ export type Property = {
   buildingYear?: number;
   areaM2?: number;
   buildingGeometry?: Geometry;
+  /** BAG gebruiksdoel(en), e.g. ["woonfunctie"]. Empty/undefined when BAG did not report a value. */
+  usagePurposes?: string[];
+  /** False only when BAG explicitly reports gebruiksdoel(en) that exclude "woonfunctie" (e.g. a museum or office). */
+  isResidential: boolean;
 };
 
 export type NearbyProperty = {
@@ -106,6 +112,8 @@ export type NearbyProperty = {
   areaM2?: number;
   distanceM: number;
   coordinates: Coordinates;
+  /** BAG pand id(s) this verblijfsobject belongs to, used to detect shared buildings (likely appartement/VvE). */
+  pandIds?: string[];
 };
 
 export type PropertyListing = {
