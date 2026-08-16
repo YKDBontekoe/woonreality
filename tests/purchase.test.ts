@@ -140,6 +140,51 @@ test("task engine asks for core documents and a bid when the stage requires it",
   assert.ok(tasks.some((task) => /Lekkage/.test(task.title)));
 });
 
+test("task engine derives bedenktijd and voorbehoud deadlines once the koopovereenkomst is signed", () => {
+  const signedToday = new Date();
+  const signedAt = `${signedToday.getFullYear()}-${String(signedToday.getMonth() + 1).padStart(2, "0")}-${String(signedToday.getDate()).padStart(2, "0")}`;
+  const tasks = suggestCaseTasks({
+    profileConfigured: true,
+    profile: DEFAULT_BUYER_PROFILE,
+    stage: "contract",
+    caseId: "11111111-1111-1111-1111-111111111111",
+    bagVboId: "0232010000003562",
+    documentTypes: ["brochure", "vragenlijst"],
+    openFindings: [],
+    hasAskingPrice: true,
+    hasOffer: true,
+    hasContractAmount: true,
+    contractSignedAt: signedAt,
+    financingWeeks: 6,
+    inspectionWeeks: 2,
+  });
+  const bedenktijd = tasks.find((task) => task.key === "deadline-bedenktijd");
+  const financing = tasks.find((task) => task.key === "deadline-financing");
+  const inspection = tasks.find((task) => task.key === "deadline-inspection");
+  assert.ok(bedenktijd?.dueAt);
+  assert.ok(financing?.dueAt);
+  assert.ok(inspection?.dueAt);
+  assert.ok(new Date(bedenktijd!.dueAt!).getTime() < new Date(financing!.dueAt!).getTime());
+});
+
+test("task engine skips deadlines that already passed", () => {
+  const tasks = suggestCaseTasks({
+    profileConfigured: true,
+    profile: DEFAULT_BUYER_PROFILE,
+    stage: "contract",
+    caseId: "11111111-1111-1111-1111-111111111111",
+    bagVboId: "0232010000003562",
+    documentTypes: ["brochure", "vragenlijst"],
+    openFindings: [],
+    hasAskingPrice: true,
+    hasOffer: true,
+    hasContractAmount: true,
+    contractSignedAt: "2020-01-05",
+    financingWeeks: 6,
+  });
+  assert.equal(tasks.some((task) => task.key.startsWith("deadline-")), false);
+});
+
 test("engine task hrefs resolve persisted sources without rebuilding suggestions", () => {
   assert.equal(hrefForTask({ source: "engine:finding-Lekkage" }, { caseId: "abc" }), "/mijn-aankoop/abc#bevindingen");
   assert.equal(hrefForTask({ source: "engine:contract-check" }, { caseId: "abc" }), "/mijn-aankoop/abc#koopakte");

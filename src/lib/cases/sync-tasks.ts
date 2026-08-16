@@ -28,6 +28,10 @@ export async function loadTaskEngineInput(
   if (valuationError) throw valuationError;
   const prefs = record(profile?.preferences_json);
   const buyerProfile = normalizeBuyerProfile(prefs.buyerProfile);
+  const conditions = record(bid?.conditions);
+  const contractSignedAt = typeof conditions.contractSignedAt === "string" ? conditions.contractSignedAt : null;
+  const financingWeeks = typeof conditions.financingWeeks === "number" ? conditions.financingWeeks : null;
+  const inspectionWeeks = typeof conditions.inspectionWeeks === "number" ? conditions.inspectionWeeks : null;
   return {
     profile: buyerProfile,
     profileConfigured: buyerProfileIsConfigured(buyerProfile, prefs.buyerProfile),
@@ -38,7 +42,10 @@ export async function loadTaskEngineInput(
     openFindings: findings ?? [],
     hasAskingPrice: Boolean(record(valuation?.methodology).askingPrice ?? valuation?.midpoint_value),
     hasOffer: Boolean(bid?.amount),
-    hasContractAmount: Boolean(record(bid?.conditions).contractAmount),
+    hasContractAmount: Boolean(conditions.contractAmount),
+    contractSignedAt,
+    financingWeeks,
+    inspectionWeeks,
   };
 }
 
@@ -74,6 +81,7 @@ export async function syncEngineTasks(supabase: ServerClient, userId: string, in
     priority: task.priority,
     source: task.source,
     status: "open",
+    due_at: task.dueAt ?? null,
   }));
   if (!rows.length) return suggestions;
   const { error: insertError } = await supabase.from("case_tasks").insert(rows);
