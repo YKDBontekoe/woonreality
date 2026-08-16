@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CASE_STAGES } from "@/src/lib/journey";
 
 const propertyStageSchema = z.enum(["saved", "research", "viewing", "visited", "offer", "offered", "negotiation", "accepted", "dropped", "bought"]);
 const preferencesSchema = z.object({
@@ -9,7 +10,7 @@ const preferencesSchema = z.object({
   climate: z.number().finite().min(1).max(5),
   future: z.number().finite().min(1).max(5),
 }).strict();
-const buyerProfileSchema = z.object({
+export const buyerProfileSchema = z.object({
   budget: z.number().finite().nonnegative(),
   monthlyPayment: z.number().finite().nonnegative(),
   ownFunds: z.number().finite().nonnegative(),
@@ -18,6 +19,16 @@ const buyerProfileSchema = z.object({
   garden: z.boolean(),
   parking: z.boolean(),
   remoteWork: z.boolean(),
+  household: z.enum(["single", "couple", "family"]),
+  householdSpecified: z.boolean().optional(),
+  propertyType: z.enum(["any", "house", "apartment"]),
+  firstTimeBuyer: z.boolean(),
+  buyerAge: z.number().int().min(0).max(120).optional(),
+  selfOccupied: z.boolean().optional(),
+  priorExemptionUsed: z.boolean().optional(),
+  nhg: z.boolean(),
+  acceptVve: z.boolean(),
+  maxCommuteMinutes: z.number().int().min(0).max(240),
 }).strict();
 
 export const workspaceBodySchema = z.object({
@@ -53,3 +64,29 @@ export const checklistBodySchema = z.object({
 }).strict();
 
 export const MAX_CHECKLIST_BODY_BYTES = 64_000;
+
+export const caseStageSchema = z.enum(CASE_STAGES);
+
+export const workflowBodySchema = z.object({
+  askingPrice: z.number().finite().nonnegative().nullable().optional(),
+  offerAmount: z.number().finite().nonnegative().nullable().optional(),
+  financingAmount: z.number().finite().nonnegative().nullable().optional(),
+  contractAmount: z.number().finite().nonnegative().nullable().optional(),
+  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  financingCondition: z.boolean().optional(),
+  inspectionCondition: z.boolean().optional(),
+  scenario: z.enum(["cautious", "balanced", "strong"]).optional(),
+  reasons: z.array(z.string().max(240)).max(8).optional(),
+  stage: caseStageSchema.optional(),
+}).strict();
+
+export const userListingBodySchema = z.object({
+  askingPrice: z.number().finite().nonnegative().nullable().optional(),
+  sourceUrl: z.string().url().max(500).nullable().optional(),
+  pastedText: z.string().max(20_000).nullable().optional(),
+}).strict();
+
+export const viewingDebriefSchema = z.object({
+  decision: z.enum(["continue", "doubt", "drop"]),
+  caseId: z.string().uuid().optional(),
+}).strict();
