@@ -59,6 +59,9 @@ export function buildBidStrategy(askingPrice: number, analysis?: Analysis | null
     if (overBudget) reasons.push(`Afgetopt op je maximum van ${new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(budget!)}.`);
     if (!inspectionCondition) reasons.push("Zonder keuringsvoorbehoud draag je bouwkundig risico zelf.");
     if (!financingCondition) reasons.push("Zonder financieringsvoorbehoud kun je de boete van 10% riskeren als de bank niet meegaat.");
+    if (amount > askingPrice) {
+      reasons.push("Boven de vraagprijs: de bank leent op basis van de taxatiewaarde of de koopsom (laagste van de twee). Het verschil met de taxatiewaarde moet je uit eigen zak bijleggen.");
+    }
     return { key, label: LABELS[key], amount, financingCondition, inspectionCondition, reasons, overBudget };
   }
 
@@ -70,11 +73,13 @@ export function buildBidStrategy(askingPrice: number, analysis?: Analysis | null
     riskDiscount > 0 ? "Vraagprijs gecorrigeerd voor aandachtspunten uit de woningcheck." : "Rond de vraagprijs, met beide ontbindende voorwaarden.",
     firstTime ? "Als starter is een keuringsvoorbehoud extra verstandig." : "Voorbehouden houden de koop omkeerbaar tot de deadlines.",
   ]);
+  // Financieringsvoorbehoud laten we nooit vervallen voor starters: zij hebben
+  // doorgaans geen overwaarde of buffer om een afgewezen aanvraag op te vangen.
   const strong = analysisAvailable
     ? scenario(
       "strong",
       1 + (attention.length === 0 ? 0.01 : 0),
-      !firstTime && attention.length === 0,
+      firstTime ? true : attention.length === 0,
       attention.length === 0 && !foundationRisk,
       attention.length === 0
         ? ["Alleen een klein surplus als de open data weinig rode vlaggen toont.", "Dit is geen winkansvoorspelling: biedconcurrentie kennen we niet."]
