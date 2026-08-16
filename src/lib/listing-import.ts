@@ -60,6 +60,7 @@ const MAX_BYTES = 8_000_000;
 const USER_AGENT = "WoonReality/0.1 (user-initiated listing import)";
 const SMALL_STREET_WORDS = new Set(["de", "den", "der", "van", "het", "en", "'s"]);
 const PAYWALLED = /log in om te bekijken/i;
+const FUNDA_OBJECT_TYPES = "huis|appartement|penthouse|villa|bungalow|woonboerderij|herenhuis|studio|parkeergelegenheid|bouwgrond|ligplaats|woonboot|recreatiewoning|garage|kamer";
 
 export function isFundaHost(hostname: string) {
   return hostname.toLowerCase().replace(/^www\./, "") === "funda.nl";
@@ -101,6 +102,18 @@ function titleCaseSlug(slug: string) {
   }).join(" ");
 }
 
+function parseStreetFromSlug(streetSlug: string) {
+  const streetMatch = streetSlug.match(/^(.+)-(\d+)(?:-([a-z0-9]))?$/i);
+  if (!streetMatch) return null;
+  const houseNumber = Number(streetMatch[2]);
+  if (!Number.isFinite(houseNumber)) return null;
+  return {
+    street: titleCaseSlug(streetMatch[1]),
+    houseNumber,
+    houseLetter: streetMatch[3] ? streetMatch[3].toUpperCase() : undefined,
+  };
+}
+
 export function parseFundaListingAddress(value: string) {
   const normalized = normalizeFundaListingUrl(value);
   if (!normalized) return null;
@@ -109,22 +122,18 @@ export function parseFundaListingAddress(value: string) {
   if (!match) return null;
   const city = titleCaseSlug(match[1]);
   const slug = match[2].toLowerCase().replace(/-bouwnr-\d+$/, "");
-  const objectAndRest = slug.match(/^(huis|appartement|parkeergelegenheid|bouwgrond|ligplaats|woonboot|recreatiewoning|garage|kamer)-(\d{4,})-(.+)$/);
-  if (!objectAndRest) {
-    return city ? { city, query: city, sourceUrl: normalized } : null;
-  }
-  const streetSlug = objectAndRest[3];
-  const streetMatch = streetSlug.match(/^(.+)-(\d+)(?:-([a-z0-9]))?$/i);
-  if (!streetMatch) return { city, query: city, sourceUrl: normalized };
-  const street = titleCaseSlug(streetMatch[1]);
-  const houseNumber = Number(streetMatch[2]);
-  const houseLetter = streetMatch[3] ? streetMatch[3].toUpperCase() : undefined;
-  const addressLabel = `${street} ${houseNumber}${houseLetter ?? ""}`.trim();
+  const withListingId = slug.match(new RegExp(`^(?:${FUNDA_OBJECT_TYPES})-(\\d{4,})-(.+)$`));
+  const withoutListingId = withListingId ? null : slug.match(new RegExp(`^(?:${FUNDA_OBJECT_TYPES})-(.+)$`));
+  const streetSlug = withListingId?.[2] ?? withoutListingId?.[1];
+  if (!streetSlug) return city ? { city, sourceUrl: normalized } : null;
+  const parsedStreet = parseStreetFromSlug(streetSlug);
+  if (!parsedStreet) return { city, sourceUrl: normalized };
+  const addressLabel = `${parsedStreet.street} ${parsedStreet.houseNumber}${parsedStreet.houseLetter ?? ""}`.trim();
   return {
     city,
-    street,
-    houseNumber: Number.isFinite(houseNumber) ? houseNumber : undefined,
-    houseLetter,
+    street: parsedStreet.street,
+    houseNumber: parsedStreet.houseNumber,
+    houseLetter: parsedStreet.houseLetter,
     addressLabel,
     query: `${addressLabel}, ${city}`,
     sourceUrl: normalized,
@@ -136,9 +145,11 @@ export function addressQueryFromFacts(facts: ImportedListingFacts, sourceUrl?: s
     const house = `${facts.street} ${facts.houseNumber}${facts.houseLetter ?? ""}`;
     return facts.postcode ? `${house}, ${facts.postcode} ${facts.city}` : `${house}, ${facts.city}`;
   }
-  if (facts.addressLabel && facts.city) return `${facts.addressLabel}, ${facts.city}`;
-  if (facts.addressLabel) return facts.addressLabel;
-  return sourceUrl ? parseFundaListingAddress(sourceUrl)?.query : undefined;
+  if (facts.addressLabel && /\d/.test(facts.addressLabel) && facts.city) return `${facts.addressLabel}, ${facts.city}`;
+  if (facts.addressLabel && /\d/.test(facts.addressLabel)) return facts.addressLabel;
+  const parsed = sourceUrl ? parseFundaListingAddress(sourceUrl) : undefined;
+  if (parsed?.street && parsed.houseNumber) return parsed.query;
+  return undefined;
 }
 
 export function isFundaChallengeHtml(html: string) {
@@ -361,6 +372,22 @@ function parseStatus(value: string): PropertyListing["status"] | undefined {
   return undefined;
 }
 
+function labelledKenmerkArea(facts: ImportedListingFacts, labels: string[]) {
+  const extra = facts.extraKenmerken ?? {};
+  for (const label of labels) {
+    const parsed = extra[label] ? parseArea(extra[label]) : undefined;
+    if (parsed != null && parsed >= 8 && parsed <= 8_000) return parsed;
+  }
+  return undefined;
+}
+
+function preferLabelledAreas(facts: ImportedListingFacts) {
+  const living = labelledKenmerkArea(facts, ["Wonen", "Woonoppervlakte", "Gebruiksoppervlakte wonen"]);
+  if (living != null && living >= 20 && living <= 600) facts.livingAreaM2 = living;
+  const plot = labelledKenmerkArea(facts, ["Perceel", "Perceeloppervlakte"]);
+  if (plot != null && plot >= 40 && plot <= 8_000) facts.plotAreaM2 = plot;
+}
+
 function applyKenmerk(label: string, value: string, facts: ImportedListingFacts) {
   const key = label.toLowerCase().replace(/\s+/g, " ").trim();
   const text = value.replace(/\s+/g, " ").trim();
@@ -564,6 +591,7 @@ export function extractFundaListingFromHtml(html: string): ImportedListingFacts 
   $("script,style,noscript,svg,nav,footer").remove();
   const visible = ($("main").text() || $("body").text() || $.root().text()).replace(/\s+/g, " ").trim();
   const merged = mergeListingFacts(facts, extractListingFacts(visible.slice(0, 25_000)));
+  preferLabelledAreas(merged);
   if (merged.askingPrice) {
     merged.notes = uniqueNotes(merged.notes.filter((note) => !/geen overtuigende vraagprijs/i.test(note)));
   }

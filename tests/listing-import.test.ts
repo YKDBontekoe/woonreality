@@ -84,6 +84,35 @@ test("parseFundaListingAddress reads city, street and house number from the slug
   assert.equal(amsterdam?.street, "Van Leijenberghlaan");
   assert.equal(amsterdam?.houseNumber, 2);
   assert.equal(amsterdam?.houseLetter, "T");
+  const currentFormat = parseFundaListingAddress("https://www.funda.nl/detail/koop/epe/appartement-brinklaan-3/43346549/");
+  assert.equal(currentFormat?.city, "Epe");
+  assert.equal(currentFormat?.street, "Brinklaan");
+  assert.equal(currentFormat?.houseNumber, 3);
+  assert.equal(currentFormat?.query, "Brinklaan 3, Epe");
+  const apeldoorn = parseFundaListingAddress("https://www.funda.nl/detail/koop/apeldoorn/appartement-korenstraat-26/43923102/");
+  assert.equal(apeldoorn?.street, "Korenstraat");
+  assert.equal(apeldoorn?.houseNumber, 26);
+  assert.equal(apeldoorn?.city, "Apeldoorn");
+  assert.equal(apeldoorn?.query, "Korenstraat 26, Apeldoorn");
+});
+
+test("extractFundaListingFromHtml prefers labelled Wonen over JSON-LD floorSize", () => {
+  const html = `<!doctype html><html><body>
+<script type="application/ld+json">
+{"@type":"Apartment","floorSize":{"value":31,"unitCode":"MTK"},"offers":{"price":635000}}
+</script>
+<dl>
+  <dt>Vraagprijs</dt><dd>€ 635.000 k.k.</dd>
+  <dt>Wonen</dt><dd>127 m²</dd>
+  <dt>Buitenruimte</dt><dd>9 m²</dd>
+  <dt>Inhoud</dt><dd>373 m³</dd>
+</dl>
+</body></html>`;
+  const facts = extractFundaListingFromHtml(html);
+  assert.equal(facts.livingAreaM2, 127);
+  assert.equal(facts.askingPrice, 635000);
+  assert.equal(facts.outdoorSpaceM2, 9);
+  assert.equal(facts.extraKenmerken?.Wonen, "127 m²");
 });
 
 test("extractFundaListingFromHtml reads JSON-LD, kenmerken and free text", () => {
