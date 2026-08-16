@@ -83,6 +83,11 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   const nearestRoadM = bgt.roads.length
     ? Math.min(...bgt.roads.map((feature) => distanceToGeometryM(origin, feature.geometry)))
     : Number.POSITIVE_INFINITY;
+  const nearestWaterM = bgt.water.length
+    ? Math.min(...bgt.water.map((feature) => distanceToGeometryM(origin, feature.geometry)))
+    : Number.POSITIVE_INFINITY;
+  const waterAreaM2 = bgt.water.reduce((sum, feature) => sum + geometryAreaM2(feature.geometry, origin), 0);
+  const waterPercent = clamp((waterAreaM2 / searchAreaM2) * 100, 0, 100);
   // The BGT collection endpoints cap results at limit=100. Dense city
   // centres can genuinely have >100 road or green-terrain parts within the
   // search box, in which case the percentage below silently underrepresents
@@ -115,6 +120,15 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     fetchedAt: bgt.fetchedAt,
     spatialResolution: "lokale topografie",
     caveat: "Groenpercentage is een eerste geometrische indicatie binnen circa 250 meter.",
+  });
+  const bgtWaterEvidence = createEvidence({
+    id: "bgt-water",
+    source: "PDOK / BGT",
+    sourceUrl: `${pdokUrls.bgt}collections/waterdeel/items`,
+    confidence: "medium",
+    fetchedAt: bgt.fetchedAt,
+    spatialResolution: "lokale topografie",
+    caveat: "Dit is alleen de aanwezigheid van geregistreerd oppervlaktewater, geen overstromings- of wateroverlastmodel.",
   });
   const energyEvidence = createEvidence({
     id: "ep-online-energy",
@@ -228,6 +242,25 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       confidence: "low",
       spatialScale: "circa 250 m zoekbuffer",
       evidence: [bgtGreenEvidence],
+      availability: bgtAvailable ? "available" : "unavailable",
+    },
+    {
+      key: "water",
+      label: "Oppervlaktewater",
+      category: "klimaat",
+      value: Number.isFinite(nearestWaterM) ? formatDistance(nearestWaterM) : "Geen water gevonden",
+      severity: nearestWaterM < 30 ? "attention" : Number.isFinite(nearestWaterM) ? "good" : "neutral",
+      summary: nearestWaterM < 30
+        ? `BGT registreert oppervlaktewater op circa ${formatDistance(nearestWaterM)}. Zo dicht op open water is het grondwaterpeil vaak hoger, wat kruipruimte- en funderingsvocht kan beïnvloeden.`
+        : Number.isFinite(nearestWaterM)
+          ? `BGT registreert oppervlaktewater op circa ${formatDistance(nearestWaterM)} (${Math.round(waterPercent)}% van de zoekbuffer).`
+          : "BGT registreert geen oppervlaktewater binnen de zoekbuffer van circa 250 m.",
+      action: nearestWaterM < 30
+        ? "Vraag naar het grondwaterpeil, de kruipruimte en vochtwering; laat dit meenemen in de bouwkundige keuring."
+        : "Dit zegt niets over overstromings- of wateroverlastrisico. Check risicokaart.nl (Overstroming) voor een officiële inschatting.",
+      confidence: "low",
+      spatialScale: "circa 250 m zoekbuffer",
+      evidence: [bgtWaterEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
     },
     {
@@ -536,6 +569,22 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       { source: "CBS Wijk- en Buurtkaart", status: cbsAvailable ? "ok" : "unavailable", message: cbsAvailable ? undefined : "Geen CBS-buurtfeature gevonden of bron niet bereikbaar.", sourceUrl: cbsBuurtenUrl },
       { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "De openbare haltecatalogus kon niet worden opgehaald.", sourceUrl: ndovHaltesUrl },
       { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Ruimtelijke onderwerpen zijn nu niet beschikbaar voor dit adres.", sourceUrl: dsoOnderwerpenUrl },
+    ],
+    knownGaps: [
+      {
+        key: "flood-risk",
+        label: "Overstromings- en wateroverlastrisico",
+        summary: "WoonReality modelleert geen overstromingskans of wateroverlast bij hevige regen. Het 'Oppervlaktewater'-signaal hierboven laat alleen zien of er BGT-water vlakbij ligt, geen risicoberekening.",
+        checkUrl: "https://www.risicokaart.nl/",
+        checkLabel: "Check Risicokaart.nl",
+      },
+      {
+        key: "soil-contamination",
+        label: "Bodemverontreiniging",
+        summary: "Bodemkwaliteit en historische activiteiten (bv. een voormalige stortplaats of tankstation) worden niet gecontroleerd; dit vraagt een provinciaal of gemeentelijk bodemloket.",
+        checkUrl: "https://www.bodemloket.nl/",
+        checkLabel: "Check Bodemloket.nl",
+      },
     ],
     nearbyProperties,
   };

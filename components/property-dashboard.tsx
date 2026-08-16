@@ -876,6 +876,31 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 ))}
               </div>
             </section>
+            {analysis.knownGaps.length > 0 && (
+              <section className="known-gaps-section" id="niet-gedekt">
+                <div className="section-inline-heading">
+                  <div>
+                    <h2>Wat WoonReality (nog) niet checkt</h2>
+                    <p>
+                      Geen signaal hierboven betekent niet automatisch geen
+                      risico. Deze punten controleer je zelf via officiële
+                      bronnen.
+                    </p>
+                  </div>
+                </div>
+                <div className="known-gaps-list">
+                  {analysis.knownGaps.map((gap) => (
+                    <div key={gap.key} className="known-gap">
+                      <strong>{gap.label}</strong>
+                      <p>{gap.summary}</p>
+                      <a href={gap.checkUrl} target="_blank" rel="noreferrer">
+                        {gap.checkLabel}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             <div className="source-note">
               <span>
                 <strong>Transparantie:</strong> de score is een versieerbare

@@ -69,6 +69,19 @@ export type DataCoverage = {
   label: string;
 };
 
+/**
+ * A real risk category WoonReality deliberately does not model or score,
+ * because no reliable open-data signal is wired in yet. Shown so buyers
+ * know to check it themselves rather than assume "no signal" means "no risk".
+ */
+export type KnownGap = {
+  key: string;
+  label: string;
+  summary: string;
+  checkUrl: string;
+  checkLabel: string;
+};
+
 export type ScoreComponent = {
   key: string;
   label: string;
@@ -241,6 +254,7 @@ export type Analysis = {
   highlights: { type: "positive" | "attention"; signalKey: string; text: string }[];
   dataCoverage: DataCoverage;
   sourceStatuses: SourceStatus[];
+  knownGaps: KnownGap[];
   nearbyProperties: NearbyProperty[];
   persistence?: "database" | "cache-only";
 };
