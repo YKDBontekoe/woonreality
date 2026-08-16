@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "extension:publish": "node scripts/publish-extension.mjs",
     "start": "next start",
     "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
@@ -22,6 +23,7 @@
     "@ai-sdk/openai": "^4.0.41",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
+    "@vercel/blob": "^2.8.0",
     "ai": "^7.0.65",
     "cheerio": "^1.2.0",
     "linkedom": "^0.18.13",

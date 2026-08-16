@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "@/components/site-header";
 
-type HeaderCurrent = "home" | "aankoop" | "woning" | "hypotheek" | "login";
+type HeaderCurrent = "home" | "aankoop" | "woning" | "hypotheek" | "login" | "extensie";
 
 export function PageShell({
   children,

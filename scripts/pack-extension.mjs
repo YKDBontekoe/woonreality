@@ -105,10 +105,11 @@ async function bundle() {
   return dist;
 }
 
-async function packBrowser(dist, manifestName, outName) {
-  const manifest = await readFile(join(extDir, manifestName));
+async function packBrowser(dist, manifestName, outName, version) {
+  const manifest = JSON.parse(await readFile(join(extDir, manifestName), "utf8"));
+  manifest.version = version;
   const names = ["background.js", "content.js", "pair.js", "popup.js", "popup.html", "icon48.png"];
-  const files = [{ name: "manifest.json", data: manifest }];
+  const files = [{ name: "manifest.json", data: `${JSON.stringify(manifest, null, 2)}\n` }];
   for (const name of names) {
     files.push({ name, data: await readFile(join(dist, name)) });
   }
@@ -120,10 +121,11 @@ async function packBrowser(dist, manifestName, outName) {
 }
 
 async function main() {
+  const baseManifest = JSON.parse(await readFile(join(extDir, "manifest.chrome.json"), "utf8"));
+  const version = process.env.EXTENSION_VERSION ?? baseManifest.version;
   const dist = await bundle();
-  const chrome = await packBrowser(dist, "manifest.chrome.json", "woonreality-funda-chrome.zip");
-  const firefox = await packBrowser(dist, "manifest.firefox.json", "woonreality-funda-firefox.xpi");
-  const version = JSON.parse(await readFile(join(extDir, "manifest.chrome.json"), "utf8")).version;
+  const chrome = await packBrowser(dist, "manifest.chrome.json", "woonreality-funda-chrome.zip", version);
+  const firefox = await packBrowser(dist, "manifest.firefox.json", "woonreality-funda-firefox.xpi", version);
   const meta = {
     version,
     parserVersion: 1,

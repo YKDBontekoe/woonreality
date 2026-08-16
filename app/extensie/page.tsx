@@ -2,15 +2,22 @@ import Link from "next/link";
 import { Puzzle } from "lucide-react";
 import { ExtensionSetup } from "@/components/extension-setup";
 import { PageShell } from "@/components/ui/page-shell";
+import { getLatestExtensionRelease } from "@/src/lib/extension-release";
 
 export const metadata = {
   title: "Funda-extensie — WoonReality",
   description: "Installeer de WoonReality-extensie voor Chrome, Edge of Firefox en bewaar Funda-kenmerken in je dossier.",
 };
 
-export default function ExtensiePage() {
+export const dynamic = "force-dynamic";
+
+export default async function ExtensiePage() {
+  const release = await getLatestExtensionRelease();
+  const chromeUrl = release?.chromeDownloadUrl ?? "/extension/woonreality-funda-chrome.zip";
+  const firefoxUrl = release?.firefoxDownloadUrl ?? "/extension/woonreality-funda-firefox.xpi";
+
   return (
-    <PageShell current="aankoop">
+    <PageShell current="extensie">
       <Link className="back-link" href="/mijn-aankoop">← Mijn aankoop</Link>
       <div className="eyebrow"><Puzzle size={13} /> browser-extensie</div>
       <h1>Funda-extensie</h1>
@@ -21,9 +28,9 @@ export default function ExtensiePage() {
       </p>
 
       <section className="listing-intake-card">
-        <h2>Chrome of Edge</h2>
+        <h2>Chrome of Edge {release && <small>· versie {release.version}</small>}</h2>
         <ol className="extension-steps">
-          <li>Download <a href="/extension/woonreality-funda-chrome.zip">woonreality-funda-chrome.zip</a>.</li>
+          <li>Download <a href={chromeUrl} download>woonreality-funda-chrome.zip</a>.</li>
           <li>Pak het archief uit in een map die je bewaart.</li>
           <li>Ga naar <code>chrome://extensions</code> (of <code>edge://extensions</code>) en zet ontwikkelaarsmodus aan.</li>
           <li>Kies “Uitgepakte extensie laden” en selecteer die map.</li>
@@ -34,7 +41,7 @@ export default function ExtensiePage() {
       <section className="listing-intake-card">
         <h2>Firefox</h2>
         <ol className="extension-steps">
-          <li>Download <a href="/extension/woonreality-funda-firefox.xpi">woonreality-funda-firefox.xpi</a>.</li>
+          <li>Download <a href={firefoxUrl} download>woonreality-funda-firefox.xpi</a>.</li>
           <li>Voor ontwikkeling: <code>about:debugging#/runtime/this-firefox</code> → “Tijdelijke add-on laden” en kies het XPI of <code>manifest.json</code>.</li>
           <li>Tijdelijke add-ons verdwijnen na een herstart. Een ondertekende XPI of AMO-publicatie blijft staan.</li>
         </ol>

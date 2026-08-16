@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Brand } from "@/components/brand";
 
-export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning" | "hypotheek" | "login" }) {
+export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning" | "hypotheek" | "login" | "extensie" }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -25,6 +25,7 @@ export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning
         <div id="site-nav-links" className="nav-links">
           <Link href="/#werkwijze" onClick={() => setMenuOpen(false)}>Werkwijze</Link>
           <Link href="/hypotheek" className={current === "hypotheek" ? "nav-current" : undefined} onClick={() => setMenuOpen(false)}>Hypotheek</Link>
+          <Link href="/extensie" className={current === "extensie" ? "nav-current" : undefined} onClick={() => setMenuOpen(false)}>Extensie</Link>
           <Link href="/mijn-aankoop" className={current === "aankoop" ? "nav-current" : undefined} onClick={() => setMenuOpen(false)}>Mijn aankoop</Link>
           <Link className="nav-cta" href="/#zoek-adres" onClick={() => setMenuOpen(false)}>
             {current === "home" ? "Check een adres" : "Nieuw adres"}

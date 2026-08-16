@@ -14,3 +14,4 @@ extensions/woonreality-funda/dist/
 public/extension/*.zip
 public/extension/*.xpi
 public/extension/version.json
+.artifacts/

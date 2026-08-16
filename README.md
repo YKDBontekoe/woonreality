@@ -17,6 +17,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - Optional AI woningonderzoek via Vercel AI Gateway with municipal and official web sources
 - Evidence and caveats on every signal
 - Shareable `/woning/[bagId]` property URLs
+- A Chrome/Chromium browser extension with an automated download page
 - Vercel-ready API routes and a protected source-health Cron route
 - Drizzle/Postgres schema for the next persistence step
 
@@ -37,6 +38,25 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), then try `Korenstraat 18, Epe`.
+
+## Browser extension
+
+The Funda extension source lives in [`extensions/woonreality-funda/`](extensions/woonreality-funda/). Build both browser packages locally with:
+
+```bash
+npm run extension:pack
+```
+
+This creates the Chrome ZIP and Firefox XPI in `public/extension/`. The public
+`/extensie` page shows the latest release from Vercel Blob and explains how to
+load each package.
+
+To enable releases, create a public Vercel Blob store connected to this project,
+add its `BLOB_READ_WRITE_TOKEN` as a `BLOB_READ_WRITE_TOKEN` secret in the
+GitHub Actions `production` environment, and add the public app URL as the
+`WOONREALITY_APP_URL` Actions variable. Every successful push to `main` then
+builds Chrome and Firefox packages, publishes versioned and latest files, and
+writes `extensions/latest.json`; the `/extensie` page reads that manifest.
 
 Useful checks:
 
