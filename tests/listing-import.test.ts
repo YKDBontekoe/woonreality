@@ -14,7 +14,7 @@ import {
   mergeListingFacts,
   parseFundaListingAddress,
 } from "@/src/lib/listing-import";
-import { isNewerExtensionVersion, PARSER_VERSION } from "@/src/lib/listing-extract";
+import { PARSER_VERSION } from "@/src/lib/listing-extract";
 import { parseHTML } from "linkedom";
 
 const BAG_ID = "0200100000000001";
@@ -342,11 +342,4 @@ test("ingest route requires an extension token and never fetches Funda", async (
   } finally {
     globalThis.fetch = originalFetch;
   }
-});
-
-test("isNewerExtensionVersion compares dotted versions", () => {
-  assert.equal(isNewerExtensionVersion("0.1.1", "0.1.0"), true);
-  assert.equal(isNewerExtensionVersion("0.1.0", "0.1.0"), false);
-  assert.equal(isNewerExtensionVersion("0.1.0", "0.2.0"), false);
-  assert.equal(isNewerExtensionVersion("1.0.0", "0.9.9"), true);
 });

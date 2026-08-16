@@ -1,17 +1,16 @@
-import { DEFAULT_API_BASE, UPDATE_ALARM, apiUrl, isNewerExtensionVersion, type CaptureEnvelope, type LastSave } from "./shared";
+import { DEFAULT_API_BASE, apiUrl, type CaptureEnvelope, type LastSave } from "./shared";
 
 type Stored = {
   token?: string;
   apiBase?: string;
   autoSave?: boolean;
   lastSave?: LastSave;
-  updateVersion?: string;
 };
 
 const INGEST_COOLDOWN_MS = 15 * 60 * 1000;
 
 async function getStore(): Promise<Stored> {
-  return await chrome.storage.local.get(["token", "apiBase", "autoSave", "lastSave", "updateVersion"]) as Stored;
+  return await chrome.storage.local.get(["token", "apiBase", "autoSave", "lastSave"]) as Stored;
 }
 
 async function setStore(patch: Stored) {
@@ -58,47 +57,6 @@ async function ingest(payload: CaptureEnvelope, force: boolean) {
   return { ok: true, bagVboId: body.bagVboId };
 }
 
-async function checkUpdate() {
-  const store = await getStore();
-  const base = store.apiBase || DEFAULT_API_BASE;
-  try {
-    const response = await fetch(apiUrl(base, "/api/extension/release"), { cache: "no-store" });
-    if (!response.ok) return;
-    const body = await response.json() as { version?: string };
-    const local = chrome.runtime.getManifest().version;
-    if (body.version && isNewerExtensionVersion(body.version, local)) {
-      await setStore({ updateVersion: body.version });
-      await chrome.action.setBadgeText({ text: "1" });
-      await chrome.action.setBadgeBackgroundColor({ color: "#0f766e" });
-    } else {
-      await setStore({ updateVersion: "" });
-      await chrome.action.setBadgeText({ text: "" });
-    }
-  } catch {
-    /* offline is fine */
-  }
-  try {
-    chrome.runtime.requestUpdateCheck?.();
-  } catch {
-    /* unpacked installs ignore this */
-  }
-}
-
-chrome.runtime.onInstalled.addListener(() => {
-  void chrome.alarms.create(UPDATE_ALARM, { periodInMinutes: 360 });
-  void checkUpdate();
-});
-chrome.runtime.onStartup.addListener(() => {
-  void chrome.alarms.create(UPDATE_ALARM, { periodInMinutes: 360 });
-  void checkUpdate();
-});
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === UPDATE_ALARM) void checkUpdate();
-});
-chrome.runtime.onUpdateAvailable.addListener(() => {
-  chrome.runtime.reload();
-});
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const reply = (value: unknown) => {
     sendResponse(value);
@@ -122,7 +80,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       paired: Boolean(store.token),
       autoSave: store.autoSave !== false,
       lastSave: store.lastSave ?? null,
-      updateVersion: store.updateVersion || "",
       apiBase: store.apiBase || DEFAULT_API_BASE,
       version: chrome.runtime.getManifest().version,
     }));
@@ -148,10 +105,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         reply({ ok: false, error: "Open een Funda-advertentie en probeer opnieuw." });
       }
     });
-    return true;
-  }
-  if (message?.type === "check-update") {
-    void checkUpdate().then(() => getStore()).then((store) => reply({ updateVersion: store.updateVersion || "" }));
     return true;
   }
   return false;

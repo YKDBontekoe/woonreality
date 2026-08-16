@@ -2,13 +2,11 @@ type State = {
   paired?: boolean;
   autoSave?: boolean;
   lastSave?: { bagVboId: string; url: string; at: string } | null;
-  updateVersion?: string;
   apiBase?: string;
   version?: string;
 };
 
 const statusEl = document.getElementById("status") as HTMLParagraphElement;
-const updateEl = document.getElementById("update") as HTMLDivElement;
 const autoEl = document.getElementById("auto") as HTMLInputElement;
 const saveEl = document.getElementById("save") as HTMLButtonElement;
 const openEl = document.getElementById("open") as HTMLAnchorElement;
@@ -21,12 +19,6 @@ function render(state: State) {
   const origin = (state.apiBase || "https://woonreality.vercel.app").replace(/\/$/, "");
   setupEl.href = `${origin}/extensie`;
   autoEl.checked = state.autoSave !== false;
-  if (state.updateVersion) {
-    updateEl.hidden = false;
-    updateEl.textContent = `Versie ${state.updateVersion} is klaar. Download de nieuwe zip/xpi op de koppelpagina.`;
-  } else {
-    updateEl.hidden = true;
-  }
   if (!state.paired) {
     statusEl.textContent = "Nog niet gekoppeld. Open de koppelpagina terwijl je bent ingelogd.";
     saveEl.disabled = true;
@@ -47,7 +39,6 @@ function render(state: State) {
 }
 
 chrome.runtime.sendMessage({ type: "get-state" }, (state: State) => render(state ?? {}));
-chrome.runtime.sendMessage({ type: "check-update" });
 
 autoEl.addEventListener("change", () => {
   chrome.runtime.sendMessage({ type: "set-auto-save", value: autoEl.checked });

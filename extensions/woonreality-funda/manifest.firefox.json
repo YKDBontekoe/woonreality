@@ -9,7 +9,7 @@
     "default_icon": { "48": "icon48.png" }
   },
   "icons": { "48": "icon48.png" },
-  "permissions": ["storage", "alarms", "tabs"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://www.funda.nl/*",
     "https://woonreality.vercel.app/*",
@@ -33,8 +33,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "funda-capture@woonreality.nl",
-      "strict_min_version": "121.0",
-      "update_url": "https://woonreality.vercel.app/api/extension/firefox-updates.json"
+      "strict_min_version": "121.0"
     }
   }
 }

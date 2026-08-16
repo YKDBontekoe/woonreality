@@ -68,9 +68,6 @@ POST /api/listing/extension/ingest
 POST /api/listing/extension/token
 GET /api/listing/extension/token
 DELETE /api/listing/extension/token/:id
-GET /api/extension/release
-GET /api/extension/updates.xml
-GET /api/extension/firefox-updates.json
 GET /api/cron/source-health
 GET /api/health
 ```

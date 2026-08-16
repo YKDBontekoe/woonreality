@@ -9,7 +9,7 @@
     "default_icon": { "48": "icon48.png" }
   },
   "icons": { "48": "icon48.png" },
-  "permissions": ["storage", "alarms", "tabs"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://www.funda.nl/*",
     "https://woonreality.vercel.app/*",

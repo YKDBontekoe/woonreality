@@ -10,8 +10,6 @@ export const FUNDA_USER_PROVIDER = "Funda (door jou toegevoegd)";
 export const USER_PROVIDER = "Door jou toegevoegd";
 export const EXTENSION_REQUIRED_NOTE =
   "Kenmerken komen uit de WoonReality-browser-extensie. Open deze advertentie op Funda met de extensie geïnstalleerd.";
-export const GECKO_EXTENSION_ID = "funda-capture@woonreality.nl";
-export const EXTENSION_VERSION = "0.1.0";
 
 export type ListingTextSection = {
   title: string;
@@ -559,15 +557,4 @@ export function listingFromUserRecord(row: {
     facts,
     row.updated_at ?? new Date().toISOString(),
   );
-}
-
-export function isNewerExtensionVersion(remote: string, local: string) {
-  const parse = (value: string) => value.split(".").map((part) => Number.parseInt(part, 10) || 0);
-  const a = parse(remote);
-  const b = parse(local);
-  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-    if ((a[index] ?? 0) > (b[index] ?? 0)) return true;
-    if ((a[index] ?? 0) < (b[index] ?? 0)) return false;
-  }
-  return false;
 }
