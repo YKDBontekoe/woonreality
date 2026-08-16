@@ -29,6 +29,8 @@ export type HousingTaxSummary = {
   year1: HousingTaxYear;
   ongoingMonthlyNet: number;
   ongoingMonthlyGross: number;
+  /** Indicative tax back from one-off deductible financing costs (year 1). */
+  oneOffRefund: number;
   disclaimer: string;
 };
 
@@ -133,8 +135,13 @@ export function summarizeHousingTax(input: HousingTaxInput): HousingTaxSummary {
     year1,
     ongoingMonthlyNet: ongoing.netMonthlyCost,
     ongoingMonthlyGross: roundEuro(ongoingPayment / 12),
+    oneOffRefund: deductionRefund(oneOff, deductionRate),
     disclaimer: `Hypotheekrenteaftrek-schets ${ref.year}: max aftrektarief ${(ref.box1.maxHousingDeductionRate * 100).toLocaleString("nl-NL", { maximumFractionDigits: 2 })}%, inclusief eigenwoningforfait. Geen aangifteadvies.`,
   };
+}
+
+export function deductionRefund(amount: number, rate: number) {
+  return Math.round(Math.max(0, amount) * Math.max(0, rate));
 }
 
 export function formatDeductionRate(rate: number) {

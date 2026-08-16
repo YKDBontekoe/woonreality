@@ -37,6 +37,7 @@ export {
 export type { MortgageSchedule, ScheduleMonth, ScheduleYear } from "@/src/lib/mortgage/schedule";
 export {
   box1MarginalRate,
+  deductionRefund,
   eigenwoningforfait,
   formatDeductionRate,
   housingDeductionRate,

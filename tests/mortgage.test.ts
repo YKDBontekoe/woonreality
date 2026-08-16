@@ -7,6 +7,7 @@ import {
   calculateMortgageCapacity,
   buildMortgageScenarios,
   currentReferenceYear,
+  deductionRefund,
   defaultEmploymentSource,
   defaultMortgageFinance,
   defaultSelfEmployedSource,
@@ -446,6 +447,8 @@ test("housing tax caps deduction at schijf-2 rate and treats one-off costs in ye
   assert.ok(withOneOff.year1.taxBenefit > withoutOneOff.year1.taxBenefit);
   assert.ok(withOneOff.year1.netMonthlyCost < withoutOneOff.year1.netMonthlyCost);
   assert.equal(withOneOff.year1.oneOffDeductible, 5_000);
+  assert.equal(withOneOff.oneOffRefund, deductionRefund(5_000, 0.3756));
+  assert.ok(withOneOff.oneOffRefund > 0);
   assert.ok(withOneOff.eigenwoningforfait > 0);
 });
 

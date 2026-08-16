@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import type { BuyerCostEstimate, BuyerCostLine } from "@/src/lib/costs";
 import type { HousingTaxSummary } from "@/src/lib/mortgage/tax";
 import type { MortgageMarketSnapshot, MortgageSchedule, RepaymentType } from "@/src/lib/mortgage";
-import { formatDeductionRate } from "@/src/lib/mortgage/tax";
+import { currentMortgageReference, deductionRefund, formatDeductionRate } from "@/src/lib/mortgage";
 import { formatEuro } from "@/src/lib/purchase";
 import {
   BalanceComparisonChart,
@@ -88,7 +88,17 @@ function InsightPanel({
   );
 }
 
-function CostLineRow({ line, expanded, onToggle }: { line: BuyerCostLine; expanded: boolean; onToggle: () => void }) {
+function CostLineRow({
+  line,
+  expanded,
+  onToggle,
+  refund,
+}: {
+  line: BuyerCostLine;
+  expanded: boolean;
+  onToggle: () => void;
+  refund: number | null;
+}) {
   return (
     <li className={expanded ? "is-open" : undefined}>
       <button type="button" onClick={onToggle} aria-expanded={expanded}>
@@ -98,9 +108,17 @@ function CostLineRow({ line, expanded, onToggle }: { line: BuyerCostLine; expand
             {line.deductible ? "aftrekbaar" : "niet"}
           </em>
         </span>
-        <strong>{formatEuro(line.amount)}</strong>
+        <span className="mortgage-cost-amounts">
+          <strong>{formatEuro(line.amount)}</strong>
+          {line.deductible && refund != null && refund > 0 && <b>terug {formatEuro(refund)}</b>}
+        </span>
       </button>
-      {expanded && <small>{line.note}</small>}
+      {expanded && (
+        <small>
+          {line.note}
+          {line.deductible && refund != null ? ` Via de aangifte krijg je hiervan ongeveer ${formatEuro(refund)} terug.` : ""}
+        </small>
+      )}
     </li>
   );
 }
@@ -132,6 +150,9 @@ export function MortgageCostInsight({
   const fundsTone = fundsGap == null ? undefined : fundsGap <= 0 ? "ok" : fundsGap / Math.max(1, costs?.ownFundsNeeded ?? 1) <= 0.15 ? "tight" : "short";
   const interestDelta = showSchedules ? Math.round(annuity.totalInterest - linear.totalInterest) : 0;
   const chosen = repayment === "linear" ? linear : annuity;
+  const deductionRate = tax?.deductionRate ?? currentMortgageReference().box1.maxHousingDeductionRate;
+  const refundKnown = Boolean(tax);
+  const costsRefund = costs ? deductionRefund(costs.deductibleTotal, deductionRate) : 0;
 
   function toggle(id: PanelId) {
     setOpen((current) => (current === id ? null : id));
@@ -159,7 +180,12 @@ export function MortgageCostInsight({
         <article className="mortgage-indicator">
           <small>Eenmalig bij overdracht</small>
           <strong>{costs ? formatEuro(costs.total) : "—"}</strong>
-          {costs ? <em>{formatEuro(costs.deductibleTotal)} aftrekbaar</em> : <em>Vul een vraagprijs in</em>}
+          {costs ? (
+            <em>
+              {formatEuro(costs.deductibleTotal)} aftrekbaar
+              {costsRefund > 0 ? ` · ${refundKnown ? "" : "tot "}${formatEuro(costsRefund)} terug` : ""}
+            </em>
+          ) : <em>Vul een vraagprijs in</em>}
         </article>
         <article className={`mortgage-indicator ${fundsTone ? `is-${fundsTone}` : ""}`}>
           <small>Eigen geld nodig</small>
@@ -218,7 +244,9 @@ export function MortgageCostInsight({
         <InsightPanel
           id="costs"
           title="Kostenposten"
-          summary={costs ? `${costs.lines.length} posten · ${formatEuro(costs.total)}` : "Vul een vraagprijs in voor de uitsplitsing"}
+          summary={costs
+            ? `${formatEuro(costs.total)} · ${costsRefund > 0 ? `${formatEuro(costsRefund)} terug` : `${formatEuro(costs.deductibleTotal)} aftrekbaar`}`
+            : "Vul een vraagprijs in voor de uitsplitsing"}
           tone={fundsTone}
           open={open === "costs"}
           onToggle={() => toggle("costs")}
@@ -247,11 +275,25 @@ export function MortgageCostInsight({
                         line={line}
                         expanded={expandedLine === line.key}
                         onToggle={() => setExpandedLine((current) => current === line.key ? null : line.key)}
+                        refund={line.deductible ? deductionRefund(line.amount, deductionRate) : null}
                       />
                     ))}
                   </ul>
                 </div>
               ))}
+              {costsRefund > 0 && (
+                <div className="mortgage-refund-total">
+                  <span>
+                    Terug van aftrekbare posten
+                    <small>
+                      {formatDeductionRate(deductionRate)}
+                      {refundKnown ? " op jouw inkomen" : " max-tarief tot je inkomen bekend is"}
+                      . Via de aangifte in het jaar van betaling.
+                    </small>
+                  </span>
+                  <strong>{refundKnown ? "" : "tot "}{formatEuro(costsRefund)}</strong>
+                </div>
+              )}
               <div className="mortgage-cost-extras">
                 <p className="mortgage-hint">Optionele posten</p>
                 <label className="mortgage-check"><input type="checkbox" checked={options.includeAdvice} onChange={(event) => onOptionsChange({ includeAdvice: event.target.checked })} /> Hypotheekadvies</label>
@@ -268,7 +310,9 @@ export function MortgageCostInsight({
         <InsightPanel
           id="tax"
           title="Hypotheekrenteaftrek"
-          summary={tax ? `Netto ${formatEuro(tax.ongoingMonthlyNet)} / maand` : "Vul inkomen in voor de nettorekening"}
+          summary={tax
+            ? `Netto ${formatEuro(tax.ongoingMonthlyNet)} / maand${tax.oneOffRefund > 0 ? ` · ${formatEuro(tax.oneOffRefund)} terug van kk` : ""}`
+            : "Vul inkomen in voor de nettorekening"}
           open={open === "tax"}
           onToggle={() => toggle("tax")}
         >
@@ -277,12 +321,12 @@ export function MortgageCostInsight({
               <div className="mortgage-result-grid">
                 <div className="is-hero"><small>Bruto</small><strong>{formatEuro(tax.ongoingMonthlyGross)}</strong></div>
                 <div className="is-hero"><small>Netto doorlopend</small><strong>{formatEuro(tax.ongoingMonthlyNet)}</strong></div>
-                <div><small>Voordeel jaar 1</small><strong>{formatEuro(tax.year1.taxBenefit)}</strong></div>
-                <div><small>Netto maand jaar 1</small><strong>{formatEuro(tax.year1.netMonthlyCost)}</strong></div>
+                <div><small>Terug eenmalige posten</small><strong>{formatEuro(tax.oneOffRefund)}</strong></div>
+                <div><small>Voordeel jaar 1 totaal</small><strong>{formatEuro(tax.year1.taxBenefit)}</strong></div>
               </div>
               <p className="mortgage-hint">
-                Aftrektarief {formatDeductionRate(tax.deductionRate)}. Eigenwoningforfait {formatEuro(tax.eigenwoningforfait)}/jaar.
-                Jaar 1 is lager door eenmalige financieringskosten ({formatEuro(tax.year1.oneOffDeductible)}).
+                Aftrektarief {formatDeductionRate(tax.deductionRate)}. Van {formatEuro(tax.year1.oneOffDeductible)} aftrekbare aankoopkosten krijg je ongeveer {formatEuro(tax.oneOffRefund)} terug.
+                Daarbij komt het rentevoordeel; eigenwoningforfait {formatEuro(tax.eigenwoningforfait)}/jaar telt daar weer bij.
               </p>
               <div className="form-grid mortgage-woz-row">
                 <label>WOZ-waarde
