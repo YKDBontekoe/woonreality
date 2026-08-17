@@ -11,7 +11,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - BGT road, green-area, and water context within approximately 250 m
 - Mapbox GL JS map with building overlay, search radius, and tokenless fallback preview
 - RIVM WMS screening for road noise and air quality
-- CBS 2024 neighbourhood context, NDOV halte proximity, and DSO spatial topics
+- CBS 2024 neighbourhood context (children, schools/childcare, amenities), CBS SES-WOA, Politie/CBS registered crime, NDOV halte proximity, and DSO spatial topics
 - Nearby BAG homes within 150 m, including registered usable area and links to their reports
 - Deterministic, versioned score components
 - Optional AI woningonderzoek via Vercel AI Gateway with municipal and official web sources
@@ -153,7 +153,7 @@ The case page (`/mijn-aankoop/[caseId]`) also includes: an honest **oppervlaktew
 1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
 2. Add official RIVM/Atlas raster sampling for additional greenery and climate layers.
 3. Add DSO/KOOP document detail links and timeline presentation.
-4. Add RDW parking, schools, and route-based transit accessibility.
+4. Add RDW parking, named DUO school locations, and route-based transit accessibility.
 5. Build the 3D/AHN Sun Time Machine after the basic chain has usage.
 
 ## Product boundaries

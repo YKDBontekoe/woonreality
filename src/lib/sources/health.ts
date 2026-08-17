@@ -1,5 +1,7 @@
 import { pdokUrls } from "@/src/lib/sources/pdok/client";
 import { cbsBuurtenUrl } from "@/src/lib/sources/cbs";
+import { sesStatLineUrl } from "@/src/lib/sources/ses";
+import { politieMisdrijvenUrl } from "@/src/lib/sources/politie";
 import { rivmUrls } from "@/src/lib/sources/rivm";
 import { ndovHaltesUrl } from "@/src/lib/sources/ndov";
 import { AFM_TOETSRENTE_URL, parseAfmToetsrente, parseEcbMirObservation } from "@/src/lib/mortgage/market";
@@ -18,6 +20,8 @@ const checks = [
   { source: "PDOK BAG", url: `${pdokUrls.bag.replace("?f=html", "?f=json")}` },
   { source: "PDOK BGT", url: `${pdokUrls.bgt}collections/wegdeel?f=json` },
   { source: "CBS Wijk- en Buurtkaart", url: `${cbsBuurtenUrl}?f=json&bbox=5.9,52.3,6,52.4&limit=1` },
+  { source: "CBS SES-WOA", url: `${sesStatLineUrl}?$format=json` },
+  { source: "Politie misdrijven", url: `${politieMisdrijvenUrl}?$format=json` },
   { source: "RIVM lucht WMS", url: `${rivmUrls.air}&service=WMS&request=GetCapabilities` },
   { source: "RIVM geluid WMS", url: `${rivmUrls.noise}&service=WMS&request=GetCapabilities` },
   { source: "NDOV haltecatalogus", url: ndovHaltesUrl },

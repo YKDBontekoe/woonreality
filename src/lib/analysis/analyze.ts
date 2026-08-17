@@ -6,11 +6,13 @@ import { distanceToGeometryM, geometryAreaM2 } from "@/src/lib/geo/measure";
 import { calculateOverallScore, componentFromSignal, SCORING_VERSION, scoreSeverity } from "@/src/lib/scoring/score";
 import { getNearbyProperties } from "@/src/lib/sources/pdok/bag";
 import { getRivmContext, rivmUrls, type RivmContext } from "@/src/lib/sources/rivm";
-import { getCbsContext, cbsBuurtenUrl, type CbsContext } from "@/src/lib/sources/cbs";
+import { getCbsContext, cbsBuurtenUrl, schoolScoreFromCbs, type CbsContext } from "@/src/lib/sources/cbs";
 import { getNdovContext, ndovHaltesUrl, type NdovContext } from "@/src/lib/sources/ndov";
 import { getDsoContext, dsoOnderwerpenUrl, type DsoContext } from "@/src/lib/sources/dso";
+import { getSesContext, sesStatLineTableUrl, type SesContext } from "@/src/lib/sources/ses";
+import { crimeScoreFromRatePer1000, getCrimeContext, politieMisdrijvenTableUrl, type CrimeContext } from "@/src/lib/sources/politie";
 
-const ANALYSIS_VERSION = "2026.08.v0";
+const ANALYSIS_VERSION = "2026.08.v1";
 
 function clamp(value: number, min = 0, max = 10) {
   return Math.min(max, Math.max(min, value));
@@ -19,6 +21,18 @@ function clamp(value: number, min = 0, max = 10) {
 function formatDistance(distance: number) {
   if (!Number.isFinite(distance)) return "meer dan 250 m";
   return distance < 1000 ? `${Math.round(distance / 10) * 10} m` : `${(distance / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
+function formatKm(distanceKm: number) {
+  return `${distanceKm.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} km`;
+}
+
+function formatPct(value: number) {
+  return `${value.toLocaleString("nl-NL", { maximumFractionDigits: 0 })}%`;
+}
+
+function formatSesScore(value: number) {
+  return value.toLocaleString("nl-NL", { signDisplay: "exceptZero", maximumFractionDigits: 3 });
 }
 
 function identityEvidence(property: Property): Evidence {
@@ -72,6 +86,14 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   if (cbsResult.status === "rejected") console.warn("CBS buurtcontext unavailable", cbsResult.reason);
   if (ndovResult.status === "rejected") console.warn("NDOV haltes unavailable", ndovResult.reason);
   if (dsoResult.status === "rejected") console.warn("DSO onderwerpen unavailable", dsoResult.reason);
+  const [sesResult, crimeResult] = await Promise.allSettled([
+    cbs ? getSesContext(cbs) : Promise.resolve(null),
+    cbs ? getCrimeContext(cbs) : Promise.resolve(null),
+  ]);
+  const ses: SesContext | null = sesResult.status === "fulfilled" ? sesResult.value : null;
+  const crime: CrimeContext | null = crimeResult.status === "fulfilled" ? crimeResult.value : null;
+  if (sesResult.status === "rejected") console.warn("CBS SES-WOA unavailable", sesResult.reason);
+  if (crimeResult.status === "rejected") console.warn("Politie misdrijven unavailable", crimeResult.reason);
   const origin = property.coordinates;
   const greenAreaM2 = bgt.greenAreas.reduce((sum, feature) => sum + geometryAreaM2(feature.geometry, origin), 0);
   // getBgtFeatures queries a square bbox of ±250 m (500 m side), not a 250 m
@@ -145,6 +167,8 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   const cbsAvailable = Boolean(cbs);
   const ndovAvailable = Boolean(ndov);
   const dsoAvailable = Boolean(dso);
+  const sesAvailable = Boolean(ses);
+  const crimeAvailable = Boolean(crime);
   const rivmEvidence = createEvidence({
     id: "rivm-air-noise",
     source: "RIVM geo-services",
@@ -162,6 +186,28 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     fetchedAt: cbs?.fetchedAt,
     spatialResolution: "buurt",
     caveat: "Buurtgemiddelden zijn context en beschrijven niet één woning of huishouden.",
+  });
+  const sesEvidence = createEvidence({
+    id: "cbs-ses-woa",
+    source: "CBS SES-WOA",
+    sourceUrl: sesStatLineTableUrl,
+    sourceRecordId: ses?.regionCode,
+    sourceUpdatedAt: ses?.periodYear,
+    confidence: "medium",
+    fetchedAt: ses?.fetchedAt,
+    spatialResolution: ses?.spatialScale ?? "buurt",
+    caveat: "SES-WOA is een buurtgemiddelde van welvaart, opleidingsniveau en arbeidsverleden; het beschrijft geen huishouden of woning.",
+  });
+  const crimeEvidence = createEvidence({
+    id: "politie-misdrijven",
+    source: "Politie / CBS",
+    sourceUrl: politieMisdrijvenTableUrl,
+    sourceRecordId: crime?.regionCode,
+    sourceUpdatedAt: crime?.periodYear,
+    confidence: "medium",
+    fetchedAt: crime?.fetchedAt,
+    spatialResolution: crime?.spatialScale ?? "buurt",
+    caveat: "Alleen bij de politie geregistreerde misdrijven, inclusief pogingen. Niet iedereen doet aangifte; dit is geen slachtofferenquête.",
   });
   const ndovEvidence = createEvidence({
     id: "ndov-haltes",
@@ -374,12 +420,14 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     },
     {
       key: "cbs-context",
-      label: "Buurtcontext",
+      label: "Buurtvoorzieningen",
       category: "buurt",
       value: cbs?.buurtName ?? "Geen data",
       score: cbs?.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : cbs ? 6 : undefined,
       severity: cbs ? scoreSeverity(cbs.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : 6) : "neutral",
-      summary: cbs?.buurtName ? `${cbs.buurtName}${cbs.municipalityName ? ` (${cbs.municipalityName})` : ""} geeft buurtcontext voor voorzieningen. Dit is geen woningwaardering.` : "Er is geen CBS-buurtcontext beschikbaar.",
+      summary: cbs?.buurtName
+        ? `${cbs.buurtName}${cbs.municipalityName ? ` (${cbs.municipalityName})` : ""}: gemiddelde afstand tot een grote supermarkt is ${cbs.supermarketDistanceKm != null ? formatKm(cbs.supermarketDistanceKm) : "onbekend"}${cbs.huisartsDistanceKm != null ? `, huisarts ${formatKm(cbs.huisartsDistanceKm)}` : ""}. Dit is geen woningwaardering.`
+        : "Er is geen CBS-buurtcontext beschikbaar.",
       action: "Vergelijk buurtgemiddelden met je eigen leefstijl en controleer voorzieningen op verschillende tijdstippen.",
       raw: cbs?.supermarketDistanceKm != null ? { value: cbs.supermarketDistanceKm, unit: "km", metric: "CBS gemiddelde afstand supermarkt" } : undefined,
       confidence: "medium",
@@ -387,6 +435,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       evidence: [cbsEvidence],
       availability: cbsAvailable ? "available" : "unavailable",
     },
+    ...neighborhoodSignals({ cbs, ses, crime, cbsEvidence, sesEvidence, crimeEvidence }),
     {
       key: "transit",
       label: "OV-haltes",
@@ -433,6 +482,8 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     ...(energyAvailable ? [energyEvidence] : []),
     ...(rivmAvailable ? [rivmEvidence] : []),
     ...(cbsAvailable ? [cbsEvidence] : []),
+    ...(sesAvailable ? [sesEvidence] : []),
+    ...(crimeAvailable ? [crimeEvidence] : []),
     ...(ndovAvailable ? [ndovEvidence] : []),
     ...(dsoAvailable ? [dsoEvidence] : []),
   ];
@@ -536,6 +587,22 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       signalKeys: ["transit", "access"].filter((key) => Boolean(signal(key))),
     });
   }
+  const schoolSignal = signal("schools");
+  const childrenSignal = signal("children");
+  if (schoolSignal || childrenSignal) {
+    const schoolScoreValue = scoreOf("schools");
+    const tone = schoolScoreValue != null && schoolScoreValue < 5.5 ? "attention" : schoolScoreValue != null && schoolScoreValue >= 6.5 ? "good" : "neutral";
+    insights.push({
+      title: "Gezin en school",
+      summary: tone === "good"
+        ? "Basisschool en opvang liggen volgens CBS-buurtgemiddelden dichtbij. Loop de route op een schooldag na; de cijfers zijn buurtgemiddelden, geen loopafstand vanaf de voordeur."
+        : tone === "attention"
+          ? "Scholen of opvang liggen volgens de buurtstatistiek verder weg. Check de echte fiets- of looproute en of er plek is op de school van je voorkeur."
+          : "De buurtcijfers over kinderen en scholen geven geen uitgesproken beeld. Gebruik ze als startpunt en check zelf de scholen in de wijk.",
+      tone,
+      signalKeys: ["schools", "children"].filter((key) => Boolean(signal(key))),
+    });
+  }
 
   return {
     property,
@@ -553,6 +620,8 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       ...(energyAvailable ? ["EP-Online / RVO"] : []),
       ...(rivmAvailable ? ["RIVM geo-services"] : []),
       ...(cbsAvailable ? ["CBS Wijk- en Buurtkaart"] : []),
+      ...(sesAvailable ? ["CBS SES-WOA"] : []),
+      ...(crimeAvailable ? ["Politie / CBS misdrijven"] : []),
       ...(ndovAvailable ? ["NDOV haltes"] : []),
       ...(dsoAvailable ? ["DSO Omgevingsdocumenten"] : []),
     ],
@@ -567,6 +636,8 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       { source: "EP-Online / RVO", status: energyAvailable ? "ok" : "unavailable", message: energyAvailable ? undefined : "Energielabels zijn nu niet beschikbaar voor dit adres.", sourceUrl: epOnlineUrl },
       { source: "RIVM geo-services", status: rivmMetricCount === 3 ? "ok" : rivmMetricCount > 0 ? "partial" : "unavailable", message: rivmAvailable ? undefined : "RIVM-rasterwaarden konden niet worden opgehaald.", sourceUrl: rivmUrls.noise },
       { source: "CBS Wijk- en Buurtkaart", status: cbsAvailable ? "ok" : "unavailable", message: cbsAvailable ? undefined : "Geen CBS-buurtfeature gevonden of bron niet bereikbaar.", sourceUrl: cbsBuurtenUrl },
+      { source: "CBS SES-WOA", status: sesAvailable ? "ok" : "unavailable", message: sesAvailable ? undefined : "Geen SES-WOA-score beschikbaar voor deze buurt.", sourceUrl: sesStatLineTableUrl },
+      { source: "Politie / CBS misdrijven", status: crimeAvailable ? "ok" : "unavailable", message: crimeAvailable ? undefined : "Geen geregistreerde misdrijvencijfers beschikbaar voor deze buurt.", sourceUrl: politieMisdrijvenTableUrl },
       { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "De openbare haltecatalogus kon niet worden opgehaald.", sourceUrl: ndovHaltesUrl },
       { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Ruimtelijke onderwerpen zijn nu niet beschikbaar voor dit adres.", sourceUrl: dsoOnderwerpenUrl },
     ],
@@ -588,6 +659,143 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     ],
     nearbyProperties,
   };
+}
+
+function neighborhoodSignals(input: {
+  cbs: CbsContext | null;
+  ses: SesContext | null;
+  crime: CrimeContext | null;
+  cbsEvidence: Evidence;
+  sesEvidence: Evidence;
+  crimeEvidence: Evidence;
+}): Signal[] {
+  const { cbs, ses, crime, cbsEvidence, sesEvidence, crimeEvidence } = input;
+  const schoolScore = cbs ? schoolScoreFromCbs(cbs) : undefined;
+  const schoolAvailable = Boolean(cbs && (cbs.primarySchoolDistanceKm != null || cbs.childcareDistanceKm != null || cbs.secondarySchoolDistanceKm != null));
+  const childrenAvailable = Boolean(cbs && (cbs.shareAge0to15Pct != null || cbs.shareHouseholdsWithChildrenPct != null || cbs.primaryPupils != null));
+  const educationFromSes = ses && (ses.educationLowPct != null || ses.educationMidPct != null || ses.educationHighPct != null);
+  const educationFromCbs = Boolean(cbs && (cbs.primaryPupils != null || cbs.secondaryPupils != null || cbs.mboStudents != null || cbs.hboStudents != null || cbs.woStudents != null));
+  const educationAvailable = Boolean(educationFromSes || educationFromCbs);
+  const crimeScore = crime?.per1000 != null ? crimeScoreFromRatePer1000(crime.per1000) : undefined;
+  const schoolParts = [
+    cbs?.primarySchoolDistanceKm != null ? `basisschool ${formatKm(cbs.primarySchoolDistanceKm)}` : undefined,
+    cbs?.primarySchoolsWithin1km != null ? `gemiddeld ${cbs.primarySchoolsWithin1km.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} basisschool(len) binnen 1 km` : undefined,
+    cbs?.secondarySchoolDistanceKm != null ? `voortgezet onderwijs ${formatKm(cbs.secondarySchoolDistanceKm)}` : undefined,
+    cbs?.childcareDistanceKm != null ? `kinderdagverblijf ${formatKm(cbs.childcareDistanceKm)}` : undefined,
+    cbs?.afterSchoolCareDistanceKm != null ? `BSO ${formatKm(cbs.afterSchoolCareDistanceKm)}` : undefined,
+  ].filter(Boolean);
+  const childrenParts = [
+    cbs?.shareAge0to15Pct != null ? `${formatPct(cbs.shareAge0to15Pct)} van de inwoners is 0 tot 15 jaar` : undefined,
+    cbs?.shareHouseholdsWithChildrenPct != null ? `${formatPct(cbs.shareHouseholdsWithChildrenPct)} van de huishoudens heeft kinderen` : undefined,
+    cbs?.primaryPupils != null ? `${cbs.primaryPupils.toLocaleString("nl-NL")} leerlingen in het primair onderwijs wonen in deze buurt` : undefined,
+    cbs?.secondaryPupils != null ? `${cbs.secondaryPupils.toLocaleString("nl-NL")} in het voortgezet onderwijs` : undefined,
+  ].filter(Boolean);
+  const educationParts = educationFromSes
+    ? [
+      ses.educationLowPct != null ? `${formatPct(ses.educationLowPct)} basisonderwijs/vmbo/mbo1` : undefined,
+      ses.educationMidPct != null ? `${formatPct(ses.educationMidPct)} havo/vwo/mbo2-4` : undefined,
+      ses.educationHighPct != null ? `${formatPct(ses.educationHighPct)} hbo/wo` : undefined,
+    ].filter(Boolean)
+    : [
+      cbs?.primaryPupils != null ? `${cbs.primaryPupils.toLocaleString("nl-NL")} PO-leerlingen` : undefined,
+      cbs?.secondaryPupils != null ? `${cbs.secondaryPupils.toLocaleString("nl-NL")} VO-leerlingen` : undefined,
+      cbs?.mboStudents != null ? `${cbs.mboStudents.toLocaleString("nl-NL")} mbo-studenten` : undefined,
+      cbs?.hboStudents != null ? `${cbs.hboStudents.toLocaleString("nl-NL")} hbo-studenten` : undefined,
+      cbs?.woStudents != null ? `${cbs.woStudents.toLocaleString("nl-NL")} wo-studenten` : undefined,
+    ].filter(Boolean);
+  const crimeBits = [
+    crime?.total != null ? `${crime.total.toLocaleString("nl-NL")} geregistreerde misdrijven` : undefined,
+    crime?.per1000 != null ? `${crime.per1000.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} per 1.000 inwoners` : undefined,
+    crime?.burglary != null ? `${crime.burglary.toLocaleString("nl-NL")} woninginbraken` : undefined,
+    crime?.assault != null ? `${crime.assault.toLocaleString("nl-NL")} mishandelingen` : undefined,
+  ].filter(Boolean);
+
+  return [
+    {
+      key: "schools",
+      label: "Scholen en opvang",
+      category: "buurt",
+      value: cbs?.primarySchoolDistanceKm != null ? formatKm(cbs.primarySchoolDistanceKm) : cbs?.childcareDistanceKm != null ? formatKm(cbs.childcareDistanceKm) : "Geen data",
+      score: schoolScore,
+      severity: schoolScore != null ? scoreSeverity(schoolScore) : "neutral",
+      summary: schoolAvailable
+        ? `CBS-buurtgemiddelde: ${schoolParts.join("; ")}. Dit is de gemiddelde afstand over de weg voor alle inwoners van de buurt, geen loopafstand vanaf dit adres.`
+        : "Er zijn geen CBS-afstanden tot scholen of opvang beschikbaar.",
+      action: "Loop of fiets de schoolroute op een schooldag; vraag naar wachtlijsten en of de school van je voorkeur in het voedingsgebied ligt.",
+      raw: cbs?.primarySchoolDistanceKm != null ? { value: cbs.primarySchoolDistanceKm, unit: "km", metric: "CBS gemiddelde afstand basisschool" } : undefined,
+      confidence: "medium",
+      spatialScale: "buurt",
+      evidence: [cbsEvidence],
+      availability: schoolAvailable ? "available" : "unavailable",
+    },
+    {
+      key: "children",
+      label: "Kinderen in de buurt",
+      category: "buurt",
+      value: cbs?.shareAge0to15Pct != null ? formatPct(cbs.shareAge0to15Pct) : cbs?.shareHouseholdsWithChildrenPct != null ? formatPct(cbs.shareHouseholdsWithChildrenPct) : "Geen data",
+      severity: "neutral",
+      summary: childrenAvailable
+        ? `${childrenParts.join("; ")}. Dit beschrijft de bevolkingssamenstelling, niet of de buurt 'geschikt' is.`
+        : "Er zijn geen CBS-cijfers over kinderen in deze buurt.",
+      action: "Kijk zelf op een schooldag en in het weekend hoe de straat aanvoelt; cijfers zeggen niets over speelplekken of overlast.",
+      raw: cbs?.shareAge0to15Pct != null ? { value: cbs.shareAge0to15Pct, unit: "%", metric: "CBS aandeel 0 tot 15 jaar" } : undefined,
+      confidence: "medium",
+      spatialScale: "buurt",
+      evidence: [cbsEvidence],
+      availability: childrenAvailable ? "available" : "unavailable",
+    },
+    {
+      key: "education",
+      label: "Opleiding in de wijk",
+      category: "buurt",
+      value: ses?.educationHighPct != null ? `${formatPct(ses.educationHighPct)} hbo/wo` : cbs?.primaryPupils != null ? `${cbs.primaryPupils.toLocaleString("nl-NL")} PO-leerlingen` : "Geen data",
+      severity: "neutral",
+      summary: educationAvailable
+        ? educationFromSes
+          ? `Hoogst behaalde opleiding van huishoudens${ses?.periodYear ? ` (${ses.periodYear})` : ""}: ${educationParts.join(", ")}. Dit is een buurtgemiddelde, geen oordeel over de woning.`
+          : `Leerlingen en studenten woonachtig in de buurt: ${educationParts.join(", ")}. Dat zegt waar zij wonen, niet waar zij naar school gaan.`
+        : "Er is geen opleidingsverdeling of leerlingenaantal beschikbaar voor deze buurt.",
+      action: "Gebruik dit alleen als context. Het zegt niets over schoolkwaliteit; check scholen zelf via scholenopdekaart.nl.",
+      raw: ses?.educationHighPct != null ? { value: ses.educationHighPct, unit: "%", metric: "CBS SES-WOA aandeel hbo/wo" } : undefined,
+      confidence: "medium",
+      spatialScale: ses?.spatialScale ?? "buurt",
+      evidence: educationFromSes ? [sesEvidence] : [cbsEvidence],
+      availability: educationAvailable ? "available" : "unavailable",
+    },
+    {
+      key: "ses",
+      label: "Sociaal-economische status",
+      category: "buurt",
+      value: ses?.sesScore != null ? formatSesScore(ses.sesScore) : "Geen data",
+      severity: "neutral",
+      summary: ses?.sesScore != null
+        ? `Officiële CBS SES-WOA-totaalscore ${formatSesScore(ses.sesScore)} (Nederland ≈ 0)${ses.periodYear ? `, verslagjaar ${ses.periodYear}` : ""}${ses.wealthScore != null || ses.educationScore != null || ses.workScore != null ? `: welvaart ${ses.wealthScore != null ? formatSesScore(ses.wealthScore) : "n.v.t."}, opleiding ${ses.educationScore != null ? formatSesScore(ses.educationScore) : "n.v.t."}, arbeidsverleden ${ses.workScore != null ? formatSesScore(ses.workScore) : "n.v.t."}` : ""}. Dit is geen woningwaardering en geen 'betere buurt'-oordeel.`
+        : "Er is geen SES-WOA-score beschikbaar voor deze buurt.",
+      action: "Lees SES-WOA als achtergrond over welvaart, opleiding en werk in de buurt; het voorspelt niets over jouw buren of de staat van deze woning.",
+      raw: ses?.sesScore != null ? { value: ses.sesScore, unit: "SES-WOA", metric: "CBS gemiddelde totaalscore" } : undefined,
+      confidence: "medium",
+      spatialScale: ses?.spatialScale ?? "buurt",
+      evidence: [sesEvidence],
+      availability: ses ? "available" : "unavailable",
+    },
+    {
+      key: "crime",
+      label: "Geregistreerde misdrijven",
+      category: "buurt",
+      value: crime?.per1000 != null ? `${crime.per1000.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 1.000` : crime?.total != null ? crime.total.toLocaleString("nl-NL") : "Geen data",
+      score: crimeScore,
+      severity: crimeScore != null ? scoreSeverity(crimeScore) : "neutral",
+      summary: crime
+        ? `${crimeBits.join("; ")}${crime.periodYear ? ` (${crime.periodYear})` : ""}. Alleen bij de politie geregistreerde feiten, inclusief pogingen.`
+        : "Er zijn geen politiecijfers over geregistreerde misdrijven beschikbaar voor deze buurt.",
+      action: "Bekijk de uitsplitsing en meer jaren op data.politie.nl; cijfers hangen af van aangiftebereidheid en zeggen niets over jouw woning.",
+      raw: crime?.per1000 != null ? { value: crime.per1000, unit: "per 1.000 inwoners", metric: "geregistreerde misdrijven" } : crime?.total != null ? { value: crime.total, unit: "aantal", metric: "geregistreerde misdrijven" } : undefined,
+      confidence: "medium",
+      spatialScale: crime?.spatialScale ?? "buurt",
+      evidence: [crimeEvidence],
+      availability: crime ? "available" : "unavailable",
+    },
+  ];
 }
 
 function energyScore(label: string) {
