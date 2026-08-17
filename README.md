@@ -9,7 +9,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - PDOK Location API address autocomplete
 - BAG-backed VBO/pand identity, geometry, building year, and surface area
 - BGT road, green-area, and water context within approximately 250 m
-- Mapbox GL JS map with building overlay, search radius, and tokenless fallback preview
+- Mapbox Standard 3D map with sun/shadow lighting, RIVM noise/air overlays, and BGT green/water layers (`NEXT_PUBLIC_MAPBOX_TOKEN` required; no OSM fallback)
 - RIVM WMS screening for road noise and air quality
 - CBS 2024 neighbourhood context (children, schools/childcare, amenities), CBS SES-WOA, Politie/CBS registered crime, NDOV halte proximity, and DSO spatial topics
 - Nearby BAG homes within 150 m, including registered usable area and links to their reports
@@ -76,6 +76,8 @@ Pull requests and pushes to `main` run the quality pipeline in `.github/workflow
 ```text
 GET /api/address/search?q=...
 GET /api/property/:bagId
+GET /api/property/:bagId/map-layers
+GET /api/map/rivm/:layer/:z/:x/:y
 GET /api/analysis/:bagId
 GET /api/ai-analysis/:bagId
 POST /api/ai-analysis/:bagId
@@ -140,7 +142,7 @@ Configure these GitHub Actions secrets in the `production` environment:
 
 Configure the Supabase and application environment variables in Vercel Project Settings. The pipeline never passes database or service secrets to the browser.
 
-The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV are open services. Add `NEXT_PUBLIC_MAPBOX_TOKEN` for the interactive map, `EPONLINE_API_KEY` for energy labels, and `DSO_API_KEY` for spatial planning topics.
+The first slice does not require any API keys because PDOK, CBS, RIVM, and NDOV are open services. Add `NEXT_PUBLIC_MAPBOX_TOKEN` for the Mapbox Standard 3D map, `EPONLINE_API_KEY` for energy labels, and `DSO_API_KEY` for spatial planning topics.
 
 AI woningonderzoek is enabled with `AI_GATEWAY_API_KEY` and the Supabase variables. The app uses Vercel AI Gateway with GPT-5.6 Luna (`openai/gpt-5.6-luna`) as the default for both source discovery and the structured report, with medium reasoning on synthesis and low reasoning on the short web-search step. Override with `AI_RESEARCH_MODEL` / `AI_SYNTHESIS_MODEL` if you need Terra or Sol. Reports are stored for `AI_REPORT_TTL_DAYS` (default seven days), cite their source URLs, record token usage, and never alter the deterministic Reality Score. Prompts are bounded (compact analysis + listing DTO, short source snippets) so the two LLM calls stay token-conscious. `AI_ALLOWED_DOMAINS` and `LISTING_ALLOWED_HOSTS` limit which additional web pages the research step may fetch and treat as trustworthy. Listing data a signed-in user already captured (Funda extension or paste-import, stored in `user_listings`) is always fed into the AI report as source text — it needs no domain allowlist, since it was captured with the user's own consent rather than fetched live. Untrusted listing text is wrapped and treated as evidence, not instructions. That user-captured listing takes priority over `LISTING_PROVIDER_URL` (a licensed feed) when both exist. Deterministic (non-AI) listing risk flags for erfpacht, a missing VvE reserve, bijzondere bijdrage, ouderdomsclausule, asbest, and vocht/lekkage are passed into the synthesis step so the model does not have to re-discover them from a long dump.
 
