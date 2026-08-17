@@ -136,10 +136,12 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       if (existing && aiReportStatus(existing) === "generating") {
         return NextResponse.json({ status: "generating" }, { status: 202 });
       }
-      await markAiReportGenerating(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, userId);
     }
     if (!signedIn && !allowAnonymousGeneration(request, bagId)) {
       return NextResponse.json({ status: "failed", message: "Te veel verzoeken. Probeer het later opnieuw of log in." }, { status: 429 });
+    }
+    if (isSupabaseConfigured()) {
+      await markAiReportGenerating(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, userId);
     }
     const report = await generateListingInsights(listing);
     if (!report) {
