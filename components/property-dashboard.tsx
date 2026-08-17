@@ -41,7 +41,7 @@ import {
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
-import { hasListingExtractText } from "@/src/lib/analysis/listing-extract";
+import { hasListingExtractText } from "@/src/lib/listing-text";
 import type {
   AiPropertyReport,
   AiReportStatus,

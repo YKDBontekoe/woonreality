@@ -3,7 +3,10 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { wrapUntrustedListingText } from "@/src/lib/analysis/research";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
+import { hasListingExtractText } from "@/src/lib/listing-text";
 import type { AiTokenUsage, ListingInsights, PropertyListing } from "@/src/lib/types";
+
+export { hasListingExtractText } from "@/src/lib/listing-text";
 
 export const LISTING_EXTRACT_VERSION = "2026.08.listing-extract.v1";
 export const LISTING_EXTRACT_PROMPT_VERSION = "2026.08.listing-extract-prompt.v1";
@@ -39,13 +42,6 @@ const extractSchema = z.object({
 
 export function resolvedListingExtractModel() {
   return process.env.AI_SYNTHESIS_MODEL?.trim() || process.env.AI_RESEARCH_MODEL?.trim() || DEFAULT_LISTING_EXTRACT_MODEL;
-}
-
-export function hasListingExtractText(listing: PropertyListing | null | undefined) {
-  if (!listing) return false;
-  const description = listing.description?.trim() ?? "";
-  const sections = (listing.textSections ?? []).some((section) => section.text.trim().length > 40);
-  return description.length >= 40 || sections;
 }
 
 function take(value: string, max: number, remaining: { n: number }) {
