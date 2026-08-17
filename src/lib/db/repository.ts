@@ -65,23 +65,52 @@ async function propertyId(db: NonNullable<ReturnType<typeof createSupabaseAdminC
   return data?.id ?? null;
 }
 
-export async function getAiReport(bagVboId: string, reportVersion: string) {
+export async function getAiReport(bagVboId: string, reportVersion: string, userId: string | null = null) {
   const db = createSupabaseAdminClient();
   if (!db) return null;
   const id = await propertyId(db, bagVboId);
   if (!id) return null;
-  const { data } = await db.from("ai_reports").select("*").eq("property_id", id).eq("report_version", reportVersion).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  let query = db.from("ai_reports").select("*").eq("property_id", id).eq("report_version", reportVersion);
+  query = userId ? query.eq("user_id", userId) : query.is("user_id", null);
+  const { data } = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   return data;
 }
 
-export async function persistAiReport(analysis: Analysis, report: AiPropertyReport, inputFingerprint: string): Promise<"database" | "cache-only"> {
+export function resolveReadyReport(row: AiReportRow | null, fingerprint: string) {
+  const status = aiReportStatus(row);
+  if (status === "ready" && row && row.input_fingerprint === fingerprint) {
+    return {
+      status: "ready" as const,
+      report: row.report_json,
+      generatedAt: row.generated_at,
+      expiresAt: row.expires_at,
+    };
+  }
+  if (status === "ready") {
+    return {
+      status: "stale" as const,
+      report: null,
+      generatedAt: row?.generated_at ?? null,
+      expiresAt: row?.expires_at ?? null,
+    };
+  }
+  return {
+    status,
+    report: null,
+    generatedAt: row?.generated_at ?? null,
+    expiresAt: row?.expires_at ?? null,
+  };
+}
+
+export async function persistAiReport(analysis: Analysis, report: AiPropertyReport, inputFingerprint: string, userId: string | null = null): Promise<"database" | "cache-only"> {
   const db = createSupabaseAdminClient();
   if (!db) return "cache-only";
   try {
     const id = await propertyId(db, analysis.property.bagVboId);
     if (!id) return "cache-only";
-    const { error } = await db.from("ai_reports").upsert({
+    const payload = {
       property_id: id,
+      user_id: userId,
       report_version: report.reportVersion,
       prompt_version: report.promptVersion,
       input_fingerprint: inputFingerprint,
@@ -95,7 +124,11 @@ export async function persistAiReport(analysis: Analysis, report: AiPropertyRepo
       usage_json: report.usage ? asJson(report.usage) : null,
       updated_at: new Date().toISOString(),
       error_code: null,
-    }, { onConflict: "property_id,report_version" });
+    };
+    const existing = await getAiReport(analysis.property.bagVboId, report.reportVersion, userId);
+    const { error } = existing?.id
+      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
+      : await db.from("ai_reports").insert(payload);
     if (error) throw error;
     return "database";
   } catch (error) {
@@ -104,21 +137,26 @@ export async function persistAiReport(analysis: Analysis, report: AiPropertyRepo
   }
 }
 
-async function updateAiReport(analysis: Analysis, values: Record<string, unknown>, reportVersion: string, promptVersion: string, inputFingerprint: string) {
+async function updateAiReport(analysis: Analysis, values: Record<string, unknown>, reportVersion: string, promptVersion: string, inputFingerprint: string, userId: string | null = null) {
   const db = createSupabaseAdminClient();
   if (!db) return "cache-only" as const;
   try {
     const id = await propertyId(db, analysis.property.bagVboId);
     if (!id) return "cache-only" as const;
-    const { error } = await db.from("ai_reports").upsert({
+    const payload = {
       property_id: id,
+      user_id: userId,
       report_version: reportVersion,
       prompt_version: promptVersion,
       input_fingerprint: inputFingerprint,
       status: values.status as string,
       ...values,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "property_id,report_version" });
+    };
+    const existing = await getAiReport(analysis.property.bagVboId, reportVersion, userId);
+    const { error } = existing?.id
+      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
+      : await db.from("ai_reports").insert(payload);
     if (error) throw error;
     return "database" as const;
   } catch (error) {
@@ -127,12 +165,12 @@ async function updateAiReport(analysis: Analysis, values: Record<string, unknown
   }
 }
 
-export function markAiReportGenerating(analysis: Analysis, reportVersion: string, promptVersion: string, inputFingerprint: string) {
-  return updateAiReport(analysis, { status: "generating", error_code: null }, reportVersion, promptVersion, inputFingerprint);
+export function markAiReportGenerating(analysis: Analysis, reportVersion: string, promptVersion: string, inputFingerprint: string, userId: string | null = null) {
+  return updateAiReport(analysis, { status: "generating", error_code: null }, reportVersion, promptVersion, inputFingerprint, userId);
 }
 
-export function persistAiReportFailure(analysis: Analysis, reportVersion: string, promptVersion: string, inputFingerprint: string, errorCode: string) {
-  return updateAiReport(analysis, { status: "failed", error_code: errorCode }, reportVersion, promptVersion, inputFingerprint);
+export function persistAiReportFailure(analysis: Analysis, reportVersion: string, promptVersion: string, inputFingerprint: string, errorCode: string, userId: string | null = null) {
+  return updateAiReport(analysis, { status: "failed", error_code: errorCode }, reportVersion, promptVersion, inputFingerprint, userId);
 }
 
 export function aiReportStatus(row: AiReportRow | null): AiReportStatus {

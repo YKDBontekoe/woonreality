@@ -11,8 +11,8 @@ export const DEFAULT_AI_RESEARCH_MODEL = "openai/gpt-5.6-luna";
 export const DEFAULT_AI_SYNTHESIS_MODEL = "openai/gpt-5.6-luna";
 export const DEFAULT_AI_REASONING = "medium" as const;
 
-const REPORT_VERSION = "2026.08.ai.v2";
-const PROMPT_VERSION = "2026.08.ai-prompt.v2";
+const REPORT_VERSION = "2026.08.ai.v3";
+const PROMPT_VERSION = "2026.08.ai-prompt.v3";
 const REPORT_TTL_DAYS = Number(process.env.AI_REPORT_TTL_DAYS ?? "7") || 7;
 
 export const LISTING_MAX_DESCRIPTION_CHARS = 1_500;
@@ -80,8 +80,46 @@ function trustedSource(url: string, property: Property) {
     || Boolean(municipality && (host === `${municipality}.nl` || host.endsWith(`.${municipality}.nl`)));
 }
 
-function sourceId(url: string) {
-  return `web-${Buffer.from(url).toString("base64url").slice(0, 18)}`;
+export function isPrivateIpAddress(address: string) {
+  const ip = address.toLowerCase().startsWith("::ffff:") ? address.slice(7) : address;
+  if (ip === "::1" || ip === "0.0.0.0") return true;
+  if (ip.includes(":")) {
+    return ip === "::1" || ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80");
+  }
+  const parts = ip.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return false;
+  const nums = parts.map(Number);
+  if (nums.some((part) => part > 255)) return false;
+  const [a, b] = nums;
+  return a === 0 || a === 10 || a === 127
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168)
+    || (a === 100 && b >= 64 && b <= 127);
+}
+
+function isHttpsUrl(url: string) {
+  return /^https:\/\//i.test(url);
+}
+
+export async function canFetchRemoteUrl(url: string, property: Property) {
+  if (!isHttpsUrl(url) || !trustedSource(url, property)) return false;
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch { return false; }
+  if (!hostname) return false;
+  if (isPrivateIpAddress(hostname)) return false;
+  try {
+    const { lookup } = await import("node:dns/promises");
+    const records = await lookup(hostname, { all: true });
+    if (!records.length) return false;
+    return records.every((record) => !isPrivateIpAddress(record.address));
+  } catch {
+    return false;
+  }
+}
+
+export function sourceId(url: string) {
+  return `web-${createHash("sha256").update(url).digest("base64url").slice(0, 18)}`;
 }
 
 function sourceFromUrl(url: string, title: string | undefined, property: Property): ResearchSource | null {
@@ -92,12 +130,33 @@ function sourceFromUrl(url: string, title: string | undefined, property: Propert
   return { id: sourceId(url), title: title?.trim() || host, url, publisher: host, type, fetchedAt: new Date().toISOString() };
 }
 
-async function fetchDocument(source: ResearchSource): Promise<Document | null> {
+async function fetchFollowingRedirects(url: string, property: Property, signal: AbortSignal) {
+  let current = url;
+  for (let hop = 0; hop < 4; hop += 1) {
+    if (!await canFetchRemoteUrl(current, property)) return null;
+    const response = await fetch(current, {
+      signal,
+      headers: { accept: "text/html,application/pdf;q=0.9,*/*;q=0.1" },
+      cache: "no-store",
+      redirect: "manual",
+    });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) return null;
+      try { current = new URL(location, current).toString(); } catch { return null; }
+      continue;
+    }
+    return response;
+  }
+  return null;
+}
+
+async function fetchDocument(source: ResearchSource, property: Property): Promise<Document | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 6_000);
   try {
-    const response = await fetch(source.url, { signal: controller.signal, headers: { accept: "text/html,application/pdf;q=0.9,*/*;q=0.1" }, cache: "no-store", redirect: "follow" });
-    if (!response.ok) return null;
+    const response = await fetchFollowingRedirects(source.url, property, controller.signal);
+    if (!response || !response.ok) return null;
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     const length = Number(response.headers.get("content-length") ?? 0);
     if (length > 8_000_000) return null;
@@ -305,17 +364,34 @@ export function buildSynthesisPrompt(property: Property, analysis: Analysis, lis
   });
 }
 
+export function assemblePromptDocuments(listingDocs: Document[], fetched: Document[], extraListingPage?: Document | null) {
+  const prioritized = [...listingDocs, ...(extraListingPage ? [extraListingPage] : []), ...fetched];
+  const documents: Document[] = [];
+  const seen = new Set<string>();
+  for (const document of prioritized) {
+    if (seen.has(document.source.id)) continue;
+    seen.add(document.source.id);
+    documents.push(document);
+    if (documents.length >= SOURCE_MAX_DOCS) break;
+  }
+  return documents;
+}
+
 export function aiInputFingerprint(analysis: Analysis, listing: PropertyListing | null) {
   return createHash("sha256").update(JSON.stringify({
     analysisVersion: analysis.analysisVersion,
     scoringVersion: analysis.scoringVersion,
     property: {
       bagVboId: analysis.property.bagVboId,
+      addressLabel: analysis.property.addressLabel,
+      postcode: analysis.property.postcode,
+      municipality: analysis.property.municipality,
       buildingYear: analysis.property.buildingYear,
       areaM2: analysis.property.areaM2,
       city: analysis.property.city,
     },
     analysis: compactAnalysisDto(analysis),
+    evidence: analysis.evidence.map(({ id, sourceUrl, source }) => ({ id, sourceUrl, source })),
     listing: listingSynthesisDto(listing),
   })).digest("hex");
 }
@@ -380,13 +456,14 @@ export async function generateAiPropertyReport(property: Property, analysis: Ana
   if (!process.env.AI_GATEWAY_API_KEY) return null;
   const discovered = await discoverSources(property, analysis, listing);
   const sources = discovered.sources;
-  const fetched = (await Promise.all(sources.map(fetchDocument))).filter((document): document is Document => Boolean(document && document.text.length > 80));
-  const documents = fetched.slice(0, SOURCE_MAX_DOCS);
-  if (listing) documents.push(...listingDocuments(listing));
-  if (listing?.sourceUrl && /^https:\/\//i.test(listing.sourceUrl) && !listing.description && process.env.LISTING_PAGE_FETCH_ENABLED === "true" && trustedSource(listing.sourceUrl, property)) {
-    const page = await fetchDocument({ id: sourceId(listing.sourceUrl), title: "Advertentiepagina", url: listing.sourceUrl, publisher: listing.provider, type: "listing", fetchedAt: new Date().toISOString() });
-    if (page) documents.push({ ...page, text: page.text.slice(0, SOURCE_MAX_DOC_CHARS) });
+  const fetched = (await Promise.all(sources.map((source) => fetchDocument(source, property)))).filter((document): document is Document => Boolean(document && document.text.length > 80));
+  const listingDocs = listing ? listingDocuments(listing) : [];
+  let extraListingPage: Document | null = null;
+  if (listing?.sourceUrl && isHttpsUrl(listing.sourceUrl) && !listing.description && process.env.LISTING_PAGE_FETCH_ENABLED === "true" && trustedSource(listing.sourceUrl, property)) {
+    const page = await fetchDocument({ id: sourceId(listing.sourceUrl), title: "Advertentiepagina", url: listing.sourceUrl, publisher: listing.provider, type: "listing", fetchedAt: new Date().toISOString() }, property);
+    if (page) extraListingPage = { ...page, text: page.text.slice(0, SOURCE_MAX_DOC_CHARS) };
   }
+  const documents = assemblePromptDocuments(listingDocs, fetched, extraListingPage);
   const sourceManifest = documents.map(({ source }) => source);
   const result = await generateText({
     model: resolvedSynthesisModel(),

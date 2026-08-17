@@ -24,7 +24,7 @@ export function mergeListings(
     ...(primary.extraKenmerken ?? {}),
   };
   if (!Object.keys(merged.extraKenmerken).length) delete merged.extraKenmerken;
-  const sections = [...(fallback.textSections ?? []), ...(primary.textSections ?? [])].filter(
+  const sections = [...(primary.textSections ?? []), ...(fallback.textSections ?? [])].filter(
     (section, index, all) =>
       all.findIndex((item) => item.title === section.title && item.text === section.text) === index,
   );
@@ -39,5 +39,5 @@ export function mergeListings(
 }
 
 export function listingNeedsExtension(listing: PropertyListing | null | undefined) {
-  return !listing?.askingPrice && !listing?.livingAreaM2 && !listing?.description;
+  return !listing?.askingPrice || !listing?.pricePerM2 || !listing?.description;
 }

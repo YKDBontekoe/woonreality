@@ -2,25 +2,77 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aiInputFingerprint,
+  assemblePromptDocuments,
   buildSynthesisPrompt,
   compactAnalysisDto,
   DEFAULT_AI_REASONING,
   DEFAULT_AI_RESEARCH_MODEL,
   DEFAULT_AI_SYNTHESIS_MODEL,
+  isPrivateIpAddress,
   listingSynthesisDto,
   LISTING_MAX_AGGREGATE_CHARS,
   LISTING_MAX_DESCRIPTION_CHARS,
   quoteMatchesSource,
   resolvedResearchModel,
   resolvedSynthesisModel,
+  SOURCE_MAX_DOCS,
   SOURCE_MAX_TOTAL_CHARS,
   sourceContext,
+  sourceId,
+  sourceSnippets,
   wrapUntrustedListingText,
 } from "@/src/lib/analysis/research";
+import { resolveReadyReport } from "@/src/lib/db/repository";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
-import type { Analysis, Property, PropertyListing } from "@/src/lib/types";
+import type { AiReportRow } from "@/src/lib/supabase/database.types";
+import type { Analysis, Evidence, Property, PropertyListing, ResearchSource } from "@/src/lib/types";
 
 const LISTING_URL = "https://www.funda.nl/detail/koop/epe/huis-12345678-korenstraat-18/12345678/";
+
+function sampleEvidence(overrides: Partial<Evidence> = {}): Evidence {
+  return {
+    id: "evidence-bag",
+    source: "PDOK / BAG",
+    sourceUrl: "https://api.pdok.nl/bag/vbo/0200100000000001",
+    fetchedAt: "2026-08-01T00:00:00.000Z",
+    confidence: "high",
+    ...overrides,
+  };
+}
+
+function sampleSource(id: string, url: string, type: ResearchSource["type"] = "official"): ResearchSource {
+  return {
+    id,
+    title: id,
+    url,
+    type,
+    fetchedAt: "2026-08-01T00:00:00.000Z",
+  };
+}
+
+function sampleReadyReport(fingerprint: string, overrides: Partial<AiReportRow> = {}): AiReportRow {
+  const generatedAt = "2026-08-01T00:00:00.000Z";
+  return {
+    id: "report-1",
+    property_id: "property-1",
+    report_version: "2026.08.ai.v3",
+    prompt_version: "2026.08.ai-prompt.v3",
+    input_fingerprint: fingerprint,
+    status: "ready",
+    user_id: null,
+    report_json: { verdict: { title: "Klaar", summary: "OK", confidence: "medium" } },
+    source_manifest_json: [],
+    research_model: "openai/gpt-5.6-luna",
+    synthesis_model: "openai/gpt-5.6-luna",
+    usage_json: null,
+    error_code: null,
+    generated_at: generatedAt,
+    expires_at: "2099-08-01T00:00:00.000Z",
+    created_at: generatedAt,
+    updated_at: generatedAt,
+    ...overrides,
+  };
+}
 
 function sampleProperty(): Property {
   return {
@@ -47,6 +99,7 @@ function sampleListing(overrides: Partial<PropertyListing> = {}): PropertyListin
     fetchedAt: "2026-08-01T00:00:00.000Z",
     status: "active",
     askingPrice: 525000,
+    pricePerM2: 4102,
     livingAreaM2: 128,
     bedroomCount: 4,
     description: "Lichte hoekwoning met tuin.",
@@ -206,6 +259,90 @@ test("fingerprint changes when listing facts change", () => {
   assert.equal(first, third);
 });
 
+test("fingerprint changes when postcode, municipality, or evidence changes", () => {
+  const listing = sampleListing();
+  const baseline = aiInputFingerprint(sampleAnalysis(), listing);
+  const postcodeChanged = aiInputFingerprint(
+    sampleAnalysis({ property: { ...sampleProperty(), postcode: "1011AB" } }),
+    listing,
+  );
+  const municipalityChanged = aiInputFingerprint(
+    sampleAnalysis({ property: { ...sampleProperty(), municipality: "Apeldoorn" } }),
+    listing,
+  );
+  const evidenceChanged = aiInputFingerprint(
+    sampleAnalysis({ evidence: [sampleEvidence({ id: "evidence-dso", source: "DSO", sourceUrl: "https://omgevingswet.overheid.nl/plan" })] }),
+    listing,
+  );
+  assert.notEqual(baseline, postcodeChanged);
+  assert.notEqual(baseline, municipalityChanged);
+  assert.notEqual(baseline, evidenceChanged);
+  assert.notEqual(postcodeChanged, municipalityChanged);
+  assert.notEqual(municipalityChanged, evidenceChanged);
+});
+
+test("ready report is returned only when the current listing fingerprint still matches", () => {
+  const analysis = sampleAnalysis();
+  const listing = sampleListing({ askingPrice: 525000 });
+  const fingerprint = aiInputFingerprint(analysis, listing);
+  const row = sampleReadyReport(fingerprint);
+  const ready = resolveReadyReport(row, fingerprint);
+  assert.equal(ready.status, "ready");
+  assert.ok(ready.report);
+  const updatedFingerprint = aiInputFingerprint(analysis, sampleListing({ askingPrice: 499000 }));
+  const stale = resolveReadyReport(row, updatedFingerprint);
+  assert.equal(stale.status, "stale");
+  assert.equal(stale.report, null);
+});
+
+test("sourceId distinguishes different paths on the same host", () => {
+  const firstUrl = "https://www.overheid.nl/plan/a";
+  const secondUrl = "https://www.overheid.nl/plan/b";
+  const firstId = sourceId(firstUrl);
+  const secondId = sourceId(secondUrl);
+  assert.match(firstId, /^web-[A-Za-z0-9_-]{18}$/);
+  assert.notEqual(firstId, secondId);
+  const documents = [{
+    source: sampleSource(firstId, firstUrl, "planning"),
+    text: "Het omgevingsplan staat een dakkapel toe aan de achterzijde.",
+  }];
+  assert.equal(quoteMatchesSource("dakkapel toe aan de achterzijde", firstId, documents), true);
+  assert.equal(quoteMatchesSource("dakkapel toe aan de achterzijde", secondId, documents), false);
+});
+
+test("assemblePromptDocuments keeps listing sources inside the prompt budget", () => {
+  const listingDocs = [{
+    source: sampleSource(sourceId(LISTING_URL), LISTING_URL, "listing"),
+    text: "Lichte hoekwoning met tuin.",
+  }];
+  const extraListingPage = {
+    source: sampleSource(sourceId(`${LISTING_URL}#pagina`), LISTING_URL, "listing"),
+    text: "Advertentiepagina met extra kenmerken.",
+  };
+  const fetched = Array.from({ length: 8 }, (_, index) => ({
+    source: sampleSource(`web-fetched-${index}`, `https://www.overheid.nl/doc-${index}`),
+    text: `Officieel document ${index}`,
+  }));
+  const documents = assemblePromptDocuments(listingDocs, fetched, extraListingPage);
+  assert.equal(documents.length, SOURCE_MAX_DOCS);
+  assert.equal(documents[0]?.source.id, listingDocs[0]?.source.id);
+  assert.equal(documents[1]?.source.id, extraListingPage.source.id);
+  const snippets = sourceSnippets(documents);
+  const snippetIds = new Set(snippets.map((item) => item.sourceId));
+  for (const document of documents) {
+    assert.ok(snippetIds.has(document.source.id));
+  }
+});
+
+test("isPrivateIpAddress rejects private literals but not public hostnames", () => {
+  assert.equal(isPrivateIpAddress("127.0.0.1"), true);
+  assert.equal(isPrivateIpAddress("10.0.0.1"), true);
+  assert.equal(isPrivateIpAddress("192.168.1.8"), true);
+  assert.equal(isPrivateIpAddress("8.8.8.8"), false);
+  assert.equal(isPrivateIpAddress("www.overheid.nl"), false);
+  assert.equal(isPrivateIpAddress("omgevingswet.overheid.nl"), false);
+});
+
 test("mergeListings lets the user listing win and fills licensed gaps", () => {
   const user = sampleListing({ askingPrice: 510000, livingAreaM2: undefined, energyLabel: "C" });
   const licensed = sampleListing({
@@ -223,10 +360,29 @@ test("mergeListings lets the user listing win and fills licensed gaps", () => {
   assert.equal(merged?.extraKenmerken?.Parkeren, "Op straat");
 });
 
-test("listingNeedsExtension is true without price, area or description", () => {
+test("mergeListings puts primary sections before fallback-only sections", () => {
+  const merged = mergeListings(
+    sampleListing({ textSections: [{ title: "Aanbod", text: "user" }] }),
+    sampleListing({
+      textSections: [
+        { title: "Aanbod", text: "user" },
+        { title: "Buurt", text: "licensed-only" },
+      ],
+    }),
+  );
+  assert.deepEqual(merged?.textSections, [
+    { title: "Aanbod", text: "user" },
+    { title: "Buurt", text: "licensed-only" },
+  ]);
+});
+
+test("listingNeedsExtension is true when askingPrice, pricePerM2, or description is missing", () => {
   assert.equal(listingNeedsExtension(null), true);
   assert.equal(listingNeedsExtension(sampleListing()), false);
-  assert.equal(listingNeedsExtension(sampleListing({ askingPrice: undefined, livingAreaM2: undefined, description: undefined })), true);
+  assert.equal(listingNeedsExtension(sampleListing({ askingPrice: undefined })), true);
+  assert.equal(listingNeedsExtension(sampleListing({ pricePerM2: undefined })), true);
+  assert.equal(listingNeedsExtension(sampleListing({ description: undefined })), true);
+  assert.equal(listingNeedsExtension(sampleListing({ livingAreaM2: undefined })), false);
 });
 
 test("untrusted listing wrapper is stable for prompt tests", () => {
