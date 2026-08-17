@@ -43,12 +43,9 @@ function selectStandardBuilding(map: mapboxgl.Map, lng: number, lat: number) {
     const features = map.queryRenderedFeatures(map.project([lng, lat]), {
       target: { featuresetId: "buildings", importId: "basemap" },
     } as never);
-    const feature = features[0];
-    if (feature?.id == null) return false;
-    map.setFeatureState(
-      { id: feature.id, featuresetId: "buildings", importId: "basemap" } as never,
-      { select: true },
-    );
+    const feature = features[0] as { id?: string | number; source?: string } | undefined;
+    if (feature?.id == null || !feature.source) return false;
+    map.setFeatureState(feature as never, { select: true });
     return true;
   } catch {
     return false;
@@ -146,8 +143,10 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
 
     mapboxgl.accessToken = token;
     const style = mapStyleUrl();
+    const container = mapRef.current;
+    container.replaceChildren();
     const map = new mapboxgl.Map({
-      container: mapRef.current,
+      container,
       center: [lng, lat],
       zoom: MAP_CAMERA.zoom,
       pitch: MAP_CAMERA.pitch,
@@ -158,8 +157,15 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
       style,
       ...(isMapboxStandardStyle(style) ? { config: { basemap: woonrealityBasemapConfig() } } : {}),
     });
+    const resize = () => map.resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    requestAnimationFrame(resize);
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
     map.addControl(new mapboxgl.FullscreenControl(), "bottom-right");
+    map.on("error", (event) => {
+      console.error("Mapbox failed to render", event.error);
+    });
 
     map.on("load", () => {
       map.addSource("search-radius", {
@@ -275,6 +281,7 @@ export function PropertyMap({ property, nearbyProperties = [] }: { property: Pro
 
     mapInstance.current = map;
     return () => {
+      observer.disconnect();
       map.remove();
       mapInstance.current = null;
     };
