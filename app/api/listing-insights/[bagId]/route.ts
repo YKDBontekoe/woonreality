@@ -57,7 +57,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
   const { bagId } = await context.params;
   try {
     const { listing, userId, analysis } = await loadContext(bagId);
-    if (!hasListingExtractText(listing)) {
+    if (!listing || !hasListingExtractText(listing)) {
       return NextResponse.json({ status: "missing", reason: "no-listing-text" });
     }
     if (!isSupabaseConfigured()) {

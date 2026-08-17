@@ -282,9 +282,17 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   }, [analysis, bagId]);
 
   const marketListingPreview = mergeListings(userListing, listing);
+  const listingExtractKey = marketListingPreview && hasListingExtractText(marketListingPreview)
+    ? [
+        marketListingPreview.fetchedAt,
+        marketListingPreview.description ?? "",
+        String(marketListingPreview.askingPrice ?? ""),
+        (marketListingPreview.textSections ?? []).map((section) => section.text).join("\n"),
+      ].join("\0")
+    : "";
 
   useEffect(() => {
-    if (!hasListingExtractText(marketListingPreview)) {
+    if (!listingExtractKey) {
       setInsightsStatus("missing");
       setListingInsights(null);
       return;
@@ -328,7 +336,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     }
     void loadInsights();
     return () => controller.abort();
-  }, [bagId, marketListingPreview?.description, marketListingPreview?.fetchedAt]);
+  }, [bagId, listingExtractKey]);
 
   async function saveChecklist(next: ChecklistItem[]) {
     setChecklist(next);
@@ -409,14 +417,16 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const listingQuestions = (listingInsights?.points ?? [])
-    .map((point, index) => point.question ? {
-      id: `listing-q-${index}`,
-      label: point.question,
-      reason: point.topic,
-      checked: false,
-    } : null)
-    .filter((item): item is ChecklistItem => Boolean(item));
+  const listingQuestions: ChecklistItem[] = (listingInsights?.points ?? []).flatMap((point, index) =>
+    point.question
+      ? [{
+          id: `listing-q-${index}`,
+          label: point.question,
+          reason: point.topic,
+          checked: false,
+        }]
+      : [],
+  );
   const visibleChecklist = mergeChecklistWithDefaults(
     [...checklistForAnalysis(analysis), ...listingQuestions],
     checklist,

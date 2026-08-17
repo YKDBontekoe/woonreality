@@ -83,6 +83,8 @@ test("Keteldiep-like 325k house fits a typical income after buyer costs", () => 
   assert.ok(affordability.monthlyPayment > 0);
   assert.ok(["fits", "tight"].includes(affordability.fit));
   const costs = estimateBuyerCosts(325000, { ...DEFAULT_BUYER_PROFILE, ownFunds: 40000, budget: 325000, nhg: true }, affordability.maxLoanForPurchase);
+  assert.ok(costs);
+  if (!costs) return;
   assert.ok(costs.ownFundsNeeded > 0);
   assert.ok(affordability.ownFunds >= 40000 || affordability.ownFundsGap != null);
 });
