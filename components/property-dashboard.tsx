@@ -543,7 +543,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       <div className="dash-hero">
         <PropertyScoreCharts analysis={analysis} />
         <div id="kaart">
-          <PropertyMap property={property} nearbyProperties={nearbyProperties} />
+          <PropertyMap
+            property={property}
+            nearbyProperties={nearbyProperties}
+            signals={analysis.signals}
+            gardenOrientationText={marketListing?.gardenOrientation}
+          />
         </div>
       </div>
       {hasListingExtractText(marketListing) && (

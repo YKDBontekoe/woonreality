@@ -1,23 +1,31 @@
 const WEB_MERCATOR_ORIGIN = 20037508.342789244;
 const MAX_LAT = 85.05112878;
 
-export type RivmOverlay = "noise" | "no2";
+export type RivmOverlay = "noise" | "no2" | "pm25";
 
-export const RIVM_LAYERS: Record<RivmOverlay, { wms: string; layer: string; attribution: string }> = {
+export const RIVM_LAYERS: Record<RivmOverlay, { wms: string; layer: string; attribution: string; unit: string }> = {
   noise: {
     wms: "https://data.rivm.nl/geo/alo/wms",
     layer: "rivm_20250101_Geluid_lden_wegverkeer_2022",
     attribution: "RIVM wegverkeer Lden",
+    unit: "dB Lden",
   },
   no2: {
     wms: "https://data.rivm.nl/geo/lucht/wms",
     layer: "actueel_no2",
     attribution: "RIVM NO2",
+    unit: "µg/m³",
+  },
+  pm25: {
+    wms: "https://data.rivm.nl/geo/lucht/wms",
+    layer: "actueel_pm25",
+    attribution: "RIVM PM2.5",
+    unit: "µg/m³",
   },
 };
 
 export function parseRivmOverlay(value: string): RivmOverlay | null {
-  return value === "noise" || value === "no2" ? value : null;
+  return value === "noise" || value === "no2" || value === "pm25" ? value : null;
 }
 
 export function parseTileIndex(value: string) {

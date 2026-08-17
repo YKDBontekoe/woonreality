@@ -15,7 +15,7 @@ export type RivmContext = {
   fetchedAt: string;
 };
 
-async function getFeatureValue(baseUrl: string, layer: string, coordinates: Coordinates) {
+export async function getFeatureValue(baseUrl: string, layer: string, coordinates: Coordinates) {
   const delta = 0.00035;
   const params = new URLSearchParams({
     service: "WMS",

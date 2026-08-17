@@ -38,7 +38,20 @@ export function ndovStopCoordinates(xml: string): Coordinates[] {
   return stops;
 }
 
-export async function getNdovContext(coordinates: Coordinates): Promise<NdovContext | null> {
+export type NearbyStop = {
+  lat: number;
+  lng: number;
+  distanceM: number;
+};
+
+function nearbyStopsFromCatalog(coordinates: Coordinates, stops: Coordinates[]): NearbyStop[] {
+  return stops
+    .map((stop) => ({ ...stop, distanceM: Math.round(distanceM(coordinates, stop)) }))
+    .filter((stop) => stop.distanceM <= 1000)
+    .sort((a, b) => a.distanceM - b.distanceM);
+}
+
+async function loadNdovStops() {
   const indexResponse = await fetch(ndovHaltesUrl, { next: { revalidate: 86400 } });
   if (!indexResponse.ok) throw new Error(`NDOV index ${indexResponse.status}`);
   const index = await indexResponse.text();
@@ -49,11 +62,23 @@ export async function getNdovContext(coordinates: Coordinates): Promise<NdovCont
   const xml = gunzipSync(Buffer.from(await fileResponse.arrayBuffer())).toString("utf8");
   const stops = ndovStopCoordinates(xml);
   if (!stops.length) throw new Error("NDOV haltebestand bevat geen leesbare haltecoördinaten");
-  const nearby = stops.map((stop) => distanceM(coordinates, stop)).filter((distance) => distance <= 1000);
+  return { stops, catalogDate: latest.date };
+}
+
+export async function getNearbyNdovStops(coordinates: Coordinates, limit = 12): Promise<NearbyStop[]> {
+  const catalog = await loadNdovStops();
+  if (!catalog) return [];
+  return nearbyStopsFromCatalog(coordinates, catalog.stops).slice(0, limit);
+}
+
+export async function getNdovContext(coordinates: Coordinates): Promise<NdovContext | null> {
+  const catalog = await loadNdovStops();
+  if (!catalog) return null;
+  const nearby = nearbyStopsFromCatalog(coordinates, catalog.stops);
   return {
     stopCount: nearby.length,
-    nearestDistanceM: nearby.length ? Math.min(...nearby) : undefined,
-    catalogDate: latest.date,
+    nearestDistanceM: nearby[0]?.distanceM,
+    catalogDate: catalog.catalogDate,
     fetchedAt: new Date().toISOString(),
   };
 }
