@@ -92,6 +92,7 @@ export async function persistAiReport(analysis: Analysis, report: AiPropertyRepo
       synthesis_model: report.synthesisModel,
       generated_at: report.generatedAt,
       expires_at: report.expiresAt,
+      usage_json: report.usage ? asJson(report.usage) : null,
       updated_at: new Date().toISOString(),
       error_code: null,
     }, { onConflict: "property_id,report_version" });

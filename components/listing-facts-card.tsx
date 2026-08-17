@@ -48,14 +48,7 @@ export function ListingFactsCard({
   bagAreaM2?: number;
   id?: string;
 }) {
-  if (status === "loading") {
-    return (
-      <section className="listing-section">
-        <div className="listing-loading">Advertentiedata wordt opgehaald…</div>
-      </section>
-    );
-  }
-  if (!listing) return null;
+  if (status === "loading" || !listing) return null;
 
   const facts = [
     ["Woonoppervlak", listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined],
@@ -154,7 +147,7 @@ export function ListingFactsCard({
         )}
         {facts.length > 0 && (
           <div className="listing-fact-grid">
-            {facts.map(([label, value]) => (
+            {facts.slice(0, 12).map(([label, value]) => (
               <div key={label}>
                 <span>{label}</span>
                 <strong>{value}</strong>
@@ -162,28 +155,43 @@ export function ListingFactsCard({
             ))}
           </div>
         )}
-        {extraKenmerken.length > 0 && (
-          <div className="listing-extra-kenmerken">
-            {extraKenmerken.map(([label, value]) => (
-              <div key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
+        {(extraKenmerken.length > 0 || facts.length > 12 || listing.description || listing.textSections?.length) ? (
+          <details className="listing-more">
+            <summary>Meer kenmerken en tekst</summary>
+            {facts.length > 12 && (
+              <div className="listing-fact-grid listing-fact-grid-rest">
+                {facts.slice(12).map(([label, value]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            {extraKenmerken.length > 0 && (
+              <div className="listing-extra-kenmerken">
+                {extraKenmerken.map(([label, value]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            {listing.description && (
+              <div className="listing-description">
+                <span className="listing-label">Omschrijving</span>
+                <p>{listing.description}</p>
+              </div>
+            )}
+            {listing.textSections?.filter((section) => section.text !== listing.description).map((section) => (
+              <div className="listing-description" key={section.title}>
+                <span className="listing-label">{section.title}</span>
+                <p>{section.text}</p>
               </div>
             ))}
-          </div>
-        )}
-        {listing.description && (
-          <div className="listing-description">
-            <span className="listing-label">Omschrijving</span>
-            <p>{listing.description}</p>
-          </div>
-        )}
-        {listing.textSections?.filter((section) => section.text !== listing.description).map((section) => (
-          <div className="listing-description" key={section.title}>
-            <span className="listing-label">{section.title}</span>
-            <p>{section.text}</p>
-          </div>
-        ))}
+          </details>
+        ) : null}
         {listing.notes?.length ? (
           <ul className="listing-notes">
             {listing.notes.map((note) => <li key={note}>{note}</li>)}

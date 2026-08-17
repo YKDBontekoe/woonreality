@@ -3,7 +3,6 @@
 import { Link2, Puzzle, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ListingFactsCard } from "@/components/listing-facts-card";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type { PropertyListing } from "@/src/lib/types";
@@ -45,15 +44,11 @@ function storeDraft(
 
 export function FundaListingPanel({
   bagId,
-  bagAreaM2,
   listing,
-  licensedListing,
   onListingChange,
 }: {
   bagId: string;
-  bagAreaM2?: number;
   listing: PropertyListing | null;
-  licensedListing: PropertyListing | null;
   onListingChange: (listing: PropertyListing | null) => void;
 }) {
   const [sourceUrl, setSourceUrl] = useState(isFundaListingUrl(listing?.sourceUrl ?? "") ? listing?.sourceUrl ?? "" : "");
@@ -95,7 +90,7 @@ export function FundaListingPanel({
       }
       if (body.listing) {
         onListingChange(body.listing);
-        const notice = "Adres uit de Funda-link bewaard. Kenmerken komen uit de browser-extensie zodra je de advertentie opent.";
+        const notice = "Adres uit de Funda-link bewaard. Open de advertentie met de extensie voor vraagprijs en kenmerken.";
         storeDraft(bagId, url, body.listing, body.facts, body.blocked, notice);
         setMessage(notice);
       }
@@ -106,17 +101,15 @@ export function FundaListingPanel({
     }
   }
 
-  const needsExtension = !listing?.askingPrice && !listing?.livingAreaM2 && !listing?.description;
-
   return (
-    <section className="funda-listing-panel" id="funda-link">
+    <section className="funda-listing-panel funda-listing-panel-compact" id="funda-link">
       <div className="section-inline-heading">
         <div>
-          <div className="eyebrow"><Link2 size={13} /> advertentie aanvullen</div>
-          <h2>Funda-link toevoegen</h2>
+          <div className="eyebrow"><Link2 size={13} /> advertentie ontbreekt</div>
+          <h2>Koppel Funda voor het AI-oordeel</h2>
           <p>
-            Open data heeft geen vraagprijs of kamers. Plak de link van deze woning voor het officiële adres.
-            Kenmerken haalt de <Link href="/extensie">WoonReality-extensie</Link> uit de pagina die jij op Funda opent.
+            Open data heeft geen vraagprijs of kamers. Plak de link en open de woning daarna met de{" "}
+            <Link href="/extensie">WoonReality-extensie</Link>.
           </p>
         </div>
       </div>
@@ -140,22 +133,11 @@ export function FundaListingPanel({
             {busy ? "Adres koppelen…" : "Koppel Funda-link"}
           </button>
           <Link className="secondary-button" href="/extensie">
-            <Puzzle size={14} /> {needsExtension ? "Installeer de extensie voor kenmerken" : "Beheer de extensie"}
+            <Puzzle size={14} /> Installeer de extensie
           </Link>
         </div>
         {message && <p className="form-message" role="status">{message}</p>}
       </div>
-      {!licensedListing && listing && (
-        <ListingFactsCard
-          listing={listing}
-          status="available"
-          eyebrow="jouw advertentie"
-          title="Jouw advertentie"
-          description="Deze kenmerken komen uit de Funda-pagina die jij met de extensie opende. Ze staan los van BAG en openbare registraties."
-          bagAreaM2={bagAreaM2}
-          id="jouw-advertentie"
-        />
-      )}
     </section>
   );
 }

@@ -81,6 +81,7 @@ export async function POST(request: Request) {
         const existingFacts = mergeListingFacts(
           factsFromUnknown(existing?.extracted_json),
           extractListingFacts(existing?.pasted_text ?? ""),
+          { prefer: "existing" },
         );
         if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
         facts = mergeListingFacts(existingFacts, inspected.facts);

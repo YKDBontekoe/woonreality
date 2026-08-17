@@ -1,26 +1,16 @@
-import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
-import { aiReportVersions, generateAiPropertyReport, listingSynthesisDto } from "@/src/lib/analysis/research";
+import { aiInputFingerprint, aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingForProperty } from "@/src/lib/sources/listings";
 import { listingFromUserRecord } from "@/src/lib/listing-import";
+import { mergeListings } from "@/src/lib/listing-merge";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { aiReportStatus, getAiReport, markAiReportGenerating, persistAiReport, persistAiReportFailure, persistAnalysis } from "@/src/lib/db/repository";
 import type { PropertyListing } from "@/src/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function fingerprint(analysis: Awaited<ReturnType<typeof analyzeProperty>>, listing: PropertyListing | null) {
-  return createHash("sha256").update(JSON.stringify({
-    analysisVersion: analysis.analysisVersion,
-    scoringVersion: analysis.scoringVersion,
-    property: analysis.property,
-    signals: analysis.signals.map((signal) => ({ key: signal.key, value: signal.value, score: signal.score, availability: signal.availability })),
-    listing: listingSynthesisDto(listing),
-  })).digest("hex");
-}
 
 /**
  * The Funda browser extension and paste-import both write to `user_listings`.
@@ -40,15 +30,6 @@ async function loadUserListing(bagId: string): Promise<PropertyListing | null> {
   } catch {
     return null;
   }
-}
-
-function mergeListings(primary: PropertyListing | null, fallback: PropertyListing | null): PropertyListing | null {
-  if (!primary) return fallback;
-  if (!fallback) return primary;
-  const merged: PropertyListing = { ...fallback, ...primary };
-  merged.extraKenmerken = { ...(fallback.extraKenmerken ?? {}), ...(primary.extraKenmerken ?? {}) };
-  if (!Object.keys(merged.extraKenmerken).length) delete merged.extraKenmerken;
-  return merged;
 }
 
 async function loadContext(bagId: string) {
@@ -81,7 +62,7 @@ export async function POST(_request: Request, context: { params: Promise<{ bagId
   try {
     const { analysis, listing } = await loadContext(bagId);
     await persistAnalysis(analysis);
-    const inputFingerprint = fingerprint(analysis, listing);
+    const inputFingerprint = aiInputFingerprint(analysis, listing);
     const existing = await getAiReport(analysis.property.bagVboId, aiReportVersions.report);
     if (existing && aiReportStatus(existing) === "ready" && existing.input_fingerprint === inputFingerprint) {
       return NextResponse.json({ status: "ready", report: existing.report_json });
