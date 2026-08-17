@@ -102,6 +102,55 @@ export function resolveReadyReport(row: AiReportRow | null, fingerprint: string)
   };
 }
 
+export async function persistStructuredAiReport(
+  analysis: Analysis,
+  input: {
+    reportVersion: string;
+    promptVersion: string;
+    generatedAt: string;
+    expiresAt: string;
+    researchModel: string;
+    synthesisModel: string;
+    reportJson: unknown;
+    usage?: AiPropertyReport["usage"];
+  },
+  inputFingerprint: string,
+  userId: string | null = null,
+): Promise<"database" | "cache-only"> {
+  const db = createSupabaseAdminClient();
+  if (!db) return "cache-only";
+  try {
+    const id = await propertyId(db, analysis.property.bagVboId);
+    if (!id) return "cache-only";
+    const payload = {
+      property_id: id,
+      user_id: userId,
+      report_version: input.reportVersion,
+      prompt_version: input.promptVersion,
+      input_fingerprint: inputFingerprint,
+      status: "ready",
+      report_json: asJson(input.reportJson),
+      source_manifest_json: asJson([]),
+      research_model: input.researchModel,
+      synthesis_model: input.synthesisModel,
+      generated_at: input.generatedAt,
+      expires_at: input.expiresAt,
+      usage_json: input.usage ? asJson(input.usage) : null,
+      updated_at: new Date().toISOString(),
+      error_code: null,
+    };
+    const existing = await getAiReport(analysis.property.bagVboId, input.reportVersion, userId);
+    const { error } = existing?.id
+      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
+      : await db.from("ai_reports").insert(payload);
+    if (error) throw error;
+    return "database";
+  } catch (error) {
+    console.warn("Supabase structured AI report persistence unavailable", error);
+    return "cache-only";
+  }
+}
+
 export async function persistAiReport(analysis: Analysis, report: AiPropertyReport, inputFingerprint: string, userId: string | null = null): Promise<"database" | "cache-only"> {
   const db = createSupabaseAdminClient();
   if (!db) return "cache-only";
