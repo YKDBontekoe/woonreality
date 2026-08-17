@@ -2,15 +2,88 @@ import type { Coordinates } from "@/src/lib/types";
 
 export const cbsBuurtenUrl = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections/buurten/items";
 
+/** CBS Wijk- en Buurtkaart uses large negative sentinels for suppressed / unknown cells. */
+const CBS_SENTINEL_MAX = -99990;
+
 export type CbsContext = {
   buurtName?: string;
   municipalityName?: string;
+  buurtcode?: string;
+  wijkcode?: string;
+  gemeentecode?: string;
+  inhabitants?: number;
   populationDensity?: number;
   averageWoz?: number;
   supermarketDistanceKm?: number;
   huisartsDistanceKm?: number;
+  shareAge0to15Pct?: number;
+  shareHouseholdsWithChildrenPct?: number;
+  shareSinglePersonHouseholdsPct?: number;
+  shareAge65PlusPct?: number;
+  primarySchoolDistanceKm?: number;
+  primarySchoolsWithin1km?: number;
+  secondarySchoolDistanceKm?: number;
+  childcareDistanceKm?: number;
+  afterSchoolCareDistanceKm?: number;
+  primaryPupils?: number;
+  secondaryPupils?: number;
+  mboStudents?: number;
+  hboStudents?: number;
+  woStudents?: number;
   fetchedAt: string;
 };
+
+export function isCbsNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > CBS_SENTINEL_MAX;
+}
+
+function readNumber(properties: Record<string, unknown>, ...keys: string[]) {
+  const value = keys.map((key) => properties[key]).find(isCbsNumber);
+  return isCbsNumber(value) ? value : undefined;
+}
+
+function readString(properties: Record<string, unknown>, ...keys: string[]) {
+  const value = keys.map((key) => properties[key]).find((candidate) => typeof candidate === "string" && candidate.trim());
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+export function parseCbsProperties(properties: Record<string, unknown>, fetchedAt = new Date().toISOString()): CbsContext {
+  return {
+    buurtName: readString(properties, "buurtnaam", "naam_buurt"),
+    municipalityName: readString(properties, "gemeentenaam", "naam_gemeente"),
+    buurtcode: readString(properties, "buurtcode"),
+    wijkcode: readString(properties, "wijkcode"),
+    gemeentecode: readString(properties, "gemeentecode"),
+    inhabitants: readNumber(properties, "aantal_inwoners"),
+    populationDensity: readNumber(properties, "bevolkingsdichtheid_inwoners_per_km2"),
+    averageWoz: readNumber(properties, "gemiddelde_woningwaarde", "gemiddelde_woz_waarde_van_woningen"),
+    supermarketDistanceKm: readNumber(properties, "grote_supermarkt_gemiddelde_afstand_in_km", "supermarkt_gemiddelde_afstand_in_km"),
+    huisartsDistanceKm: readNumber(properties, "huisartsenpraktijk_gemiddelde_afstand_in_km", "huisarts_gemiddelde_afstand_in_km"),
+    shareAge0to15Pct: readNumber(properties, "percentage_personen_0_tot_15_jaar"),
+    shareHouseholdsWithChildrenPct: readNumber(properties, "percentage_huishoudens_met_kinderen"),
+    shareSinglePersonHouseholdsPct: readNumber(properties, "percentage_eenpersoonshuishoudens"),
+    shareAge65PlusPct: readNumber(properties, "percentage_personen_65_jaar_en_ouder"),
+    primarySchoolDistanceKm: readNumber(properties, "basisonderwijs_gemiddelde_afstand_in_km"),
+    primarySchoolsWithin1km: readNumber(properties, "basisonderwijs_gemiddeld_aantal_binnen_1_km"),
+    secondarySchoolDistanceKm: readNumber(properties, "voortgezet_onderwijs_gem_afstand_in_km"),
+    childcareDistanceKm: readNumber(properties, "kinderdagverblijf_gemiddelde_afstand_in_km"),
+    afterSchoolCareDistanceKm: readNumber(properties, "buitenschoolse_opvang_gem_afstand_in_km"),
+    primaryPupils: readNumber(properties, "aantal_leerlingen_primair_onderwijs"),
+    secondaryPupils: readNumber(properties, "aantal_leerlingen_voortgezet_onderwijs"),
+    mboStudents: readNumber(properties, "aantal_studenten_mbo"),
+    hboStudents: readNumber(properties, "aantal_studenten_hbo"),
+    woStudents: readNumber(properties, "aantal_studenten_wo"),
+    fetchedAt,
+  };
+}
+
+export function schoolScoreFromCbs(cbs: Pick<CbsContext, "primarySchoolDistanceKm" | "childcareDistanceKm" | "primarySchoolsWithin1km">) {
+  const distanceKm = cbs.primarySchoolDistanceKm ?? cbs.childcareDistanceKm;
+  if (distanceKm == null) return undefined;
+  let score = Math.min(10, Math.max(0, 9 - distanceKm * 2));
+  if ((cbs.primarySchoolsWithin1km ?? 0) >= 2) score = Math.min(10, score + 0.4);
+  return Math.round(score * 10) / 10;
+}
 
 export async function getCbsContext(coordinates: Coordinates): Promise<CbsContext | null> {
   const delta = 0.00025;
@@ -24,17 +97,5 @@ export async function getCbsContext(coordinates: Coordinates): Promise<CbsContex
   const payload = await response.json() as { features?: { properties?: Record<string, unknown> }[] };
   const properties = payload.features?.[0]?.properties;
   if (!properties) return null;
-  const getNumber = (...keys: string[]) => {
-    const value = keys.map((key) => properties[key]).find((candidate) => typeof candidate === "number");
-    return typeof value === "number" ? value : undefined;
-  };
-  return {
-    buurtName: typeof properties.buurtnaam === "string" ? properties.buurtnaam : typeof properties.naam_buurt === "string" ? properties.naam_buurt : undefined,
-    municipalityName: typeof properties.gemeentenaam === "string" ? properties.gemeentenaam : typeof properties.naam_gemeente === "string" ? properties.naam_gemeente : undefined,
-    populationDensity: getNumber("bevolkingsdichtheid_inwoners_per_km2"),
-    averageWoz: getNumber("gemiddelde_woz_waarde_van_woningen"),
-    supermarketDistanceKm: getNumber("supermarkt_gemiddelde_afstand_in_km", "grote_supermarkt_gemiddelde_afstand_in_km"),
-    huisartsDistanceKm: getNumber("huisarts_gemiddelde_afstand_in_km", "huisartsenpraktijk_gemiddelde_afstand_in_km"),
-    fetchedAt: new Date().toISOString(),
-  };
+  return parseCbsProperties(properties);
 }

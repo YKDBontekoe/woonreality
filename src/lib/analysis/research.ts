@@ -72,7 +72,7 @@ function trustedSource(url: string, property: Property) {
   if (!host) return false;
   const allowed = (process.env.AI_ALLOWED_DOMAINS ?? "").split(",").map((item) => item.trim().toLowerCase().replace(/^www\./, "")).filter(Boolean);
   const listingAllowed = (process.env.LISTING_ALLOWED_HOSTS ?? "").split(",").map((item) => item.trim().toLowerCase().replace(/^www\./, "")).filter(Boolean);
-  const official = ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl"];
+  const official = ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl", "politie.nl"];
   const municipality = municipalitySlug(property.municipality ?? property.city);
   return allowed.some((domain) => host === domain || host.endsWith(`.${domain}`))
     || listingAllowed.some((domain) => host === domain || host.endsWith(`.${domain}`))
@@ -210,7 +210,7 @@ async function discoverSources(property: Property, analysis: Analysis, listing?:
       reasoning: "low",
       system: "Je bent een Nederlandse woningonderzoeker. Zoek alleen bronnen die relevant zijn voor het exacte adres of de directe omgeving. Geef geen conclusies. Gebruik officiële overheids- en gemeentelijke bronnen.",
       prompt: `${query}\n\nBAG: ${JSON.stringify({ buildingYear: property.buildingYear, areaM2: property.areaM2 })}\nListing: ${JSON.stringify(listingDiscoveryDto(listing))}`,
-      tools: { web_search: openai.tools.webSearch({ searchContextSize: "medium", filters: { allowedDomains: ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl", ...(process.env.AI_ALLOWED_DOMAINS ?? "").split(",").map((item) => item.trim()).filter(Boolean)] } }) },
+      tools: { web_search: openai.tools.webSearch({ searchContextSize: "medium", filters: { allowedDomains: ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl", "politie.nl", ...(process.env.AI_ALLOWED_DOMAINS ?? "").split(",").map((item) => item.trim()).filter(Boolean)] } }) },
       stopWhen: stepCountIs(DISCOVER_MAX_STEPS),
     });
     const sources = (await result.sources).flatMap((item) => {
