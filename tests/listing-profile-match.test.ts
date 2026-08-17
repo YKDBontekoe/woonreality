@@ -72,3 +72,38 @@ test("listingMatchesBuyerProfile leaves VvE unknown when Funda omits it", () => 
   });
   assert.equal(chips.find((chip) => chip.key === "vve")?.status, "unknown");
 });
+
+test("listingMatchesBuyerProfile garden detail does not say undefined m²", () => {
+  const chips = listingMatchesBuyerProfile(listing({
+    outdoorSpaceM2: undefined,
+    gardenOrientation: undefined,
+    extraKenmerken: { Tuin: "zonnige achtertuin" },
+  }), {
+    ...EMPTY_BUYER_PROFILE,
+    garden: true,
+  });
+  const garden = chips.find((chip) => chip.key === "garden");
+  assert.equal(garden?.status, "pass");
+  assert.equal(garden?.detail.includes("undefined"), false);
+});
+
+test("listingMatchesBuyerProfile treats geen parkeren as a miss", () => {
+  const chips = listingMatchesBuyerProfile(listing({ parking: "geen parkeerplaats op eigen terrein" }), {
+    ...EMPTY_BUYER_PROFILE,
+    parking: true,
+  });
+  assert.equal(chips.find((chip) => chip.key === "parking")?.status, "fail");
+});
+
+test("listingMatchesBuyerProfile ignores niet van toepassing outside VvE fields", () => {
+  const chips = listingMatchesBuyerProfile(listing({
+    extraKenmerken: {
+      Bijzonderheden: "niet van toepassing",
+      "VvE-bijdrage": "€ 180 per maand",
+    },
+  }), {
+    ...EMPTY_BUYER_PROFILE,
+    acceptVve: false,
+  });
+  assert.equal(chips.find((chip) => chip.key === "vve")?.status, "fail");
+});

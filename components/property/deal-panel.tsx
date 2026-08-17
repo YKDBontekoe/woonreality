@@ -33,7 +33,7 @@ export function PropertyDealPanel({
       nhg: mortgageState?.nhg ?? buyerProfile.nhg,
     })
     : null;
-  const loan = affordability?.available ? affordability.maxLoanForPurchase : askingPrice > 0 ? askingPrice : undefined;
+  const loan = affordability?.available ? affordability.maxLoanForPurchase : undefined;
   const costs = askingPrice > 0
     ? estimateBuyerCosts(askingPrice, {
       ...buyerProfile,
@@ -69,7 +69,7 @@ export function PropertyDealPanel({
           <small>Maandlast</small>
           <strong>{affordability?.available ? formatEuro(affordability.monthlyPayment) : "—"}</strong>
         </div>
-        <div className={gap != null && gap > 0 ? "is-short" : "is-ok"}>
+        <div className={gap == null ? undefined : gap > 0 ? "is-short" : "is-ok"}>
           <small>Eigen geld</small>
           <strong>{ownNeeded != null ? formatEuro(ownNeeded) : "—"}</strong>
           <span>

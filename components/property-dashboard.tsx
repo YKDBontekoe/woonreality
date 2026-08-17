@@ -36,6 +36,7 @@ import {
 import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
 import {
   checklistForAnalysis,
+  listingQuestionItem,
   mergeChecklistWithDefaults,
 } from "@/src/lib/checklist";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
@@ -84,6 +85,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [checklistError, setChecklistError] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
   const checklistWriteQueue = useRef(Promise.resolve());
+  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingChecklist = useRef<ChecklistItem[] | null>(null);
+  const persistChecklistRef = useRef<(next: ChecklistItem[]) => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -297,6 +301,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       setListingInsights(null);
       return;
     }
+    setListingInsights(null);
+    setInsightsStatus("generating");
     const controller = new AbortController();
     async function loadInsights() {
       try {
@@ -338,8 +344,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     return () => controller.abort();
   }, [bagId, listingExtractKey]);
 
-  async function saveChecklist(next: ChecklistItem[]) {
-    setChecklist(next);
+  async function persistChecklist(next: ChecklistItem[]) {
     const write = checklistWriteQueue.current
       .catch(() => undefined)
       .then(async () => {
@@ -369,6 +374,44 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       );
     }
   }
+
+  persistChecklistRef.current = persistChecklist;
+
+  async function saveChecklist(next: ChecklistItem[]) {
+    setChecklist(next);
+    await persistChecklist(next);
+  }
+
+  function queueChecklistNoteSave(next: ChecklistItem[]) {
+    setChecklist(next);
+    pendingChecklist.current = next;
+    if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
+    noteSaveTimer.current = setTimeout(() => {
+      const payload = pendingChecklist.current;
+      pendingChecklist.current = null;
+      noteSaveTimer.current = null;
+      if (payload) void persistChecklist(payload);
+    }, 400);
+  }
+
+  function flushChecklistNoteSave() {
+    if (noteSaveTimer.current) {
+      window.clearTimeout(noteSaveTimer.current);
+      noteSaveTimer.current = null;
+    }
+    const payload = pendingChecklist.current;
+    pendingChecklist.current = null;
+    if (payload) void persistChecklist(payload);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
+      const payload = pendingChecklist.current;
+      pendingChecklist.current = null;
+      if (payload) void persistChecklistRef.current(payload);
+    };
+  }, [bagId]);
 
   async function savePreferences() {
     const result = await setPreferences(preferences);
@@ -417,15 +460,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const listingQuestions: ChecklistItem[] = (listingInsights?.points ?? []).flatMap((point, index) =>
-    point.question
-      ? [{
-          id: `listing-q-${index}`,
-          label: point.question,
-          reason: point.topic,
-          checked: false,
-        }]
-      : [],
+  const listingQuestions = (listingInsights?.points ?? []).flatMap((point) =>
+    point.question ? [listingQuestionItem(point.topic, point.question)] : [],
   );
   const visibleChecklist = mergeChecklistWithDefaults(
     [...checklistForAnalysis(analysis), ...listingQuestions],
@@ -648,7 +684,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                   value={item.note ?? ""}
                   placeholder="Eigen notitie"
                   onChange={(event) => {
-                    void saveChecklist(
+                    queueChecklistNoteSave(
                       visibleChecklist.map((candidate) =>
                         candidate.id === item.id
                           ? { ...candidate, note: event.target.value }
@@ -656,6 +692,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                       ),
                     );
                   }}
+                  onBlur={() => { flushChecklistNoteSave(); }}
                 />
               </div>
             );

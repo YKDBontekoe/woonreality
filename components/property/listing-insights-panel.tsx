@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AiReportStatus, ListingInsights } from "@/src/lib/types";
 
 export function ListingInsightsPanel({
@@ -9,6 +9,16 @@ export function ListingInsightsPanel({
   status: AiReportStatus;
 }) {
   const [filter, setFilter] = useState("all");
+  const topics = insights ? [...new Set(insights.points.map((point) => point.topic))] : [];
+  const topicKey = topics.join("\0");
+
+  useEffect(() => {
+    setFilter((current) => {
+      if (current === "all" || current === "attention") return current;
+      return topicKey.split("\0").includes(current) ? current : "all";
+    });
+  }, [topicKey]);
+
   if (status === "unavailable") return null;
   if (!insights) {
     return (
@@ -19,7 +29,6 @@ export function ListingInsightsPanel({
       </section>
     );
   }
-  const topics = [...new Set(insights.points.map((point) => point.topic))];
   const points = insights.points.filter((point) => {
     if (filter === "all") return true;
     if (filter === "attention") return point.impact === "attention";
@@ -45,10 +54,10 @@ export function ListingInsightsPanel({
         </div>
       )}
       <div className="dash-point-filters">
-        <button className={filter === "all" ? "is-on" : ""} type="button" onClick={() => setFilter("all")}>Alles</button>
-        <button className={filter === "attention" ? "is-on" : ""} type="button" onClick={() => setFilter("attention")}>Let op</button>
+        <button aria-pressed={filter === "all"} className={filter === "all" ? "is-on" : ""} type="button" onClick={() => setFilter("all")}>Alles</button>
+        <button aria-pressed={filter === "attention"} className={filter === "attention" ? "is-on" : ""} type="button" onClick={() => setFilter("attention")}>Let op</button>
         {topics.slice(0, 8).map((topic) => (
-          <button className={filter === topic ? "is-on" : ""} type="button" key={topic} onClick={() => setFilter(topic)}>
+          <button aria-pressed={filter === topic} className={filter === topic ? "is-on" : ""} type="button" key={topic} onClick={() => setFilter(topic)}>
             {topic}
           </button>
         ))}

@@ -45,9 +45,8 @@ and returns dynamic koperpunten (VvE, CV, fundering, …) without comparing to
 BAG and without changing the Reality Score. Topics are open labels: if the
 text does not mention a subject, it does not appear. This is not a live web
 fetch that needs `LISTING_ALLOWED_HOSTS`: the text was already captured with
-the user's consent and stored. `LISTING_PAGE_FETCH_ENABLED` and the domain
-allowlists still gate the one remaining live-fetch fallback: fetching the
-listing URL itself when no description was captured at all.
+the user's consent and stored. Analysis uses only that captured text; it does
+not fetch `listing.sourceUrl` when a description is missing.
 
 ## Licensed feed integration
 

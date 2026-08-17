@@ -458,12 +458,7 @@ export async function generateAiPropertyReport(property: Property, analysis: Ana
   const sources = discovered.sources;
   const fetched = (await Promise.all(sources.map((source) => fetchDocument(source, property)))).filter((document): document is Document => Boolean(document && document.text.length > 80));
   const listingDocs = listing ? listingDocuments(listing) : [];
-  let extraListingPage: Document | null = null;
-  if (listing?.sourceUrl && isHttpsUrl(listing.sourceUrl) && !listing.description && process.env.LISTING_PAGE_FETCH_ENABLED === "true" && trustedSource(listing.sourceUrl, property)) {
-    const page = await fetchDocument({ id: sourceId(listing.sourceUrl), title: "Advertentiepagina", url: listing.sourceUrl, publisher: listing.provider, type: "listing", fetchedAt: new Date().toISOString() }, property);
-    if (page) extraListingPage = { ...page, text: page.text.slice(0, SOURCE_MAX_DOC_CHARS) };
-  }
-  const documents = assemblePromptDocuments(listingDocs, fetched, extraListingPage);
+  const documents = assemblePromptDocuments(listingDocs, fetched);
   const sourceManifest = documents.map(({ source }) => source);
   const result = await generateText({
     model: resolvedSynthesisModel(),

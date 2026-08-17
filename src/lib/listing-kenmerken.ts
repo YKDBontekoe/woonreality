@@ -1,10 +1,22 @@
 import { formatEuro } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
 
+export type KenmerkGroupKey =
+  | "overdracht"
+  | "bouw"
+  | "oppervlakten"
+  | "indeling"
+  | "energie"
+  | "buiten"
+  | "kadastraal"
+  | "overig";
+
+type KenmerkClassifyKey = KenmerkGroupKey | "buurt" | "skip";
+
 export type KenmerkRow = { label: string; value: string };
 
 export type KenmerkGroup = {
-  key: string;
+  key: KenmerkGroupKey;
   label: string;
   rows: KenmerkRow[];
 };
@@ -24,7 +36,7 @@ function parseDutchNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function classify(label: string): KenmerkGroup["key"] | "buurt" | "skip" {
+function classify(label: string): KenmerkClassifyKey {
   const key = label.toLowerCase().replace(/\s+/g, " ").trim();
   if (BLOB_TITLE.test(key) || key === "kadastrale kaart") return "skip";
   if (BUURT_LABEL.test(key)) return "buurt";
@@ -38,7 +50,7 @@ function classify(label: string): KenmerkGroup["key"] | "buurt" | "skip" {
   return "overig";
 }
 
-const GROUP_LABELS: Record<string, string> = {
+const GROUP_LABELS: Record<KenmerkGroupKey, string> = {
   overdracht: "Overdracht",
   bouw: "Bouw",
   oppervlakten: "Oppervlakten",
@@ -49,13 +61,13 @@ const GROUP_LABELS: Record<string, string> = {
   overig: "Overig",
 };
 
-const GROUP_ORDER = ["overdracht", "bouw", "oppervlakten", "indeling", "energie", "buiten", "kadastraal", "overig"];
+const GROUP_ORDER: KenmerkGroupKey[] = ["overdracht", "bouw", "oppervlakten", "indeling", "energie", "buiten", "kadastraal", "overig"];
 
 function pushUnique(rows: KenmerkRow[], label: string, value: string | number | undefined | null) {
   if (value == null || value === "" || value === "—") return;
   const text = String(value);
   const key = label.toLowerCase();
-  if (rows.some((row) => row.label.toLowerCase() === key || row.value === text && row.label.toLowerCase().includes(key.slice(0, 8)))) return;
+  if (rows.some((row) => row.label.toLowerCase() === key || (row.value === text && row.label.toLowerCase().includes(key.slice(0, 8))))) return;
   rows.push({ label, value: text });
 }
 
@@ -106,12 +118,11 @@ export function listingKenmerkGroups(listing: PropertyListing | null | undefined
     const kind = classify(label);
     if (kind === "skip" || kind === "buurt") continue;
     if (shown.has(label.toLowerCase())) continue;
-    if (/woonoppervlak|^wonen$|perceel|aantal kamers|slaapkamer|energielabel|bouwjaar|vraagprijs/.test(label.toLowerCase()) && shown.has(label.toLowerCase().split(" ")[0] ?? "")) continue;
     pushUnique(collected, label, value);
     shown.add(label.toLowerCase());
   }
 
-  const buckets = new Map<string, KenmerkRow[]>();
+  const buckets = new Map<KenmerkGroupKey, KenmerkRow[]>();
   for (const row of collected) {
     const kind = classify(row.label);
     if (kind === "skip" || kind === "buurt") continue;

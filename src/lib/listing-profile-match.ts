@@ -32,7 +32,7 @@ function hasGarden(listing: PropertyListing) {
 
 function hasParking(listing: PropertyListing) {
   const value = listing.parking?.toLowerCase() ?? "";
-  if (/^(nee|geen|niet)$/.test(value.trim())) return false;
+  if (/^(nee|geen|niet)\b/.test(value.trim())) return false;
   if (value) return true;
   return /parkeer|garage|oprit/.test(haystack(listing));
 }
@@ -44,21 +44,26 @@ function listingKind(listing: PropertyListing): "house" | "apartment" | "unknown
   return "unknown";
 }
 
-function vveText(listing: PropertyListing) {
-  return haystack(listing);
+function vveFieldText(listing: PropertyListing) {
+  return Object.entries(listing.extraKenmerken ?? {})
+    .filter(([label]) => /\bvve\b|vereniging van eigenaren/i.test(label))
+    .map(([, value]) => value)
+    .join(" ")
+    .toLowerCase();
 }
 
 function vveMentioned(listing: PropertyListing) {
   return listing.vveContribution != null
     || listing.vveReserveFund != null
-    || /\bvve\b/.test(vveText(listing));
+    || /\bvve\b/.test(haystack(listing));
 }
 
 function hasVve(listing: PropertyListing) {
   if (listing.vveContribution != null && listing.vveContribution > 0) return true;
   if (listing.vveReserveFund != null && listing.vveReserveFund > 0) return true;
-  const text = vveText(listing);
-  if (/geen vve|zonder vve|niet van toepassing/.test(text)) return false;
+  if (/niet van toepassing/.test(vveFieldText(listing))) return false;
+  const text = haystack(listing);
+  if (/geen vve|zonder vve/.test(text)) return false;
   return /\bvve\b/.test(text);
 }
 
@@ -93,7 +98,9 @@ export function listingMatchesBuyerProfile(
       key: "garden",
       label: "Tuin",
       status: garden ? "pass" : listing.outdoorSpaceM2 == null && !listing.gardenOrientation ? "unknown" : "fail",
-      detail: garden ? listing.gardenOrientation || `${listing.outdoorSpaceM2} m²` : "Niet genoemd",
+      detail: garden
+        ? listing.gardenOrientation || (listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : "Genoemd")
+        : "Niet genoemd",
     });
   }
 

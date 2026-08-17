@@ -45,3 +45,21 @@ test("listing extract fingerprint changes when the description changes", () => {
   const second = listingExtractFingerprint(listing({ description: `${listing().description} Extra zin over fundering.` }));
   assert.notEqual(first, second);
 });
+
+test("listing extract fingerprint changes when the resolved model changes", () => {
+  const previousSynthesis = process.env.AI_SYNTHESIS_MODEL;
+  const previousResearch = process.env.AI_RESEARCH_MODEL;
+  try {
+    delete process.env.AI_RESEARCH_MODEL;
+    process.env.AI_SYNTHESIS_MODEL = "openai/model-a";
+    const first = listingExtractFingerprint(listing());
+    process.env.AI_SYNTHESIS_MODEL = "openai/model-b";
+    const second = listingExtractFingerprint(listing());
+    assert.notEqual(first, second);
+  } finally {
+    if (previousSynthesis == null) delete process.env.AI_SYNTHESIS_MODEL;
+    else process.env.AI_SYNTHESIS_MODEL = previousSynthesis;
+    if (previousResearch == null) delete process.env.AI_RESEARCH_MODEL;
+    else process.env.AI_RESEARCH_MODEL = previousResearch;
+  }
+});
