@@ -102,7 +102,59 @@ export function resolveReadyReport(row: AiReportRow | null, fingerprint: string)
   };
 }
 
+export async function persistStructuredAiReport(
+  analysis: Analysis,
+  input: {
+    reportVersion: string;
+    promptVersion: string;
+    generatedAt: string;
+    expiresAt: string;
+    researchModel: string;
+    synthesisModel: string;
+    reportJson: unknown;
+    usage?: AiPropertyReport["usage"];
+  },
+  inputFingerprint: string,
+  userId: string | null = null,
+): Promise<"database" | "cache-only"> {
+  return persistReadyReport(analysis, {
+    ...input,
+    sourceManifest: [],
+  }, inputFingerprint, userId);
+}
+
 export async function persistAiReport(analysis: Analysis, report: AiPropertyReport, inputFingerprint: string, userId: string | null = null): Promise<"database" | "cache-only"> {
+  return persistReadyReport(analysis, {
+    reportVersion: report.reportVersion,
+    promptVersion: report.promptVersion,
+    generatedAt: report.generatedAt,
+    expiresAt: report.expiresAt,
+    researchModel: report.researchModel,
+    synthesisModel: report.synthesisModel,
+    reportJson: report,
+    sourceManifest: report.sources,
+    usage: report.usage,
+  }, inputFingerprint, userId);
+}
+
+type ReportPersistInput = {
+  reportVersion: string;
+  promptVersion: string;
+  generatedAt: string;
+  expiresAt: string;
+  researchModel: string;
+  synthesisModel: string;
+  reportJson: unknown;
+  sourceManifest: unknown;
+  usage?: AiPropertyReport["usage"];
+};
+
+async function persistReadyReport(
+  analysis: Analysis,
+  input: ReportPersistInput,
+  inputFingerprint: string,
+  userId: string | null,
+): Promise<"database" | "cache-only"> {
   const db = createSupabaseAdminClient();
   if (!db) return "cache-only";
   try {
@@ -111,21 +163,21 @@ export async function persistAiReport(analysis: Analysis, report: AiPropertyRepo
     const payload = {
       property_id: id,
       user_id: userId,
-      report_version: report.reportVersion,
-      prompt_version: report.promptVersion,
+      report_version: input.reportVersion,
+      prompt_version: input.promptVersion,
       input_fingerprint: inputFingerprint,
       status: "ready",
-      report_json: asJson(report),
-      source_manifest_json: asJson(report.sources),
-      research_model: report.researchModel,
-      synthesis_model: report.synthesisModel,
-      generated_at: report.generatedAt,
-      expires_at: report.expiresAt,
-      usage_json: report.usage ? asJson(report.usage) : null,
+      report_json: asJson(input.reportJson),
+      source_manifest_json: asJson(input.sourceManifest),
+      research_model: input.researchModel,
+      synthesis_model: input.synthesisModel,
+      generated_at: input.generatedAt,
+      expires_at: input.expiresAt,
+      usage_json: input.usage ? asJson(input.usage) : null,
       updated_at: new Date().toISOString(),
       error_code: null,
     };
-    const existing = await getAiReport(analysis.property.bagVboId, report.reportVersion, userId);
+    const existing = await getAiReport(analysis.property.bagVboId, input.reportVersion, userId);
     const { error } = existing?.id
       ? await db.from("ai_reports").update(payload).eq("id", existing.id)
       : await db.from("ai_reports").insert(payload);

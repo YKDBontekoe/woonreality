@@ -102,7 +102,7 @@ export function FundaListingPanel({
   }
 
   return (
-    <section className="funda-listing-panel funda-listing-panel-compact" id="funda-link">
+    <section className="funda-listing-panel funda-listing-panel-compact" id="advertentie">
       <div className="section-inline-heading">
         <div>
           <div className="eyebrow"><Link2 size={13} /> advertentie ontbreekt</div>

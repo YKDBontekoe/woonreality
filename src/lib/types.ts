@@ -248,6 +248,35 @@ export type AiPropertyReport = {
 
 export type AiReportStatus = "missing" | "generating" | "ready" | "stale" | "failed" | "unavailable";
 
+export type ListingPoint = {
+  topic: string;
+  title: string;
+  summary: string;
+  quote?: string;
+  impact: "positive" | "neutral" | "attention";
+  confidence: Confidence;
+  year?: number;
+  question?: string;
+};
+
+export type ListingLayoutFloor = {
+  name: string;
+  rooms: string[];
+};
+
+export type ListingInsights = {
+  extractVersion: string;
+  promptVersion: string;
+  generatedAt: string;
+  expiresAt: string;
+  model: string;
+  usage?: AiTokenUsage;
+  headline: string;
+  layout: ListingLayoutFloor[];
+  points: ListingPoint[];
+  marketingLanguage: string[];
+};
+
 export type Analysis = {
   property: Property;
   overallScore: number;

@@ -21,12 +21,30 @@ export function checklistForAnalysis(analysis: Analysis): ChecklistItem[] {
   return [...signalItems, ...genericItems].filter((item, index, all) => all.findIndex((candidate) => candidate.label === item.label) === index);
 }
 
+export function listingQuestionItem(topic: string, question: string): ChecklistItem {
+  const raw = `${topic}\u001f${question}`.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  let hash = 5381;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash = Math.imul(hash, 33) ^ raw.charCodeAt(index);
+  }
+  return {
+    id: `listing-q-${(hash >>> 0).toString(16)}`,
+    label: question,
+    reason: topic,
+    checked: false,
+  };
+}
+
 export function mergeChecklistWithDefaults(defaults: ChecklistItem[], persisted: ChecklistItem[]) {
   const persistedById = new Map(persisted.map((item) => [item.id, item]));
   const currentItems = defaults.map((item) => {
     const previous = persistedById.get(item.id);
     return previous ? { ...item, checked: previous.checked, note: previous.note } : item;
   });
-  const customItems = persisted.filter((item) => !defaults.some((candidate) => candidate.id === item.id));
+  const customItems = persisted.filter((item) => {
+    if (defaults.some((candidate) => candidate.id === item.id)) return false;
+    if (item.id.startsWith("listing-q-")) return false;
+    return true;
+  });
   return [...currentItems, ...customItems];
 }

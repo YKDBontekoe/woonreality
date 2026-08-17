@@ -37,7 +37,6 @@ export function ListingFactsCard({
   eyebrow = "gelicentieerde marktdata",
   title = "Wat de advertentie zegt",
   description = "Advertentiegegevens staan los van BAG en openbare registraties. Controleer wijzigingen bij de aanbieder.",
-  bagAreaM2,
   id = "advertentie",
 }: {
   listing: PropertyListing | null;
@@ -45,7 +44,6 @@ export function ListingFactsCard({
   eyebrow?: string;
   title?: string;
   description?: string;
-  bagAreaM2?: number;
   id?: string;
 }) {
   if (status === "loading" || !listing) return null;
@@ -83,10 +81,6 @@ export function ListingFactsCard({
     const key = label.toLowerCase();
     return !shownLabels.has(key) && !/woonoppervlak|^wonen$|perceel|aantal kamers|slaapkamer|energielabel|bouwjaar|vraagprijs/.test(key);
   });
-  const areaConflict =
-    bagAreaM2 != null &&
-    listing.livingAreaM2 != null &&
-    Math.abs(bagAreaM2 - listing.livingAreaM2) / Math.max(bagAreaM2, 1) >= 0.05;
 
   return (
     <section className="listing-section" id={id}>
@@ -126,11 +120,6 @@ export function ListingFactsCard({
           <span>Bijgewerkt {formatDate(listing.fetchedAt)}</span>
           {listing.offerDeadline && <span>Bieden tot {formatDate(listing.offerDeadline)}</span>}
         </div>
-        {areaConflict && (
-          <p className="listing-conflict">
-            De advertentie noemt {listing.livingAreaM2} m², BAG {bagAreaM2} m². We overschrijven het BAG-oppervlak niet.
-          </p>
-        )}
         {riskFlags.length > 0 && (
           <div className="listing-risk-flags">
             <span className="listing-label">Wat een aankoopmakelaar hier zou uitzoeken</span>

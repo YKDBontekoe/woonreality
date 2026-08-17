@@ -79,6 +79,8 @@ GET /api/property/:bagId
 GET /api/analysis/:bagId
 GET /api/ai-analysis/:bagId
 POST /api/ai-analysis/:bagId
+GET /api/listing-insights/:bagId
+POST /api/listing-insights/:bagId
 GET /api/listing/:bagId
 GET /api/listing/user/:bagId
 PUT /api/listing/user/:bagId

@@ -35,13 +35,18 @@ used on the property page, so UI and AI see one merged listing. Compact
 numeric kenmerken, deterministic listing-risk flags, a short description and
 at most a few text sections go into a two-step Luna pipeline in
 `src/lib/analysis/research.ts`: a low-reasoning web-search pass, then a
-medium-reasoning structured synthesis. There is no separate claim-extraction
-LLM call. Listing text is wrapped as `<<<UNTRUSTED_LISTING_DATA>>>` and treated
-as unreliable evidence rather than instructions. This is not a live web fetch
-that needs `LISTING_ALLOWED_HOSTS`: the text was already captured with the
-user's consent and stored. `LISTING_PAGE_FETCH_ENABLED` and the domain
-allowlists still gate the one remaining live-fetch fallback: fetching the
-listing URL itself when no description was captured at all.
+medium-reasoning structured synthesis. Listing text is wrapped as
+`<<<UNTRUSTED_LISTING_DATA>>>` and treated as unreliable evidence rather than
+instructions.
+
+A separate extraction call, `GET`/`POST /api/listing-insights/:bagId`, reads
+the same captured free text (`description`, `textSections`, `extraKenmerken`)
+and returns dynamic koperpunten (VvE, CV, fundering, …) without comparing to
+BAG and without changing the Reality Score. Topics are open labels: if the
+text does not mention a subject, it does not appear. This is not a live web
+fetch that needs `LISTING_ALLOWED_HOSTS`: the text was already captured with
+the user's consent and stored. Analysis uses only that captured text; it does
+not fetch `listing.sourceUrl` when a description is missing.
 
 ## Licensed feed integration
 
@@ -63,13 +68,12 @@ contract.
 
 - asking price and price per square metre;
 - listing status and first publication date;
-- advertised living area versus BAG area;
-- plot area, room count, property type and construction details;
-- energy label (cross-check against EP-Online);
+- advertised living area, plot area, room count, property type and construction details;
+- energy label as stated in the listing (EP-Online remains a separate open-data signal);
 - VvE contribution and reserves when explicitly stated;
-- agent-supplied description, floor plans and photos only when the licence permits display and retention.
+- agent-supplied description only when the licence permits display and retention. Photos and floor plans stay out of scope.
 
-Every imported value should carry provider, external listing ID, source URL, fetched time, licence/retention class and confidence. Conflicts should be shown rather than silently overwriting BAG or EP-Online facts.
+Every imported value should carry provider, external listing ID, source URL, fetched time, licence/retention class and confidence. On the woning dashboard the listing is the object-fact layer (price, m², rooms, label). Open data stays the environment layer. Do not show BAG-versus-Funda conflicts in the UI, extract prompt, or AI output.
 
 ## Guardrails
 

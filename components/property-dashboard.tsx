@@ -1,12 +1,8 @@
 "use client";
 
 import {
-  AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   Check,
-  ChevronDown,
-  Clock3,
   Database,
   GitCompare,
   Heart,
@@ -20,13 +16,17 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "@/components/property-map";
-import { SignalCard } from "@/components/signal-card";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
-import { StartCaseButton } from "@/components/start-case-button";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { FundaListingPanel } from "@/components/funda-listing-panel";
-import { ListingFactsCard } from "@/components/listing-facts-card";
 import { AiResearchSection } from "@/components/ai-research-section";
+import { PropertyKpiStrip } from "@/components/property/kpi-strip";
+import { PropertyDealPanel } from "@/components/property/deal-panel";
+import { ListingKenmerkenGrid } from "@/components/property/kenmerken-grid";
+import { ListingInsightsPanel } from "@/components/property/listing-insights-panel";
+import { PropertyScoreCharts } from "@/components/property/score-charts";
+import { SignalGauges } from "@/components/property/signal-gauges";
+import { PropertyActionDock } from "@/components/property/action-dock";
 import { PageShell } from "@/components/ui/page-shell";
 import {
   calculatePersonalFit,
@@ -34,21 +34,21 @@ import {
   preferenceLabel,
 } from "@/src/lib/personalization";
 import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
-import { computePropertyAffordability, fitLabel } from "@/src/lib/affordability";
-import { formatEuro as formatEuroShared } from "@/src/lib/purchase";
 import {
   checklistForAnalysis,
+  listingQuestionItem,
   mergeChecklistWithDefaults,
 } from "@/src/lib/checklist";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
+import { hasListingExtractText } from "@/src/lib/listing-text";
 import type {
   AiPropertyReport,
   AiReportStatus,
   Analysis,
   ChecklistItem,
-  EverydayInsight,
+  ListingInsights,
   PersonalPreferences,
   PropertyListing,
 } from "@/src/lib/types";
@@ -57,16 +57,27 @@ const preferenceKeys = Object.keys(
   DEFAULT_PREFERENCES,
 ) as (keyof PersonalPreferences)[];
 
+const TABS = [
+  { href: "#overzicht", label: "Overzicht" },
+  { href: "#deal", label: "Jouw deal" },
+  { href: "#advertentie", label: "Advertentie" },
+  { href: "#signalen", label: "Signalen" },
+  { href: "#omgeving", label: "Omgeving" },
+  { href: "#checklist", label: "Checklist" },
+  { href: "#bronnen", label: "Bronnen" },
+];
+
 export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [listing, setListing] = useState<PropertyListing | null>(null);
   const [userListing, setUserListing] = useState<PropertyListing | null>(null);
   const [aiReport, setAiReport] = useState<AiPropertyReport | null>(null);
   const [aiStatus, setAiStatus] = useState<AiReportStatus>("missing");
+  const [listingInsights, setListingInsights] = useState<ListingInsights | null>(null);
+  const [insightsStatus, setInsightsStatus] = useState<AiReportStatus>("missing");
   const { workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
@@ -74,6 +85,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [checklistError, setChecklistError] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
   const checklistWriteQueue = useRef(Promise.resolve());
+  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingChecklist = useRef<ChecklistItem[] | null>(null);
+  const persistChecklistRef = useRef<(next: ChecklistItem[]) => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -271,8 +285,66 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     return () => controller.abort();
   }, [analysis, bagId]);
 
-  async function saveChecklist(next: ChecklistItem[]) {
-    setChecklist(next);
+  const marketListingPreview = mergeListings(userListing, listing);
+  const listingExtractKey = marketListingPreview && hasListingExtractText(marketListingPreview)
+    ? [
+        marketListingPreview.fetchedAt,
+        marketListingPreview.description ?? "",
+        String(marketListingPreview.askingPrice ?? ""),
+        (marketListingPreview.textSections ?? []).map((section) => section.text).join("\n"),
+      ].join("\0")
+    : "";
+
+  useEffect(() => {
+    if (!listingExtractKey) {
+      setInsightsStatus("missing");
+      setListingInsights(null);
+      return;
+    }
+    setListingInsights(null);
+    setInsightsStatus("generating");
+    const controller = new AbortController();
+    async function loadInsights() {
+      try {
+        const statusResponse = await fetch(
+          `/api/listing-insights/${encodeURIComponent(bagId)}`,
+          { signal: controller.signal },
+        );
+        if (statusResponse.status === 503) {
+          setInsightsStatus("unavailable");
+          return;
+        }
+        const statusBody = (await statusResponse.json()) as {
+          status: AiReportStatus;
+          report?: ListingInsights | null;
+        };
+        setInsightsStatus(statusBody.status);
+        if (statusBody.report) {
+          setListingInsights(statusBody.report);
+          return;
+        }
+        if (statusBody.status !== "missing" && statusBody.status !== "stale") return;
+        setInsightsStatus("generating");
+        const generateResponse = await fetch(
+          `/api/listing-insights/${encodeURIComponent(bagId)}`,
+          { method: "POST", signal: controller.signal },
+        );
+        const generateBody = (await generateResponse.json()) as {
+          status: AiReportStatus;
+          report?: ListingInsights | null;
+        };
+        setInsightsStatus(generateBody.status);
+        if (generateBody.report) setListingInsights(generateBody.report);
+      } catch (caught) {
+        if (!(caught instanceof DOMException && caught.name === "AbortError"))
+          setInsightsStatus("failed");
+      }
+    }
+    void loadInsights();
+    return () => controller.abort();
+  }, [bagId, listingExtractKey]);
+
+  async function persistChecklist(next: ChecklistItem[]) {
     const write = checklistWriteQueue.current
       .catch(() => undefined)
       .then(async () => {
@@ -302,6 +374,44 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       );
     }
   }
+
+  persistChecklistRef.current = persistChecklist;
+
+  async function saveChecklist(next: ChecklistItem[]) {
+    setChecklist(next);
+    await persistChecklist(next);
+  }
+
+  function queueChecklistNoteSave(next: ChecklistItem[]) {
+    setChecklist(next);
+    pendingChecklist.current = next;
+    if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
+    noteSaveTimer.current = setTimeout(() => {
+      const payload = pendingChecklist.current;
+      pendingChecklist.current = null;
+      noteSaveTimer.current = null;
+      if (payload) void persistChecklist(payload);
+    }, 400);
+  }
+
+  function flushChecklistNoteSave() {
+    if (noteSaveTimer.current) {
+      window.clearTimeout(noteSaveTimer.current);
+      noteSaveTimer.current = null;
+    }
+    const payload = pendingChecklist.current;
+    pendingChecklist.current = null;
+    if (payload) void persistChecklist(payload);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
+      const payload = pendingChecklist.current;
+      pendingChecklist.current = null;
+      if (payload) void persistChecklistRef.current(payload);
+    };
+  }, [bagId]);
 
   async function savePreferences() {
     const result = await setPreferences(preferences);
@@ -337,782 +447,324 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (!analysis) return <LoadingDashboard />;
 
   const { property } = analysis;
-  const generated = new Date(analysis.generatedAt).toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   const isSaved = workspace.saved.some(
     (item) => item.bagVboId === property.bagVboId,
   );
   const personalFit = calculatePersonalFit(analysis, preferences);
-  const highlights = analysis.highlights ?? [];
-  const attention = highlights
-    .filter((item) => item.type === "attention")
-    .slice(0, 3);
-  const positives = highlights
-    .filter((item) => item.type === "positive")
-    .slice(0, 3);
   const nearbyProperties = analysis.nearbyProperties ?? [];
   const marketListing = mergeListings(userListing, listing);
   const incompleteListing = listingNeedsExtension(marketListing);
-  const energySignal = analysis.signals.find((signal) => signal.key === "energy")?.value;
-  const energyLabel = typeof energySignal === "string" && energySignal !== "Geen data"
-    ? energySignal
-    : marketListing?.energyLabel;
+  const energyLabel = marketListing?.energyLabel;
   const hypotheekQuery = new URLSearchParams();
-  const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel) ?? parseCanonicalEnergyLabel(marketListing?.energyLabel);
+  const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel);
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const askingForAffordability = marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId] ?? null;
-  const affordability = workspace.mortgageConfigured
-    ? computePropertyAffordability({
-      state: workspace.mortgageState,
-      askingPrice: askingForAffordability,
-      energyLabel: mortgageEnergyLabel ?? energyLabel,
-      nhg: workspace.mortgageState?.nhg ?? workspace.buyerProfile.nhg,
-    })
-    : null;
+  const listingQuestions = (listingInsights?.points ?? []).flatMap((point) =>
+    point.question ? [listingQuestionItem(point.topic, point.question)] : [],
+  );
+  const visibleChecklist = mergeChecklistWithDefaults(
+    [...checklistForAnalysis(analysis), ...listingQuestions],
+    checklist,
+  );
 
   async function saveProperty() {
-    await toggleSaved(property, marketListing?.askingPrice ?? askingForAffordability);
+    await toggleSaved(property, marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId]);
   }
 
   return (
-    <PageShell current="woning">
-        <header className="dashboard-header">
-          <Link className="back-link" href="/">
-            <ArrowLeft size={14} /> Ander adres
-          </Link>
-          <div className="dashboard-top">
-            <div>
-              <div className="eyebrow">
-                <span className="eyebrow-dot" /> woningcheck
-              </div>
-              <h1>
-                {property.street} {property.houseNumber}
-                {property.houseLetter ?? ""}
-              </h1>
-              <div className="address-meta">
-                <MapPinned size={16} /> {property.postcode} {property.city}
-              </div>
+    <PageShell current="woning" className="property-dash-shell">
+      <header className="dashboard-header">
+        <Link className="back-link" href="/">
+          <ArrowLeft size={14} /> Ander adres
+        </Link>
+        <div className="dashboard-top">
+          <div>
+            <div className="eyebrow">
+              <span className="eyebrow-dot" /> woningcheck
             </div>
-            <div className="dashboard-actions">
-              <button
-                className={`secondary-button ${isSaved ? "selected" : ""}`}
-                type="button"
-                onClick={async () => {
-                  await saveProperty();
-                }}
-              >
-                {isSaved ? (
-                  <Heart size={14} fill="currentColor" />
-                ) : (
-                  <Heart size={14} />
-                )}
-                {isSaved ? "Bewaard" : "Bewaar"}
-              </button>
-              <button
-                className={`ghost-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
-                type="button"
-                onClick={async () => {
-                  await toggleCompare(property.bagVboId);
-                }}
-              >
-                <GitCompare size={14} />
-                {workspace.compare.includes(property.bagVboId) ? "In vergelijking" : "Vergelijk"}
-              </button>
-              <button
-                className="ghost-button share-button"
-                type="button"
-                onClick={share}
-              >
-                {copied ? <Check size={14} /> : <Share2 size={14} />}
-                {copied ? "Gekopieerd" : "Deel"}
-              </button>
+            <h1>
+              {property.street} {property.houseNumber}
+              {property.houseLetter ?? ""}
+            </h1>
+            <div className="address-meta">
+              <MapPinned size={16} /> {property.postcode} {property.city}
             </div>
           </div>
-        </header>
-        {workspace.compare.length >= 2 && (
-          <div className="compare-banner">
-            <span>
-              <GitCompare size={15} /> {workspace.compare.length} woningen
-              geselecteerd om te vergelijken
-            </span>
-            <Link
-              className="primary-button"
-              href={`/vergelijken?ids=${workspace.compare.join(",")}`}
+          <div className="dashboard-actions">
+            <button
+              className={`secondary-button ${isSaved ? "selected" : ""}`}
+              type="button"
+              onClick={() => { void saveProperty(); }}
             >
-              Open vergelijking
-            </Link>
+              {isSaved ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}
+              {isSaved ? "Bewaard" : "Bewaar"}
+            </button>
+            <button
+              className={`ghost-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
+              type="button"
+              onClick={() => { void toggleCompare(property.bagVboId); }}
+            >
+              <GitCompare size={14} />
+              {workspace.compare.includes(property.bagVboId) ? "In vergelijking" : "Vergelijk"}
+            </button>
+            <button className="ghost-button share-button" type="button" onClick={() => { void share(); }}>
+              {copied ? <Check size={14} /> : <Share2 size={14} />}
+              {copied ? "Gekopieerd" : "Deel"}
+            </button>
           </div>
-        )}
-        <section className="simple-overview" id="overzicht">
-          <SimpleVerdict
-            analysis={analysis}
-            facts={[
-              property.areaM2
-                ? `${property.areaM2} m² woonoppervlak`
-                : "Oppervlakte onbekend",
-              property.buildingYear
-                ? `Bouwjaar ${property.buildingYear}`
-                : "Bouwjaar onbekend",
-              `${nearbyProperties.length} woningen dichtbij`,
-            ]}
-          />
-          <div id="kaart">
-            <PropertyMap
-              property={property}
-              nearbyProperties={nearbyProperties}
-            />
-          </div>
-        </section>
-        <section className="simple-reasons">
-          <div className="section-kicker">Waarom dit oordeel?</div>
-          <h2>Dit zijn de drie dingen die ertoe doen</h2>
-          <EverydayInsights items={analysis.everydayInsights ?? []} />
-        </section>
-        <AiResearchSection
-          report={aiReport}
-          status={aiStatus}
-          listingIncomplete={incompleteListing}
-        />
-        {!incompleteListing && marketListing && (
-          <ListingFactsCard
-            listing={marketListing}
-            status="available"
-            eyebrow={userListing ? "jouw advertentie" : "gelicentieerde marktdata"}
-            title={userListing ? "Jouw advertentie" : "Wat de advertentie zegt"}
-            description={
-              userListing
-                ? "Deze kenmerken komen uit de Funda-pagina die jij met de extensie opende. Ze staan los van BAG en openbare registraties."
-                : undefined
-            }
-            bagAreaM2={property.areaM2}
-          />
-        )}
-        {incompleteListing && (
-          <FundaListingPanel
-            bagId={bagId}
-            listing={userListing}
-            onListingChange={setUserListing}
-          />
-        )}
-        <section className="decision-bar" aria-label="Beslis in 30 seconden">
-          <div>
-            <div className="section-kicker">Wat nu?</div>
-            <h2>Bezichtigen, bewaren of laten vallen.</h2>
-            <p>Dit is een eerste check, geen aankoopadvies. Kies één volgende stap.</p>
-          </div>
-          <div className="decision-bar-actions">
-            <Link className="primary-button" href={`/woning/${property.bagVboId}/bezichtiging`}>Bezichtiging voorbereiden</Link>
-            {caseId ? (
-              <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>Open dossier</Link>
-            ) : (
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={async () => {
-                  if (!isSaved) await saveProperty();
-                }}
-              >
-                <Heart size={14} />
-                {isSaved ? "Bewaard" : "Bewaar"}
-              </button>
-            )}
-          </div>
-        </section>
-        <PurchaseGuardrails buildingYear={property.buildingYear} />
-        {affordability && (
-          <div className={`buying-power-strip fit-${affordability.fit}`}>
-            <div>
-              <span className="section-kicker">Jouw koopkracht</span>
-              <strong>{fitLabel(affordability.fit)}</strong>
-              <p>{affordability.summary}</p>
-            </div>
-            <div className="buying-power-strip-meta">
-              {affordability.maxPurchasePriceAfterCosts > 0 && <span>Wat je écht kunt uitgeven {formatEuroShared(affordability.maxPurchasePriceAfterCosts)}</span>}
-              {affordability.renovationBuffer > 0 && <span>{formatEuroShared(affordability.renovationBuffer)} over voor verbouwing</span>}
-              <Link className="text-link" href={hypotheekHref}>Open hypotheek <ArrowRight size={13} /></Link>
-              <Link className="text-link" href="/mijn-aankoop">Dashboard</Link>
-            </div>
-          </div>
-        )}
-        <ValuationBidPanel
-          bagId={bagId}
-          analysis={analysis}
-          listing={marketListing}
-          caseId={caseId}
-        />
-        <details className="later-tools">
-          <summary>
-            Als je dit huis serieus neemt
-            <ChevronDown size={16} aria-hidden="true" />
-          </summary>
-          <div className="later-tools-body">
-            <Link className="later-tool-link" href={hypotheekHref}>
-              <span>
-                <strong>Hypotheek berekenen</strong>
-                <span>
-                  {energyLabel ? `Met energielabel ${energyLabel}` : "Met het energielabel"}
-                  {marketListing?.askingPrice ? " en de vraagprijs" : ""} al ingevuld.
-                </span>
-              </span>
-              <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-            {!caseId && (
-              <div className="later-tool-link" style={{ alignItems: "center" }}>
-                <span>
-                  <strong>Aankoopdossier starten</strong>
-                  <span>Vragen, documenten en deadlines op één plek.</span>
-                </span>
-                <StartCaseButton bagVboId={property.bagVboId} />
-              </div>
-            )}
-          </div>
-        </details>
-        <div className="details-toggle">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => setShowDetails((value) => !value)}
-          >
-            {showDetails
-              ? "Verberg alle data"
-              : "Ik wil de volledige check zien"}
-            <ChevronDown
-              size={14}
-              className={showDetails ? "chevron-up" : ""}
-            />
-          </button>
-          <small>
-            Voor als je verder wilt vergelijken of je bezichtiging voorbereidt.
-          </small>
         </div>
-        {showDetails && (
-          <div className="full-details">
-            <section className="dashboard-grid">
-              <div className="score-card">
-                <div className="score-card-label">Open-data score</div>
-                <div className="score-big">
-                  {analysis.overallScore.toLocaleString("nl-NL", {
-                    minimumFractionDigits: 1,
-                  })}
-                  <small>/ 10</small>
-                </div>
-                <p className="score-tagline">
-                  Een omgevingsindicatie op basis van beschikbare bronnen — geen
-                  aankoopadvies, taxatie of biedadvies.
-                </p>
-                <div className="fit-score">
-                  <span>Jouw persoonlijke match</span>
-                  <strong>
-                    {personalFit == null
-                      ? "—"
-                      : `${personalFit.toLocaleString("nl-NL", { minimumFractionDigits: 1 })} / 10`}
-                  </strong>
-                </div>
-                <div className="score-footer">
-                  <span>
-                    <Clock3 size={12} style={{ verticalAlign: "-2px" }} />{" "}
-                    bijgewerkt<strong>{generated}</strong>
-                  </span>
-                  <span>
-                    datadekking
-                    <strong>{analysis.dataCoverage.label}</strong>
-                  </span>
-                </div>
-              </div>
-              <div className="decision-card">
-                <div className="section-kicker">Signalen per onderwerp</div>
-                <ScoreProfile analysis={analysis} />
-              </div>
-            </section>
-            <section className="insight-grid">
-              <InsightList
-                title="Hier extra op letten"
-                type="attention"
-                items={attention}
-                analysis={analysis}
-              />
-              <InsightList
-                title="Sterke punten"
-                type="positive"
-                items={positives}
-                analysis={analysis}
-              />
-            </section>
-            <section className="nearby-section" id="omgeving">
-              <div className="section-inline-heading">
-                <div>
-                  <div className="eyebrow">
-                    <Database size={13} /> officiële BAG-data
-                  </div>
-                  <h2>Woningen in de directe omgeving</h2>
-                  <p>
-                    Een selectie van maximaal 12 geregistreerde woonobjecten
-                    binnen 150 meter. Oppervlakte is BAG-gebruiksoppervlakte,
-                    geen advertentiemaat.
-                  </p>
-                </div>
-                <span className="coverage-pill">
-                  {nearbyProperties.length} adressen
-                </span>
-              </div>
-              {nearbyProperties.length ? (
-                <div className="nearby-grid">
-                  {nearbyProperties.map((nearby) => (
-                    <Link
-                      className="nearby-card"
-                      href={`/woning/${nearby.bagVboId}`}
-                      key={nearby.bagVboId}
-                    >
-                      <strong>{nearby.addressLabel.split(",")[0]}</strong>
-                      <span>
-                        {nearby.areaM2
-                          ? `${nearby.areaM2} m²`
-                          : "oppervlakte onbekend"}{" "}
-                        · {nearby.distanceM} m
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p>
-                  Voor deze locatie zijn nu geen omliggende woonadressen
-                  gevonden.
-                </p>
-              )}
-            </section>
-            <section className="preference-panel">
-              <div>
-                <div className="eyebrow">
-                  <Settings2 size={13} /> persoonlijke fit
-                </div>
-                <p>
-                  {workspace.preferencesConfigured
-                    ? "Pas aan wat voor jou het zwaarst weegt."
-                    : "Stel je voorkeuren in voor een score die bij jouw woonwensen past."}
-                </p>
-              </div>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setShowPreferences((value) => !value)}
-              >
-                {showPreferences ? "Sluiten" : "Voorkeuren instellen"}
-              </button>
-              {showPreferences && (
-                <div className="preference-controls">
-                  {preferenceKeys.map((key) => {
-                    const inputId = `preference-${key}`;
-                    return (
-                      <div className="preference-control" key={key}>
-                        <label htmlFor={inputId}>{preferenceLabel(key)}</label>
-                        <input
-                          id={inputId}
-                          type="range"
-                          min="1"
-                          max="5"
-                          value={preferences[key]}
-                          onChange={(event) =>
-                            setLocalPreferences({
-                              ...preferences,
-                              [key]: Number(event.target.value),
-                            })
-                          }
-                        />
-                        <output htmlFor={inputId}>{preferences[key]}</output>
-                      </div>
-                    );
-                  })}
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={() => {
-                      void savePreferences();
-                    }}
-                  >
-                    Bewaar voorkeuren
-                  </button>
-                </div>
-              )}
-            </section>
-            <div className="signals-heading" id="signalen">
-              <h2>De signalen</h2>
-              <span>
-                {analysis.signals.length} onderdelen · {analysis.sources.length}{" "}
-                bronnen
-              </span>
-            </div>
-            <section className="signals-grid">
-              {analysis.signals.map((signal) => (
-                <SignalCard key={signal.key} signal={signal} />
-              ))}
-            </section>
-            <section className="checklist-section" id="checklist">
-              <div className="section-inline-heading">
-                <div>
-                  <div className="eyebrow">
-                    <span className="eyebrow-dot" /> klaar voor de bezichtiging
-                  </div>
-                  <h2>Jouw checklist</h2>
-                  <p>
-                    Concrete vragen uit deze analyse, opgeslagen in je
-                    aankoopomgeving.
-                  </p>
-                  {checklistError && (
-                    <p className="form-message" role="status">
-                      {checklistError} <Link href="/login">Inloggen</Link>
-                    </p>
-                  )}
-                </div>
-                <div className="dashboard-actions">
-                <Link className="secondary-button" href={`/woning/${bagId}/bezichtiging`}>
-                  Open op je telefoon
-                </Link>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => window.print()}
-                >
-                  <Printer size={14} /> Print / bewaar als PDF
-                </button>
-                </div>
-              </div>
-              <div className="checklist-list">
-                {checklist.map((item) => {
-                  const checkboxId = `checklist-${bagId}-${item.id}`;
-                  const noteId = `${checkboxId}-note`;
-                  return (
-                    <div className="checklist-item-wrap" key={item.id}>
-                      <label
-                        className={`checklist-item ${item.checked ? "checked" : ""}`}
-                        htmlFor={checkboxId}
-                      >
-                        <input
-                          id={checkboxId}
-                          type="checkbox"
-                          checked={item.checked}
-                          onChange={(event) => {
-                            void saveChecklist(
-                              checklist.map((candidate) =>
-                                candidate.id === item.id
-                                  ? {
-                                      ...candidate,
-                                      checked: event.target.checked,
-                                    }
-                                  : candidate,
-                              ),
-                            );
-                          }}
-                        />
-                        <span>
-                          <strong>{item.label}</strong>
-                          {item.reason && <small>{item.reason}</small>}
-                        </span>
-                      </label>
-                      <label className="sr-only" htmlFor={noteId}>
-                        Notitie voor {item.label}
-                      </label>
-                      <input
-                        id={noteId}
-                        className="checklist-note"
-                        value={item.note ?? ""}
-                        placeholder="Eigen notitie (privé)"
-                        onChange={(event) => {
-                          void saveChecklist(
-                            checklist.map((candidate) =>
-                              candidate.id === item.id
-                                ? { ...candidate, note: event.target.value }
-                                : candidate,
-                            ),
-                          );
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-                <button
-                  className="add-checklist"
-                  type="button"
-                  onClick={() => {
-                    void saveChecklist([
-                      ...checklist,
-                      {
-                        id: `custom-${Date.now()}`,
-                        label: "Eigen punt",
-                        checked: false,
-                      },
-                    ]);
-                  }}
-                >
-                  + Eigen punt toevoegen
-                </button>
-              </div>
-            </section>
-            <section className="sources-section" id="bronnen">
-              <div className="section-inline-heading">
-                <div>
-                  <h2>Bronnen en datadekking</h2>
-                  <p>
-                    Elke conclusie blijft terug te vinden naar de gebruikte
-                    bron. Ontbrekende bronnen leveren geen score op.
-                  </p>
-                </div>
-                <span className="coverage-pill">
-                  <Check size={12} /> {analysis.dataCoverage.label}
-                </span>
-              </div>
-              <div className="source-status-list">
-                {analysis.sourceStatuses.map((source) => (
-                  <div key={source.source}>
-                    <span className={`status-dot ${source.status}`} />
-                    <strong>{source.source}</strong>
-                    <span>
-                      {source.status === "ok"
-                        ? "beschikbaar"
-                        : (source.message ?? "niet beschikbaar")}
-                    </span>
-                    {source.sourceUrl && (
-                      <a
-                        href={source.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open bron
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-            {analysis.knownGaps.length > 0 && (
-              <section className="known-gaps-section" id="niet-gedekt">
-                <div className="section-inline-heading">
-                  <div>
-                    <h2>Wat WoonReality (nog) niet checkt</h2>
-                    <p>
-                      Geen signaal hierboven betekent niet automatisch geen
-                      risico. Deze punten controleer je zelf via officiële
-                      bronnen.
-                    </p>
-                  </div>
-                </div>
-                <div className="known-gaps-list">
-                  {analysis.knownGaps.map((gap) => (
-                    <div key={gap.key} className="known-gap">
-                      <strong>{gap.label}</strong>
-                      <p>{gap.summary}</p>
-                      <a href={gap.checkUrl} target="_blank" rel="noreferrer">
-                        {gap.checkLabel}
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <div className="source-note">
-              <span>
-                <strong>Transparantie:</strong> de score is een versieerbare
-                omgevingsindicatie, geen oordeel over koopprijs of bouwkundige
-                staat.
-              </span>
-              <span>
-                <RefreshCw size={12} style={{ verticalAlign: "-2px" }} />{" "}
-                {analysis.analysisVersion}
-              </span>
-            </div>
-            <p className="dashboard-disclaimer">
-              WoonReality is een eerste check om te helpen beslissen. Open data
-              vervangt geen bouwkundige keuring, akoestisch onderzoek,
-              funderingsonderzoek, bodemonderzoek, juridisch advies of formele
-              vergunningscheck.
-            </p>
-          </div>
-        )}
-    </PageShell>
-  );
-}
-
-function EverydayInsights({ items }: { items: EverydayInsight[] }) {
-  return (
-    <div className="everyday-insights">
-      {items.map((item) => (
-        <article className={`everyday-insight ${item.tone}`} key={item.title}>
-          <span className="signal-dot" />
-          <div>
-            <strong>{item.title}</strong>
-            <p>{item.summary}</p>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function PurchaseGuardrails({ buildingYear }: { buildingYear?: number }) {
-  const olderBuilding = buildingYear != null && buildingYear < 1945;
-  return (
-    <details className="purchase-guardrails">
-      <summary>
-        <div>
-          <div className="section-kicker">Voor je een bod doet</div>
-          <h2>Wat openbare data niet weet</h2>
-          <p>Juridisch, bouwkundig en prijs — check dit zelf voor je biedt.</p>
-        </div>
-        <ChevronDown size={18} aria-hidden="true" />
-      </summary>
-      <div className="purchase-guardrail-grid">
-        <article>
-          <strong>Juridisch & VvE</strong>
-          <p>
-            Vraag om splitsingsakte, VvE-notulen, begroting, reservefonds, MJOP,
-            verzekering en erfpacht- of eigendomstukken.
-          </p>
-        </article>
-        <article>
-          <strong>
-            {olderBuilding ? "Fundering eerst" : "Bouwkundige staat"}
-          </strong>
-          <p>
-            {olderBuilding
-              ? "Bij dit bouwjaar is fundering een onderzoekspunt. Vraag naar herstel, scheuren, peilmetingen en een onafhankelijk oordeel."
-              : "Laat constructie, vocht, installaties, dak en onderhoud onafhankelijk beoordelen."}
-          </p>
-        </article>
-        <article>
-          <strong>Prijs & voorwaarden</strong>
-          <p>
-            Vergelijk pas na actuele referentieverkoop, documentcontrole en
-            keuring. Bepaal voorwaarden voor financiering, keuring en oplevering
-            apart.
-          </p>
-        </article>
-      </div>
-    </details>
-  );
-}
-
-function SimpleVerdict({
-  analysis,
-  facts,
-}: {
-  analysis: Analysis;
-  facts: string[];
-}) {
-  const attentionCount = (analysis.everydayInsights ?? []).filter(
-    (item) => item.tone === "attention",
-  ).length;
-  const verdict =
-    attentionCount >= 2 || analysis.overallScore < 5.5
-      ? {
-          label: "Bekijk met aandacht",
-          detail:
-            "Neem bij een bezichtiging extra tijd voor geluid, energie en je dagelijkse route.",
-          tone: "attention",
-        }
-      : attentionCount === 1 || analysis.overallScore < 7
-        ? {
-            label: "Interessant, met een paar vragen",
-            detail:
-              "De basis is goed genoeg om te bekijken. Controleer de punten hieronder op locatie.",
-            tone: "neutral",
-          }
-        : {
-            label: "Een goede kandidaat om te bekijken",
-            detail:
-              "De openbare signalen zijn overwegend positief. Check ze vooral met je eigen ogen.",
-            tone: "good",
-          };
-  return (
-    <div className={`simple-verdict ${verdict.tone}`}>
-      <div className="simple-verdict-top">
-        <div className="section-kicker">Eerste indruk</div>
-        <div className="simple-verdict-score">
-          <strong>
-            {analysis.overallScore.toLocaleString("nl-NL", {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })}
-          </strong>
-          <span>van 10</span>
-        </div>
-      </div>
-      <h2>{verdict.label}</h2>
-      <p>{verdict.detail}</p>
-      <div className="simple-verdict-facts">
-        {facts.map((fact) => (
-          <span key={fact}>{fact}</span>
+      </header>
+      <nav className="dashboard-tabs" aria-label="Dashboardsecties">
+        {TABS.map((tab) => (
+          <a href={tab.href} key={tab.href}>{tab.label}</a>
         ))}
+      </nav>
+      {workspace.compare.length >= 2 && (
+        <div className="compare-banner">
+          <span>
+            <GitCompare size={15} /> {workspace.compare.length} woningen geselecteerd om te vergelijken
+          </span>
+          <Link className="primary-button" href={`/vergelijken?ids=${workspace.compare.join(",")}`}>
+            Open vergelijking
+          </Link>
+        </div>
+      )}
+      <PropertyKpiStrip analysis={analysis} listing={marketListing} />
+      <PropertyDealPanel
+        listing={marketListing}
+        buyerProfile={workspace.buyerProfile}
+        mortgageState={workspace.mortgageState}
+        mortgageConfigured={workspace.mortgageConfigured}
+        hypotheekHref={hypotheekHref}
+        energyLabel={mortgageEnergyLabel ?? energyLabel}
+        personalFit={personalFit}
+      />
+      <div className="dash-hero">
+        <PropertyScoreCharts analysis={analysis} />
+        <div id="kaart">
+          <PropertyMap property={property} nearbyProperties={nearbyProperties} />
+        </div>
       </div>
-    </div>
-  );
-}
-
-function ScoreProfile({ analysis }: { analysis: Analysis }) {
-  return (
-    <div className="score-profile" aria-label="Score per onderwerp">
-      {analysis.domains.map((domain) => {
-        const score = domain.score ?? 0;
-        return (
-          <div className="profile-row" key={domain.key}>
-            <span>
-              {domain.label}
-              {domain.hasUnscoredAttention && (
-                <AlertTriangle size={11} aria-label="Open aandachtspunt zonder score" style={{ marginLeft: 4, verticalAlign: -1, color: "#b8860b" }} />
-              )}
-            </span>
-            <div className="profile-track">
-              <i style={{ width: `${Math.round(score * 10)}%` }} />
+      {hasListingExtractText(marketListing) && (
+        <ListingInsightsPanel insights={listingInsights} status={insightsStatus} />
+      )}
+      {!incompleteListing && marketListing ? (
+        <ListingKenmerkenGrid listing={marketListing} />
+      ) : (
+        <FundaListingPanel
+          bagId={bagId}
+          listing={userListing}
+          onListingChange={setUserListing}
+        />
+      )}
+      <SignalGauges signals={analysis.signals} />
+      <section className="nearby-section" id="omgeving">
+        <div className="section-inline-heading">
+          <div>
+            <div className="eyebrow"><Database size={13} /> omgeving</div>
+            <h2>Woningen dichtbij</h2>
+          </div>
+          <span className="coverage-pill">{nearbyProperties.length}</span>
+        </div>
+        {nearbyProperties.length ? (
+          <div className="nearby-grid">
+            {nearbyProperties.map((nearby) => (
+              <Link className="nearby-card" href={`/woning/${nearby.bagVboId}`} key={nearby.bagVboId}>
+                <strong>{nearby.addressLabel.split(",")[0]}</strong>
+                <span>
+                  {nearby.areaM2 ? `${nearby.areaM2} m²` : "oppervlakte onbekend"} · {nearby.distanceM} m
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p>Geen omliggende woonadressen gevonden.</p>
+        )}
+      </section>
+      <section className="preference-panel">
+        <div>
+          <div className="eyebrow"><Settings2 size={13} /> persoonlijke fit</div>
+          <p>{workspace.preferencesConfigured ? "Pas aan wat voor jou telt." : "Stel je voorkeuren in."}</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={() => setShowPreferences((value) => !value)}>
+          {showPreferences ? "Sluiten" : "Voorkeuren"}
+        </button>
+        {showPreferences && (
+          <div className="preference-controls">
+            {preferenceKeys.map((key) => {
+              const inputId = `preference-${key}`;
+              return (
+                <div className="preference-control" key={key}>
+                  <label htmlFor={inputId}>{preferenceLabel(key)}</label>
+                  <input
+                    id={inputId}
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={preferences[key]}
+                    onChange={(event) =>
+                      setLocalPreferences({
+                        ...preferences,
+                        [key]: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <output htmlFor={inputId}>{preferences[key]}</output>
+                </div>
+              );
+            })}
+            <button className="primary-button" type="button" onClick={() => { void savePreferences(); }}>
+              Bewaar voorkeuren
+            </button>
+          </div>
+        )}
+      </section>
+      <AiResearchSection
+        report={aiReport}
+        status={aiStatus}
+        listingIncomplete={incompleteListing}
+      />
+      <ValuationBidPanel
+        bagId={bagId}
+        analysis={analysis}
+        listing={marketListing}
+        caseId={caseId}
+      />
+      <section className="checklist-section" id="checklist">
+        <div className="section-inline-heading">
+          <div>
+            <div className="eyebrow"><span className="eyebrow-dot" /> checklist</div>
+            <h2>Bezichtiging</h2>
+            {checklistError && (
+              <p className="form-message" role="status">
+                {checklistError} <Link href="/login">Inloggen</Link>
+              </p>
+            )}
+          </div>
+          <div className="dashboard-actions">
+            <Link className="secondary-button" href={`/woning/${bagId}/bezichtiging`}>
+              Open op je telefoon
+            </Link>
+            <button className="secondary-button" type="button" onClick={() => window.print()}>
+              <Printer size={14} /> Print
+            </button>
+          </div>
+        </div>
+        <div className="checklist-list">
+          {visibleChecklist.map((item) => {
+            const checkboxId = `checklist-${bagId}-${item.id}`;
+            const noteId = `${checkboxId}-note`;
+            return (
+              <div className="checklist-item-wrap" key={item.id}>
+                <label className={`checklist-item ${item.checked ? "checked" : ""}`} htmlFor={checkboxId}>
+                  <input
+                    id={checkboxId}
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={(event) => {
+                      void saveChecklist(
+                        visibleChecklist.map((candidate) =>
+                          candidate.id === item.id
+                            ? { ...candidate, checked: event.target.checked }
+                            : candidate,
+                        ),
+                      );
+                    }}
+                  />
+                  <span>
+                    <strong>{item.label}</strong>
+                    {item.reason && <small>{item.reason}</small>}
+                  </span>
+                </label>
+                <label className="sr-only" htmlFor={noteId}>Notitie voor {item.label}</label>
+                <input
+                  id={noteId}
+                  className="checklist-note"
+                  value={item.note ?? ""}
+                  placeholder="Eigen notitie"
+                  onChange={(event) => {
+                    queueChecklistNoteSave(
+                      visibleChecklist.map((candidate) =>
+                        candidate.id === item.id
+                          ? { ...candidate, note: event.target.value }
+                          : candidate,
+                      ),
+                    );
+                  }}
+                  onBlur={() => { flushChecklistNoteSave(); }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <div className="purchase-guardrail-grid dash-guardrails">
+        <article>
+          <strong>Juridisch</strong>
+          <p>VvE, erfpacht, splitsing — zelf opvragen.</p>
+        </article>
+        <article>
+          <strong>{property.buildingYear != null && property.buildingYear < 1945 ? "Fundering" : "Bouwkundig"}</strong>
+          <p>Keuring blijft nodig. Open data ziet de constructie niet.</p>
+        </article>
+        <article>
+          <strong>Prijs</strong>
+          <p>Bod pas na documenten en keuring.</p>
+        </article>
+      </div>
+      <section className="sources-section" id="bronnen">
+        <div className="section-inline-heading">
+          <div>
+            <h2>Bronnen</h2>
+          </div>
+          <span className="coverage-pill"><Check size={12} /> {analysis.dataCoverage.label}</span>
+        </div>
+        <div className="source-status-list">
+          {analysis.sourceStatuses.map((source) => (
+            <div key={source.source}>
+              <span className={`status-dot ${source.status}`} />
+              <strong>{source.source}</strong>
+              <span>{source.status === "ok" ? "beschikbaar" : (source.message ?? "niet beschikbaar")}</span>
             </div>
-            <strong>
-              {domain.score == null
-                ? "—"
-                : score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}
-            </strong>
+          ))}
+        </div>
+      </section>
+      {analysis.knownGaps.length > 0 && (
+        <section className="known-gaps-section" id="niet-gedekt">
+          <h2>Niet gedekt</h2>
+          <div className="known-gaps-list">
+            {analysis.knownGaps.map((gap) => (
+              <div key={gap.key} className="known-gap">
+                <strong>{gap.label}</strong>
+                <p>{gap.summary}</p>
+                <a href={gap.checkUrl} target="_blank" rel="noreferrer">{gap.checkLabel}</a>
+              </div>
+            ))}
           </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function InsightList({
-  title,
-  type,
-  items,
-  analysis,
-}: {
-  title: string;
-  type: "positive" | "attention";
-  items: Analysis["highlights"];
-  analysis: Analysis;
-}) {
-  return (
-    <div className={`insight-card ${type}`}>
-      <h2>{title}</h2>
-      {items.map((item) => {
-        const signal = analysis.signals.find(
-          (candidate) => candidate.key === item.signalKey,
-        );
-        return (
-          <div className="insight-item" key={`${type}-${item.signalKey}`}>
-            <span className="signal-dot" />
-            <span>
-              <strong>{signal?.label}</strong>
-              <small>{item.text}</small>
-            </span>
-          </div>
-        );
-      })}
-    </div>
+        </section>
+      )}
+      <div className="source-note">
+        <span><strong>Score</strong> is een omgevingsindicatie, geen koopadvies.</span>
+        <span><RefreshCw size={12} /> {analysis.analysisVersion}</span>
+      </div>
+      <p className="dashboard-disclaimer">
+        Open data vervangt geen keuring, notaris of hypotheekadvies.
+      </p>
+      <PropertyActionDock
+        bagVboId={property.bagVboId}
+        hypotheekHref={hypotheekHref}
+        caseId={caseId}
+        isSaved={isSaved}
+        onSave={() => { void saveProperty(); }}
+      />
+    </PageShell>
   );
 }
 
 function LoadingDashboard() {
   return (
-    <PageShell current="woning">
+    <PageShell current="woning" className="property-dash-shell">
       <div className="loading-shell">
         <Link className="back-link" href="/">
           <ArrowLeft size={14} /> Terug naar zoeken
