@@ -42,9 +42,9 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
       ? extractImportedListingPaste(parsed.data.pastedText ?? "")
       : undefined;
     const { data: existing } = await supabase.from("user_listings").select("extracted_json, asking_price").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
-    // pastedFacts first: explicit pasted text wins over stored extracted_json.
+    // pastedFacts as imported: explicit pasted text wins over stored extracted_json.
     const mergedFacts = pastedFacts
-      ? mergeListingFacts(pastedFacts, factsFromUnknown(existing?.extracted_json))
+      ? mergeListingFacts(factsFromUnknown(existing?.extracted_json), pastedFacts)
       : undefined;
     const payload: Record<string, unknown> = {
       user_id: user.id,

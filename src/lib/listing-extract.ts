@@ -197,24 +197,39 @@ export function listingFactsAreSparse(facts: ImportedListingFacts) {
     && !hasValue(facts.roomCount) && !hasValue(facts.description);
 }
 
+export type MergeListingFactsOptions = {
+  /** Default `imported`: a later capture (extension refresh) overwrites sparse URL-only drafts. */
+  prefer?: "imported" | "existing";
+};
+
 export function mergeListingFacts(
   existing: ImportedListingFacts | undefined,
   imported: ImportedListingFacts,
+  options: MergeListingFactsOptions = {},
 ): ImportedListingFacts {
+  const preferExisting = options.prefer === "existing";
   const existingNotes = existing?.notes ?? [];
   const importedNotes = imported.notes ?? [];
-  const merged: ImportedListingFacts = { ...imported, notes: uniqueNotes([...existingNotes, ...importedNotes]) };
-  if (!existing) return merged;
-  for (const [key, value] of Object.entries(existing) as Array<[keyof ImportedListingFacts, ImportedListingFacts[keyof ImportedListingFacts]]>) {
+  const notes = uniqueNotes([...existingNotes, ...importedNotes]);
+  const winner = preferExisting ? existing : imported;
+  const loser = preferExisting ? imported : existing;
+  const merged: ImportedListingFacts = { ...(loser ?? { notes: [] }), notes };
+  if (!winner) return merged;
+  for (const [key, value] of Object.entries(winner) as Array<[keyof ImportedListingFacts, ImportedListingFacts[keyof ImportedListingFacts]]>) {
     if (key === "notes" || key === "extraKenmerken" || key === "sections") continue;
     if (hasValue(value)) (merged as Record<string, unknown>)[key] = value;
   }
-  merged.extraKenmerken = { ...(imported.extraKenmerken ?? {}), ...(existing.extraKenmerken ?? {}) };
+  merged.extraKenmerken = preferExisting
+    ? { ...(imported.extraKenmerken ?? {}), ...(existing?.extraKenmerken ?? {}) }
+    : { ...(existing?.extraKenmerken ?? {}), ...(imported.extraKenmerken ?? {}) };
   if (!Object.keys(merged.extraKenmerken).length) delete merged.extraKenmerken;
-  const sections = [...(existing.sections ?? []), ...(imported.sections ?? [])].filter((section, index, all) => (
+  const winnerSections = (preferExisting ? existing?.sections : imported.sections) ?? [];
+  const loserSections = (preferExisting ? imported.sections : existing?.sections) ?? [];
+  const sections = [...loserSections, ...winnerSections].filter((section, index, all) => (
     all.findIndex((item) => item.title === section.title && item.text === section.text) === index
   ));
   if (sections.length) merged.sections = sections;
+  else delete merged.sections;
   return merged;
 }
 
@@ -494,7 +509,7 @@ export function preferLabelledAreas(facts: ImportedListingFacts) {
 
 export function finalizeExtractedFacts(facts: ImportedListingFacts, visibleText?: string): ImportedListingFacts {
   const merged = visibleText
-    ? mergeListingFacts(facts, extractListingFacts(visibleText.slice(0, 25_000)))
+    ? mergeListingFacts(facts, extractListingFacts(visibleText.slice(0, 25_000)), { prefer: "existing" })
     : facts;
   preferLabelledAreas(merged);
   if (merged.askingPrice) {

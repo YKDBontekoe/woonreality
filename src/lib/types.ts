@@ -214,6 +214,14 @@ export type PropertyContradiction = {
   sourceIds: string[];
 };
 
+export type AiTokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
+};
+
 export type AiPropertyReport = {
   reportVersion: string;
   promptVersion: string;
@@ -221,6 +229,7 @@ export type AiPropertyReport = {
   expiresAt: string;
   researchModel: string;
   synthesisModel: string;
+  usage?: AiTokenUsage;
   verdict: {
     title: string;
     summary: string;

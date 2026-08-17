@@ -164,15 +164,44 @@ test("extractFundaListingFromHtml reads JSON-LD, kenmerken and free text", () =>
   assert.match(listing.neighborhood ?? "", /Veluwe/i);
 });
 
-test("mergeListingFacts keeps existing values and fills gaps", () => {
+test("mergeListingFacts lets imported values overwrite sparse existing drafts", () => {
   const merged = mergeListingFacts(
     { askingPrice: 510000, notes: ["Handmatig"] },
     { askingPrice: 525000, livingAreaM2: 128, bedroomCount: 4, notes: ["Funda"] },
   );
-  assert.equal(merged.askingPrice, 510000);
+  assert.equal(merged.askingPrice, 525000);
   assert.equal(merged.livingAreaM2, 128);
   assert.equal(merged.bedroomCount, 4);
   assert.deepEqual(merged.notes, ["Handmatig", "Funda"]);
+});
+
+test("mergeListingFacts can keep existing values when extract prefers DOM over regex", () => {
+  const merged = mergeListingFacts(
+    { askingPrice: 510000, livingAreaM2: 120, notes: ["DOM"] },
+    { askingPrice: 525000, bedroomCount: 4, notes: ["tekst"] },
+    { prefer: "existing" },
+  );
+  assert.equal(merged.askingPrice, 510000);
+  assert.equal(merged.livingAreaM2, 120);
+  assert.equal(merged.bedroomCount, 4);
+});
+
+test("extension refresh overwrites a sparse URL-only draft", () => {
+  const urlOnly = mergeListingFacts(
+    undefined,
+    { street: "Korenstraat", houseNumber: 18, city: "Epe", notes: ["Extensie nodig"] },
+  );
+  const refreshed = mergeListingFacts(urlOnly, {
+    askingPrice: 525000,
+    livingAreaM2: 128,
+    bedroomCount: 4,
+    description: "Lichte hoekwoning",
+    notes: ["Extensie"],
+  });
+  assert.equal(refreshed.street, "Korenstraat");
+  assert.equal(refreshed.askingPrice, 525000);
+  assert.equal(refreshed.livingAreaM2, 128);
+  assert.equal(refreshed.description, "Lichte hoekwoning");
 });
 
 test("challenge HTML is detected and inspectFundaListing still returns the URL address without fetching", () => {

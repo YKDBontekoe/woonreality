@@ -56,6 +56,7 @@ export type AiReportRow = {
   prompt_version: string;
   input_fingerprint: string;
   status: string;
+  user_id: string | null;
   report_json: Json | null;
   source_manifest_json: Json | null;
   research_model: string | null;

@@ -26,6 +26,7 @@ import { StartCaseButton } from "@/components/start-case-button";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { FundaListingPanel } from "@/components/funda-listing-panel";
 import { ListingFactsCard } from "@/components/listing-facts-card";
+import { AiResearchSection } from "@/components/ai-research-section";
 import { PageShell } from "@/components/ui/page-shell";
 import {
   calculatePersonalFit,
@@ -41,6 +42,7 @@ import {
 } from "@/src/lib/checklist";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
+import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
 import type {
   AiPropertyReport,
   AiReportStatus,
@@ -62,9 +64,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [listing, setListing] = useState<PropertyListing | null>(null);
-  const [listingStatus, setListingStatus] = useState<
-    "loading" | "available" | "unavailable"
-  >("loading");
   const [userListing, setUserListing] = useState<PropertyListing | null>(null);
   const [aiReport, setAiReport] = useState<AiPropertyReport | null>(null);
   const [aiStatus, setAiStatus] = useState<AiReportStatus>("missing");
@@ -142,7 +141,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setListingStatus("loading");
     fetch(`/api/listing/${encodeURIComponent(bagId)}`, {
       signal: controller.signal,
     })
@@ -156,12 +154,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         return body.listing ?? null;
       })
       .then((value) => {
-        setListing(value);
-        setListingStatus(value ? "available" : "unavailable");
+        if (!controller.signal.aborted) setListing(value);
       })
       .catch((caught) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError"))
-          setListingStatus("unavailable");
+          setListing(null);
       });
     return () => controller.abort();
   }, [bagId]);
@@ -356,7 +353,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     .filter((item) => item.type === "positive")
     .slice(0, 3);
   const nearbyProperties = analysis.nearbyProperties ?? [];
-  const marketListing = listing ?? userListing;
+  const marketListing = mergeListings(userListing, listing);
+  const incompleteListing = listingNeedsExtension(marketListing);
   const energySignal = analysis.signals.find((signal) => signal.key === "energy")?.value;
   const energyLabel = typeof energySignal === "string" && energySignal !== "Geen data"
     ? energySignal
@@ -469,6 +467,37 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             />
           </div>
         </section>
+        <section className="simple-reasons">
+          <div className="section-kicker">Waarom dit oordeel?</div>
+          <h2>Dit zijn de drie dingen die ertoe doen</h2>
+          <EverydayInsights items={analysis.everydayInsights ?? []} />
+        </section>
+        <AiResearchSection
+          report={aiReport}
+          status={aiStatus}
+          listingIncomplete={incompleteListing}
+        />
+        {!incompleteListing && marketListing && (
+          <ListingFactsCard
+            listing={marketListing}
+            status="available"
+            eyebrow={userListing ? "jouw advertentie" : "gelicentieerde marktdata"}
+            title={userListing ? "Jouw advertentie" : "Wat de advertentie zegt"}
+            description={
+              userListing
+                ? "Deze kenmerken komen uit de Funda-pagina die jij met de extensie opende. Ze staan los van BAG en openbare registraties."
+                : undefined
+            }
+            bagAreaM2={property.areaM2}
+          />
+        )}
+        {incompleteListing && (
+          <FundaListingPanel
+            bagId={bagId}
+            listing={userListing}
+            onListingChange={setUserListing}
+          />
+        )}
         <section className="decision-bar" aria-label="Beslis in 30 seconden">
           <div>
             <div className="section-kicker">Wat nu?</div>
@@ -493,22 +522,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             )}
           </div>
         </section>
-        <section className="simple-reasons">
-          <div className="section-kicker">Waarom dit oordeel?</div>
-          <h2>Dit zijn de drie dingen die ertoe doen</h2>
-          <EverydayInsights items={analysis.everydayInsights ?? []} />
-        </section>
         <PurchaseGuardrails buildingYear={property.buildingYear} />
-        <FundaListingPanel
-          bagId={bagId}
-          bagAreaM2={property.areaM2}
-          listing={userListing}
-          licensedListing={listing}
-          onListingChange={setUserListing}
-        />
-        {listingStatus !== "unavailable" && (
-          <ListingFactsCard listing={listing} status={listingStatus} bagAreaM2={property.areaM2} />
-        )}
         {affordability && (
           <div className={`buying-power-strip fit-${affordability.fit}`}>
             <div>
@@ -555,9 +569,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 <StartCaseButton bagVboId={property.bagVboId} />
               </div>
             )}
-            <div id="ai-onderzoek">
-              <AiResearchSection report={aiReport} status={aiStatus} />
-            </div>
           </div>
         </details>
         <div className="details-toggle">
@@ -921,111 +932,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </div>
         )}
     </PageShell>
-  );
-}
-
-function AiResearchSection({
-  report,
-  status,
-}: {
-  report: AiPropertyReport | null;
-  status: AiReportStatus;
-}) {
-  if (status === "unavailable") return null;
-  if (!report)
-    return (
-      <section className="ai-research-section">
-        <div className="section-kicker">AI-woningonderzoek</div>
-        <h2>
-          {status === "failed"
-            ? "AI-onderzoek tijdelijk niet beschikbaar"
-            : "De woning wordt verder onderzocht…"}
-        </h2>
-        <p>
-          {status === "failed"
-            ? "De vaste openbare analyse blijft beschikbaar. Probeer het AI-onderzoek later opnieuw."
-            : "We controleren gemeentelijke plannen, officiële bekendmakingen, advertentietekst en relevante omgevingsbronnen."}
-        </p>
-      </section>
-    );
-  const attention = report.findings
-    .filter((finding) => finding.impact === "attention")
-    .slice(0, 4);
-  const positive = report.findings
-    .filter((finding) => finding.impact === "positive")
-    .slice(0, 3);
-  return (
-    <section className="ai-research-section" id="ai-onderzoek">
-      <div className="section-inline-heading">
-        <div>
-          <div className="section-kicker">AI-woningonderzoek</div>
-          <h2>{report.verdict.title}</h2>
-          <p>{report.verdict.summary}</p>
-        </div>
-        <span className="coverage-pill">
-          {report.verdict.confidence === "high"
-            ? "Hoge zekerheid"
-            : report.verdict.confidence === "medium"
-              ? "Indicatie"
-              : "Beperkte data"}
-        </span>
-      </div>
-      {(attention.length > 0 || positive.length > 0) && (
-        <div className="ai-finding-grid">
-          {attention.map((finding) => (
-            <article className="ai-finding attention" key={finding.id}>
-              <strong>{finding.title}</strong>
-              <p>{finding.summary}</p>
-              <small>
-                {finding.spatialScale ?? "omgeving"} · {finding.confidence}
-              </small>
-            </article>
-          ))}
-          {positive.map((finding) => (
-            <article className="ai-finding positive" key={finding.id}>
-              <strong>{finding.title}</strong>
-              <p>{finding.summary}</p>
-              <small>
-                {finding.spatialScale ?? "omgeving"} · {finding.confidence}
-              </small>
-            </article>
-          ))}
-        </div>
-      )}
-      {report.contradictions.length > 0 && (
-        <div className="ai-contradictions">
-          <strong>Gegevens om te controleren</strong>
-          {report.contradictions.map((item) => (
-            <p key={item.id}>{item.summary}</p>
-          ))}
-        </div>
-      )}
-      <div className="ai-questions">
-        <strong>Vragen voor de bezichtiging</strong>
-        <ul>
-          {report.questions.slice(0, 6).map((question) => (
-            <li key={question}>{question}</li>
-          ))}
-        </ul>
-      </div>
-      <details className="ai-sources">
-        <summary>
-          {report.sources.length} bronnen · rapport geldig tot{" "}
-          {new Date(report.expiresAt).toLocaleDateString("nl-NL")}
-        </summary>
-        {report.sources.map((source) => (
-          source.url && /^https:\/\//i.test(source.url) ? (
-            <a key={source.id} href={source.url} target="_blank" rel="noreferrer">
-              {source.title} · {source.publisher ?? source.url}
-            </a>
-          ) : (
-            <span key={source.id} className="ai-source-no-link">
-              {source.title} · {source.publisher ?? "geen link beschikbaar"}
-            </span>
-          )
-        ))}
-      </details>
-    </section>
   );
 }
 

@@ -382,6 +382,9 @@ a { color: inherit; text-decoration: none; }
 .listing-extra-kenmerken strong { color: var(--ink); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .listing-notes { margin: 0; padding: 12px 21px 12px 36px; color: #855321; font-size: 12px; line-height: 1.5; background: #fff8ef; }
 .funda-listing-panel { margin: 28px 0 12px; }
+.funda-listing-panel-compact { margin: 20px 0 16px; padding: 18px 20px; border: 1px dashed var(--line); border-radius: var(--radius-card); background: rgba(255,255,255,.7); }
+.funda-listing-panel-compact h2 { margin: 4px 0 6px; font-size: clamp(18px, 2.4vw, 26px); }
+.funda-listing-panel-compact p { max-width: 640px; color: var(--ink-soft); }
 .funda-listing-panel .listing-section { margin: 18px 0 0; }
 .funda-listing-form { margin-top: 0; max-width: none; }
 .funda-listing-form label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
@@ -390,6 +393,10 @@ a { color: inherit; text-decoration: none; }
 .funda-listing-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .funda-listing-form .listing-paste { margin-top: 2px; }
 .funda-listing-form textarea { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; font: 12px "DM Sans", sans-serif; resize: vertical; min-height: 110px; }
+.listing-more { border-top: 1px solid var(--line); }
+.listing-more summary { cursor: pointer; padding: 12px 21px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.listing-more[open] summary { border-bottom: 1px solid var(--line); }
+.ai-listing-hint { margin: 0 0 14px; color: var(--ink-soft); font-size: 13px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin .8s linear infinite; }
 @media (prefers-reduced-motion: reduce) {

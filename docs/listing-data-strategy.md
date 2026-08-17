@@ -1,6 +1,6 @@
 # Listing and surrounding-address data strategy
 
-Last reviewed: 16 August 2026
+Last reviewed: 17 August 2026
 
 ## Decision
 
@@ -30,15 +30,16 @@ are never overwritten.
 
 `POST /api/ai-analysis/:bagId` loads the signed-in user's `user_listings` row
 (if any) and prefers it over a licensed feed, since it is usually the only
-listing data configured and the freshest. Its description, any extracted text
-sections (buurt, indeling, bijzonderheden, …), room counts, VvE bijdrage and
-reserve, eigendomssituatie and kenmerken are all passed into the research
-pipeline in `src/lib/analysis/research.ts`. This is not treated as a live web
-fetch that needs `LISTING_ALLOWED_HOSTS`: the text was already captured with
-the user's consent and stored, so it is included as source text the same way
-an uploaded document would be — `extractClaims()` still treats it as
-unreliable, third-party evidence rather than instructions before any claim is
-allowed into the report. `LISTING_PAGE_FETCH_ENABLED` and the domain
+listing data configured and the freshest. The same `mergeListings()` helper is
+used on the property page, so UI and AI see one merged listing. Compact
+numeric kenmerken, deterministic listing-risk flags, a short description and
+at most a few text sections go into a two-step Luna pipeline in
+`src/lib/analysis/research.ts`: a low-reasoning web-search pass, then a
+medium-reasoning structured synthesis. There is no separate claim-extraction
+LLM call. Listing text is wrapped as `<<<UNTRUSTED_LISTING_DATA>>>` and treated
+as unreliable evidence rather than instructions. This is not a live web fetch
+that needs `LISTING_ALLOWED_HOSTS`: the text was already captured with the
+user's consent and stored. `LISTING_PAGE_FETCH_ENABLED` and the domain
 allowlists still gate the one remaining live-fetch fallback: fetching the
 listing URL itself when no description was captured at all.
 

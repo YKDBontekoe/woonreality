@@ -85,6 +85,6 @@ export function extractFundaListingFromDocument(doc: Document, sourceUrl?: strin
   if (free.sections.length) facts.sections = free.sections;
   const visible = (doc.querySelector("main")?.textContent || doc.body?.textContent || "").replace(/\s+/g, " ").trim();
   const merged = finalizeExtractedFacts(facts, visible);
-  if (sourceUrl) return mergeListingFacts(merged, factsFromFundaUrl(sourceUrl));
+  if (sourceUrl) return mergeListingFacts(merged, factsFromFundaUrl(sourceUrl), { prefer: "existing" });
   return merged;
 }
