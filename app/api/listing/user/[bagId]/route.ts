@@ -70,3 +70,17 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
     return NextResponse.json({ error: "Advertentiegegevens konden niet worden opgeslagen." }, { status: 502 });
   }
 }
+
+export async function DELETE(_request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const { bagId } = await context.params;
+  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  try {
+    const { supabase, user } = await currentUser();
+    if (!user) return NextResponse.json({ error: "Log in om advertentiegegevens te verwijderen." }, { status: 401 });
+    const { error } = await supabase.from("user_listings").delete().eq("user_id", user.id).eq("bag_vbo_id", bagId);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Advertentiegegevens konden niet worden verwijderd." }, { status: 502 });
+  }
+}

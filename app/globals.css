@@ -755,6 +755,20 @@ a { color: inherit; text-decoration: none; }
 .home-card-footer select { max-width: 150px; border: 0; color: var(--moss); background: transparent; font-size: 10px; outline: 0; }
 .home-card-footer select:focus-visible { outline: 2px solid var(--moss-focus); outline-offset: 3px; border-radius: 4px; }
 .home-card-footer .text-link { font-size: 10px; white-space: nowrap; }
+.listing-history .compare-banner { position: sticky; top: 12px; z-index: 3; }
+.listing-history-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.listing-history-card { display: grid; gap: 8px; min-width: 0; padding: 1.1rem; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.listing-history-card.is-selected { border-color: var(--mint-border); background: var(--mint-pale); }
+.listing-history-check { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 11px; font-weight: 600; }
+.listing-history-check input { accent-color: var(--moss); }
+.listing-history-price { font: 600 18px "Space Grotesk", sans-serif; letter-spacing: -.03em; }
+.listing-history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: .35rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+.listing-history-link { background: none; border: 0; padding: 0; }
+.listing-history-link svg { transform: none; }
+.listing-history-saved { display: inline-flex; align-items: center; gap: 5px; color: var(--moss); font-size: 12px; font-weight: 600; }
+.listing-history-remove { color: var(--muted); }
+.listing-history-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.listing-history-compact { margin-top: 1.5rem; }
 .cockpit-empty { display: grid; justify-items: center; padding: 3.2rem 1.5rem; border: 1px dashed #b9cbbd; border-radius: 15px; background: rgba(255,255,255,.55); text-align: center; }
 .empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; color: var(--moss); background: #eaf4eb; }
 .cockpit-empty h3 { margin: 1rem 0 .35rem; font: 600 18px "Space Grotesk", sans-serif; }
@@ -844,7 +858,7 @@ a { color: inherit; text-decoration: none; }
   .buying-power-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cockpit-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cockpit-grid { grid-template-columns: 1fr; }
-  .home-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-board, .listing-history-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .valuation-grid { grid-template-columns: 1fr; }
   .workflow-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
   .workflow-grid { grid-template-columns: 1fr; }
@@ -852,7 +866,7 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 620px) {
   .cockpit-heading { display: grid; align-items: start; }
   .cockpit-heading .primary-button { width: 100%; justify-content: center; }
-  .cockpit-stats, .home-board, .case-mini-grid, .module-grid, .pipeline-strip, .buying-power-stats { grid-template-columns: 1fr; }
+  .cockpit-stats, .home-board, .listing-history-board, .case-mini-grid, .module-grid, .pipeline-strip, .buying-power-stats { grid-template-columns: 1fr; }
   .profile-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bid-options { grid-template-columns: 1fr; }
