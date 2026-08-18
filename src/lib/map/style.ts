@@ -1,3 +1,5 @@
+import type { Map as MapboxMap } from "mapbox-gl";
+
 export const MAPBOX_STANDARD_STYLE = "mapbox://styles/mapbox/standard";
 
 export const MAP_CAMERA = {
@@ -15,14 +17,19 @@ export const MAP_COLORS = {
   accent: "#0a84ff",
   accentDeep: "#2770ca",
   attention: "#ff9f0a",
-  paper: "#f7f5f0",
-  greenspace: "#cfe8d4",
-  water: "#c5ddf5",
-  buildings: "#efeae2",
+  paper: "#f4efe6",
+  greenspace: "#d5ead6",
+  water: "#c9dcf0",
+  buildings: "#ebe3d6",
   labels: "#5c5c60",
   greenFill: "#1c7358",
   waterFill: "#3d7ec9",
   walkFill: "#0a84ff",
+  roadFill: "#f3eee6",
+  roadCasing: "#c9bfb2",
+  pathFill: "#f7f3ec",
+  cycleFill: "#eadfd0",
+  parkingFill: "#e6dfd3",
 } as const;
 
 export type LightPreset = "dawn" | "day" | "dusk" | "night";
@@ -66,6 +73,70 @@ export function sunLabelForPreset(id: LightPreset | string) {
   return LIGHT_PRESETS.find((item) => item.id === id)?.sunLabel ?? "zon uit het zuiden";
 }
 
+/** Mapbox directional light: `[azimuth, polar]` in degrees. Polar 0 is overhead. */
+export function sunDirectionForHour(hour: number): [number, number] {
+  const h = wrapHour(hour);
+  const azimuth = (75 + ((h - 5) / 16) * 210 + 360) % 360;
+  const daylight = h >= 5 && h < 21;
+  const t = daylight ? (h - 5) / 16 : 0;
+  const altitude = daylight ? Math.sin(t * Math.PI) * 58 : 4;
+  const polar = Math.min(88, Math.max(12, 90 - altitude));
+  return [Number(azimuth.toFixed(1)), Number(polar.toFixed(1))];
+}
+
+export function lightsForHour(hour: number, castShadows: boolean) {
+  const preset = lightPresetForHour(hour);
+  const direction = sunDirectionForHour(hour);
+  const dusk = preset === "dawn" || preset === "dusk";
+  const night = preset === "night";
+  return [
+    {
+      id: "woonreality-sun",
+      type: "directional" as const,
+      properties: {
+        direction,
+        color: night ? "#9aadc8" : dusk ? "#ffb57a" : "#fff1d6",
+        intensity: night ? 0.22 : dusk ? 0.62 : 0.82,
+        "cast-shadows": castShadows && !night,
+        "shadow-intensity": !castShadows || night ? 0 : dusk ? 0.72 : 0.42,
+      },
+    },
+    {
+      id: "woonreality-ambient",
+      type: "ambient" as const,
+      properties: {
+        color: night ? "#1b2438" : dusk ? "#ffd7b0" : "#ffffff",
+        intensity: night ? 0.38 : dusk ? 0.46 : 0.52,
+      },
+    },
+  ];
+}
+
+export function applyBasemapTheme(map: MapboxMap) {
+  if (!isMapboxStandardStyle(mapStyleUrl())) return;
+  const config = woonrealityBasemapConfig();
+  map.setConfigProperty("basemap", "colorLand", config.colorLand);
+  map.setConfigProperty("basemap", "colorGreenspace", config.colorGreenspace);
+  map.setConfigProperty("basemap", "colorWater", config.colorWater);
+  map.setConfigProperty("basemap", "colorBuildings", config.colorBuildings);
+  map.setConfigProperty("basemap", "colorRoads", config.colorRoads);
+  map.setConfigProperty("basemap", "colorMotorways", config.colorMotorways);
+  map.setConfigProperty("basemap", "colorTrunks", config.colorTrunks);
+  map.setConfigProperty("basemap", "showPedestrianRoads", config.showPedestrianRoads);
+}
+
+export function applyMapLighting(map: MapboxMap, hour: number, castShadows: boolean) {
+  if (isMapboxStandardStyle(mapStyleUrl())) {
+    map.setConfigProperty("basemap", "lightPreset", lightPresetForHour(hour));
+    map.setConfigProperty("basemap", "show3dObjects", castShadows);
+    map.setConfigProperty("basemap", "show3dBuildings", castShadows);
+    map.setConfigProperty("basemap", "show3dTrees", castShadows);
+    map.setConfigProperty("basemap", "show3dFacades", castShadows);
+    applyBasemapTheme(map);
+  }
+  map.setLights(lightsForHour(hour, castShadows) as never);
+}
+
 export function isMapboxStandardStyle(styleUrl: string) {
   return styleUrl === MAPBOX_STANDARD_STYLE || styleUrl.endsWith("/standard");
 }
@@ -82,6 +153,7 @@ export function woonrealityBasemapConfig() {
     show3dBuildings: true,
     show3dTrees: true,
     show3dFacades: true,
+    showPedestrianRoads: true,
     showPointOfInterestLabels: true,
     showTransitLabels: true,
     showPlaceLabels: true,
@@ -91,6 +163,9 @@ export function woonrealityBasemapConfig() {
     colorGreenspace: MAP_COLORS.greenspace,
     colorWater: MAP_COLORS.water,
     colorBuildings: MAP_COLORS.buildings,
+    colorRoads: MAP_COLORS.roadFill,
+    colorMotorways: "#e4d8c8",
+    colorTrunks: "#e8dfd2",
     colorPlaceLabels: MAP_COLORS.labels,
     colorRoadLabels: MAP_COLORS.labels,
     colorBuildingSelect: MAP_COLORS.accent,
