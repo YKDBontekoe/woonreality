@@ -27,16 +27,43 @@ export const MAP_COLORS = {
 
 export type LightPreset = "dawn" | "day" | "dusk" | "night";
 
-export const LIGHT_PRESETS: { id: LightPreset; key: string; label: string; sunLabel: string }[] = [
-  { id: "dawn", key: "dawn", label: "Ochtend", sunLabel: "zon uit het oosten" },
-  { id: "day", key: "day", label: "Middag", sunLabel: "zon uit het zuiden" },
-  { id: "dusk", key: "dusk", label: "Avond", sunLabel: "zon uit het westen" },
-  { id: "dusk", key: "winter", label: "Winter", sunLabel: "lage winterzon uit het zuiden" },
-  { id: "night", key: "night", label: "Nacht", sunLabel: "geen zonlicht" },
+export const DEFAULT_MAP_HOUR = 14;
+
+export const LIGHT_PRESETS: { id: LightPreset; label: string; sunLabel: string }[] = [
+  { id: "dawn", label: "Ochtend", sunLabel: "zon uit het oosten" },
+  { id: "day", label: "Middag", sunLabel: "zon uit het zuiden" },
+  { id: "dusk", label: "Avond", sunLabel: "zon uit het westen" },
+  { id: "night", label: "Nacht", sunLabel: "geen zonlicht" },
 ];
 
-export function sunLabelForPreset(key: string) {
-  return LIGHT_PRESETS.find((item) => item.key === key)?.sunLabel ?? "zon uit het zuiden";
+export function wrapHour(hour: number) {
+  return ((Math.round(hour) % 24) + 24) % 24;
+}
+
+export function lightPresetForHour(hour: number): LightPreset {
+  const h = wrapHour(hour);
+  if (h >= 21 || h < 5) return "night";
+  if (h < 8) return "dawn";
+  if (h < 17) return "day";
+  return "dusk";
+}
+
+export function formatMapHour(hour: number) {
+  return `${String(wrapHour(hour)).padStart(2, "0")}:00`;
+}
+
+export function lightPeriodLabel(hour: number) {
+  const preset = lightPresetForHour(hour);
+  return LIGHT_PRESETS.find((item) => item.id === preset)?.label ?? "Middag";
+}
+
+export function sunLabelForHour(hour: number) {
+  const preset = lightPresetForHour(hour);
+  return LIGHT_PRESETS.find((item) => item.id === preset)?.sunLabel ?? "zon uit het zuiden";
+}
+
+export function sunLabelForPreset(id: LightPreset | string) {
+  return LIGHT_PRESETS.find((item) => item.id === id)?.sunLabel ?? "zon uit het zuiden";
 }
 
 export function isMapboxStandardStyle(styleUrl: string) {

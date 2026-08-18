@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Layers3, MapPinned, SunMedium } from "lucide-react";
+import { Box, Crosshair, Expand, Layers3, Locate, MapPinned, SunMedium } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -10,20 +10,25 @@ import {
   destinationPoint,
   gardenOrientation,
   houseNumberFromLabel,
+  MAP_SCENES,
+  overlaysForScene,
+  type MapSceneId,
+  type OverlayId,
 } from "@/src/lib/map/geo";
 import {
   BAG_EXTRUSION_HEIGHT_M,
-  LIGHT_PRESETS,
+  DEFAULT_MAP_HOUR,
   MAP_CAMERA,
   MAP_COLORS,
+  formatMapHour,
   isMapboxStandardStyle,
+  lightPeriodLabel,
+  lightPresetForHour,
   mapStyleUrl,
-  sunLabelForPreset,
+  sunLabelForHour,
   woonrealityBasemapConfig,
 } from "@/src/lib/map/style";
 import type { GeoJsonFeatureCollection, NearbyProperty, Property } from "@/src/lib/types";
-
-type OverlayId = "nearby" | "walk" | "transit" | "noise" | "no2" | "pm25" | "green" | "water" | "garden" | "roads";
 
 type MapLayersResponse = {
   green: GeoJsonFeatureCollection;
@@ -32,17 +37,24 @@ type MapLayersResponse = {
   stops?: GeoJsonFeatureCollection;
 };
 
-const OVERLAYS: { id: OverlayId; label: string }[] = [
-  { id: "nearby", label: "Woningen" },
-  { id: "walk", label: "5–10 min lopen" },
-  { id: "transit", label: "OV-haltes" },
-  { id: "roads", label: "Wegen" },
-  { id: "noise", label: "Geluid" },
-  { id: "no2", label: "NO₂" },
-  { id: "pm25", label: "PM2.5" },
-  { id: "green", label: "Groen" },
-  { id: "water", label: "Water" },
-  { id: "garden", label: "Tuinligging" },
+const OVERLAY_LABELS: Record<OverlayId, string> = {
+  nearby: "Woningen",
+  walk: "5–10 min lopen",
+  transit: "OV-haltes",
+  roads: "Wegen",
+  noise: "Geluid",
+  no2: "NO₂",
+  pm25: "PM2.5",
+  green: "Groen",
+  water: "Water",
+  garden: "Tuinligging",
+};
+
+const OVERLAY_GROUPS: { label: string; ids: OverlayId[] }[] = [
+  { label: "Plek", ids: ["nearby", "garden", "roads"] },
+  { label: "Bereik", ids: ["walk", "transit"] },
+  { label: "Gezondheid", ids: ["noise", "no2", "pm25"] },
+  { label: "Natuur", ids: ["green", "water"] },
 ];
 
 function escapeHtml(value: string) {
@@ -53,6 +65,24 @@ function setVisible(map: mapboxgl.Map, layerId: string, visible: boolean) {
   if (map.getLayer(layerId)) {
     map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
+}
+
+function addSourceIfMissing(map: mapboxgl.Map, id: string, source: mapboxgl.AnySourceData) {
+  if (!map.getSource(id)) map.addSource(id, source);
+}
+
+function addLayerIfMissing(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
+  if (!map.getLayer(layer.id)) map.addLayer(layer);
+}
+
+function whenStyleReady(map: mapboxgl.Map, fn: () => void | Promise<void>) {
+  if (map.isStyleLoaded()) {
+    void fn();
+    return;
+  }
+  map.once("idle", () => {
+    void fn();
+  });
 }
 
 function selectStandardBuilding(map: mapboxgl.Map, lng: number, lat: number) {
@@ -81,26 +111,46 @@ export function PropertyMap({
   nearbyProperties = [],
   signals = [],
   gardenOrientationText,
+  variant = "studio",
+  focusBagId,
+  onExpand,
 }: {
   property: Property;
   nearbyProperties?: NearbyProperty[];
   signals?: { key: string; severity: string }[];
   gardenOrientationText?: string;
+  variant?: "hero" | "studio";
+  focusBagId?: string | null;
+  onExpand?: () => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
   const garden = useMemo(() => gardenOrientation(gardenOrientationText), [gardenOrientationText]);
   const [pitched, setPitched] = useState(true);
-  const [lightKey, setLightKey] = useState("day");
+  const [hour, setHour] = useState(DEFAULT_MAP_HOUR);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [scene, setScene] = useState<MapSceneId | "custom">("street");
+  const [probe, setProbe] = useState(false);
   const [overlays, setOverlays] = useState(() => defaultMapOverlays(signals));
   const [layerError, setLayerError] = useState<string | null>(null);
   const overlaysRef = useRef(overlays);
-  overlaysRef.current = overlays;
+  const probeRef = useRef(probe);
+  const pitchedRef = useRef(pitched);
+  pitchedRef.current = pitched;
+  const focusPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const contextLayersRef = useRef<MapLayersResponse | null>(null);
+  const walkDataRef = useRef<GeoJsonFeatureCollection | null>(null);
+  const layerEventsRef = useRef({ nearby: false, ndov: false, probe: false });
+  const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
   const lng = property.coordinates.lng;
   const lat = property.coordinates.lat;
   const houseNumber = String(property.houseNumber) + (property.houseLetter ?? "");
+
+  useEffect(() => {
+    overlaysRef.current = overlays;
+    probeRef.current = probe;
+  }, [overlays, probe]);
 
   const applyOverlays = useCallback((map: mapboxgl.Map, next: Record<OverlayId, boolean>) => {
     setVisible(map, "nearby-homes", next.nearby);
@@ -120,106 +170,312 @@ export function PropertyMap({
 
   const ensureRivmLayer = useCallback((map: mapboxgl.Map, overlay: "noise" | "no2" | "pm25") => {
     const sourceId = `rivm-${overlay}`;
-    if (map.getSource(sourceId)) return;
-    map.addSource(sourceId, {
+    addSourceIfMissing(map, sourceId, {
       type: "raster",
       tiles: [`/api/map/rivm/${overlay}/{z}/{x}/{y}`],
       tileSize: 256,
+      maxzoom: 15,
       attribution: overlay === "noise" ? "RIVM Lden" : overlay === "no2" ? "RIVM NO2" : "RIVM PM2.5",
     });
-    map.addLayer({
+    addLayerIfMissing(map, {
       id: sourceId,
       type: "raster",
       source: sourceId,
-      slot: "middle",
-      paint: { "raster-opacity": overlay === "noise" ? 0.42 : 0.38 },
+      slot: "top",
+      paint: {
+        "raster-opacity": overlay === "noise" ? 0.58 : 0.52,
+        "raster-resampling": "linear",
+      },
     });
   }, []);
 
+  const bindNdovEvents = useCallback((map: mapboxgl.Map) => {
+    if (layerEventsRef.current.ndov) return;
+    layerEventsRef.current.ndov = true;
+    map.on("click", "ndov-stops", (event) => {
+      const feature = event.features?.[0];
+      if (!feature || !event.lngLat) return;
+      new mapboxgl.Popup({ offset: 8, className: "map-popup" })
+        .setLngLat(event.lngLat)
+        .setHTML(`<strong>OV-halte</strong><br/>${escapeHtml(String(feature.properties?.distance ?? ""))} m hemelsbreed<br/><small>NDOV-catalogus, geen dienstregeling</small>`)
+        .addTo(map);
+    });
+    map.on("mouseenter", "ndov-stops", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "ndov-stops", () => { map.getCanvas().style.cursor = ""; });
+  }, []);
+
   const ensureContextLayers = useCallback(async (map: mapboxgl.Map) => {
-    if (!map.getSource("bgt-green")) {
+    if (!contextLayersRef.current) {
       const response = await fetch(`/api/property/${encodeURIComponent(property.bagVboId)}/map-layers`);
       if (!response.ok) throw new Error("layers");
-      const payload = (await response.json()) as MapLayersResponse;
-      map.addSource("bgt-green", { type: "geojson", data: payload.green });
-      map.addSource("bgt-water", { type: "geojson", data: payload.water });
-      map.addSource("bgt-roads", { type: "geojson", data: payload.roads ?? { type: "FeatureCollection", features: [] } });
-      map.addSource("ndov-stops", { type: "geojson", data: payload.stops ?? { type: "FeatureCollection", features: [] } });
-      map.addLayer({
-        id: "bgt-green",
+      contextLayersRef.current = (await response.json()) as MapLayersResponse;
+    }
+    const payload = contextLayersRef.current;
+    addSourceIfMissing(map, "bgt-green", { type: "geojson", data: payload.green });
+    addSourceIfMissing(map, "bgt-water", { type: "geojson", data: payload.water });
+    addSourceIfMissing(map, "bgt-roads", { type: "geojson", data: payload.roads ?? { type: "FeatureCollection", features: [] } });
+    addSourceIfMissing(map, "ndov-stops", { type: "geojson", data: payload.stops ?? { type: "FeatureCollection", features: [] } });
+    addLayerIfMissing(map, {
+      id: "bgt-green",
+      type: "fill",
+      source: "bgt-green",
+      slot: "middle",
+      paint: { "fill-color": MAP_COLORS.greenFill, "fill-opacity": 0.55, "fill-emissive-strength": 0.45 },
+    });
+    addLayerIfMissing(map, {
+      id: "bgt-water",
+      type: "fill",
+      source: "bgt-water",
+      slot: "middle",
+      paint: { "fill-color": MAP_COLORS.waterFill, "fill-opacity": 0.5, "fill-emissive-strength": 0.5 },
+    });
+    addLayerIfMissing(map, {
+      id: "bgt-roads",
+      type: "fill",
+      source: "bgt-roads",
+      slot: "middle",
+      paint: { "fill-color": "#6f6a64", "fill-opacity": 0.42, "fill-emissive-strength": 0.2 },
+    });
+    addLayerIfMissing(map, {
+      id: "ndov-stops",
+      type: "circle",
+      source: "ndov-stops",
+      slot: "top",
+      paint: {
+        "circle-radius": 7,
+        "circle-color": "#1d1d1f",
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2,
+        "circle-emissive-strength": 0.55,
+      },
+    });
+    bindNdovEvents(map);
+
+    if (!walkDataRef.current) {
+      const response = await fetch(`/api/map/isochrone?lat=${lat}&lng=${lng}`);
+      if (response.ok) walkDataRef.current = (await response.json()) as GeoJsonFeatureCollection;
+    }
+    if (walkDataRef.current) {
+      addSourceIfMissing(map, "walk", { type: "geojson", data: walkDataRef.current });
+      addLayerIfMissing(map, {
+        id: "walk-fill",
         type: "fill",
-        source: "bgt-green",
-        slot: "bottom",
-        paint: { "fill-color": MAP_COLORS.greenFill, "fill-opacity": 0.32, "fill-emissive-strength": 0.4 },
-      });
-      map.addLayer({
-        id: "bgt-water",
-        type: "fill",
-        source: "bgt-water",
-        slot: "bottom",
-        paint: { "fill-color": MAP_COLORS.waterFill, "fill-opacity": 0.38, "fill-emissive-strength": 0.45 },
-      });
-      map.addLayer({
-        id: "bgt-roads",
-        type: "fill",
-        source: "bgt-roads",
-        slot: "bottom",
-        paint: { "fill-color": "#8b8680", "fill-opacity": 0.22, "fill-emissive-strength": 0.15 },
-      });
-      map.addLayer({
-        id: "ndov-stops",
-        type: "circle",
-        source: "ndov-stops",
+        source: "walk",
+        slot: "middle",
         paint: {
-          "circle-radius": 6,
-          "circle-color": "#1d1d1f",
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 2,
-          "circle-emissive-strength": 0.5,
+          "fill-color": MAP_COLORS.walkFill,
+          "fill-opacity": ["match", ["to-number", ["get", "contour"]], 5, 0.28, 0.16],
+          "fill-emissive-strength": 0.25,
         },
       });
-      map.on("click", "ndov-stops", (event) => {
-        const feature = event.features?.[0];
-        if (!feature || !event.lngLat) return;
-        new mapboxgl.Popup({ offset: 8, className: "map-popup" })
-          .setLngLat(event.lngLat)
-          .setHTML(`<strong>OV-halte</strong><br/>${escapeHtml(String(feature.properties?.distance ?? ""))} m hemelsbreed`)
-          .addTo(map);
+      addLayerIfMissing(map, {
+        id: "walk-line",
+        type: "line",
+        source: "walk",
+        slot: "top",
+        paint: {
+          "line-color": MAP_COLORS.accentDeep,
+          "line-width": 1.8,
+          "line-opacity": 0.85,
+          "line-emissive-strength": 0.3,
+        },
       });
-      map.on("mouseenter", "ndov-stops", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "ndov-stops", () => { map.getCanvas().style.cursor = ""; });
     }
-    if (!map.getSource("walk")) {
-      const response = await fetch(`/api/map/isochrone?lat=${lat}&lng=${lng}`);
-      if (response.ok) {
-        const data = (await response.json()) as GeoJsonFeatureCollection;
-        map.addSource("walk", { type: "geojson", data });
-        map.addLayer({
-          id: "walk-fill",
-          type: "fill",
-          source: "walk",
-          slot: "bottom",
-          paint: {
-            "fill-color": MAP_COLORS.walkFill,
-            "fill-opacity": ["match", ["to-number", ["get", "contour"]], 5, 0.16, 0.08],
-            "fill-emissive-strength": 0.2,
-          },
+  }, [bindNdovEvents, lat, lng, property.bagVboId]);
+
+  const ensureBaseLayers = useCallback((map: mapboxgl.Map) => {
+    addSourceIfMissing(map, "search-radius", {
+      type: "geojson",
+      data: { type: "Feature", geometry: circlePolygon({ lat, lng }, 250), properties: {} },
+    });
+    addLayerIfMissing(map, {
+      id: "search-radius-fill",
+      type: "fill",
+      source: "search-radius",
+      slot: "middle",
+      paint: {
+        "fill-color": MAP_COLORS.accent,
+        "fill-opacity": 0.08,
+        "fill-emissive-strength": 0.1,
+      },
+    });
+    addLayerIfMissing(map, {
+      id: "search-radius",
+      type: "line",
+      source: "search-radius",
+      slot: "top",
+      paint: {
+        "line-color": MAP_COLORS.accentDeep,
+        "line-width": 1.6,
+        "line-dasharray": [2, 2],
+        "line-opacity": 0.85,
+        "line-emissive-strength": 0.25,
+      },
+    });
+
+    if (property.buildingGeometry) {
+      addSourceIfMissing(map, "building", {
+        type: "geojson",
+        data: { type: "Feature", geometry: property.buildingGeometry, properties: {} },
+      });
+      addLayerIfMissing(map, {
+        id: "building-fill",
+        type: "fill",
+        source: "building",
+        slot: "middle",
+        paint: { "fill-color": MAP_COLORS.accent, "fill-opacity": 0.22, "fill-emissive-strength": 0.4 },
+      });
+      addLayerIfMissing(map, {
+        id: "building-line",
+        type: "line",
+        source: "building",
+        slot: "top",
+        paint: { "line-color": MAP_COLORS.accent, "line-width": 2.4, "line-emissive-strength": 0.5 },
+      });
+      addLayerIfMissing(map, {
+        id: "building-extrusion",
+        type: "fill-extrusion",
+        source: "building",
+        slot: "middle",
+        paint: {
+          "fill-extrusion-color": MAP_COLORS.accent,
+          "fill-extrusion-height": BAG_EXTRUSION_HEIGHT_M,
+          "fill-extrusion-opacity": 0.78,
+          "fill-extrusion-emissive-strength": 0.3,
+        },
+      });
+      setVisible(map, "building-extrusion", pitchedRef.current);
+    }
+
+    if (nearbyProperties.length) {
+      addSourceIfMissing(map, "nearby-homes", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: nearbyProperties.map((home) => ({
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [home.coordinates.lng, home.coordinates.lat] },
+            properties: {
+              address: home.addressLabel,
+              distance: home.distanceM,
+              bagId: home.bagVboId,
+              houseNumber: houseNumberFromLabel(home.addressLabel),
+              area: home.areaM2 ?? "",
+            },
+          })),
+        },
+      });
+      addLayerIfMissing(map, {
+        id: "nearby-homes",
+        type: "circle",
+        source: "nearby-homes",
+        slot: "top",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["get", "distance"], 25, 8, 250, 5],
+          "circle-color": "#ffffff",
+          "circle-stroke-color": MAP_COLORS.accentDeep,
+          "circle-stroke-width": 2,
+          "circle-emissive-strength": 0.55,
+        },
+      });
+      addLayerIfMissing(map, {
+        id: "nearby-labels",
+        type: "symbol",
+        source: "nearby-homes",
+        slot: "top",
+        layout: {
+          "text-field": ["get", "houseNumber"],
+          "text-size": 11,
+          "text-offset": [0, 1.15],
+          "text-anchor": "top",
+        },
+        paint: { "text-color": MAP_COLORS.labels, "text-halo-color": "#ffffff", "text-halo-width": 1.2 },
+      });
+      if (!layerEventsRef.current.nearby) {
+        layerEventsRef.current.nearby = true;
+        map.on("click", "nearby-homes", (event) => {
+          const feature = event.features?.[0];
+          if (!feature || !event.lngLat) return;
+          const bagId = String(feature.properties?.bagId ?? "");
+          const area = feature.properties?.area ? `${feature.properties.area} m² · ` : "";
+          new mapboxgl.Popup({ offset: 10, className: "map-popup" })
+            .setLngLat(event.lngLat)
+            .setHTML(
+              `<strong>${escapeHtml(String(feature.properties?.address ?? ""))}</strong><br/>${escapeHtml(area)}${escapeHtml(String(feature.properties?.distance ?? ""))} m`
+              + (bagId ? `<br/><a href="/woning/${encodeURIComponent(bagId)}">Open woningcheck</a>` : ""),
+            )
+            .addTo(map);
         });
-        map.addLayer({
-          id: "walk-line",
-          type: "line",
-          source: "walk",
-          slot: "bottom",
-          paint: {
-            "line-color": MAP_COLORS.accentDeep,
-            "line-width": 1.2,
-            "line-opacity": 0.55,
-            "line-emissive-strength": 0.25,
-          },
-        });
+        map.on("mouseenter", "nearby-homes", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "nearby-homes", () => { map.getCanvas().style.cursor = ""; });
       }
     }
-  }, [lat, lng, property.bagVboId]);
+
+    if (garden) {
+      const tip = destinationPoint({ lat, lng }, garden.bearing, 70);
+      addSourceIfMissing(map, "garden", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: [[lng, lat], [tip.lng, tip.lat]] },
+              properties: { kind: "line", label: garden.label },
+            },
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [tip.lng, tip.lat] },
+              properties: { kind: "tip", label: garden.label },
+            },
+          ],
+        },
+      });
+      addLayerIfMissing(map, {
+        id: "garden-line",
+        type: "line",
+        source: "garden",
+        slot: "top",
+        filter: ["==", ["get", "kind"], "line"],
+        paint: { "line-color": MAP_COLORS.attention, "line-width": 3.2, "line-emissive-strength": 0.65 },
+      });
+      addLayerIfMissing(map, {
+        id: "garden-point",
+        type: "circle",
+        source: "garden",
+        slot: "top",
+        filter: ["==", ["get", "kind"], "tip"],
+        paint: { "circle-radius": 6, "circle-color": MAP_COLORS.attention, "circle-emissive-strength": 0.65 },
+      });
+    }
+
+    if (!homeMarkerRef.current) {
+      homeMarkerRef.current = addHomeMarker(map, lng, lat, houseNumber);
+    }
+  }, [garden, houseNumber, lat, lng, nearbyProperties, property.buildingGeometry]);
+
+  const restoreCustomLayers = useCallback((map: mapboxgl.Map) => {
+    whenStyleReady(map, async () => {
+      ensureBaseLayers(map);
+      try {
+        await ensureContextLayers(map);
+        const current = overlaysRef.current;
+        if (current.noise) ensureRivmLayer(map, "noise");
+        if (current.no2) ensureRivmLayer(map, "no2");
+        if (current.pm25) ensureRivmLayer(map, "pm25");
+        applyOverlays(map, current);
+        setLayerError(null);
+      } catch {
+        setLayerError("Sommige kaartlagen konden niet worden geladen.");
+      }
+    });
+  }, [applyOverlays, ensureBaseLayers, ensureContextLayers, ensureRivmLayer]);
+  const restoreRef = useRef(restoreCustomLayers);
+  restoreRef.current = restoreCustomLayers;
+  const applyOverlaysRef = useRef(applyOverlays);
+  applyOverlaysRef.current = applyOverlays;
+  const ensureRivmRef = useRef(ensureRivmLayer);
+  ensureRivmRef.current = ensureRivmLayer;
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -250,164 +506,9 @@ export function PropertyMap({
     map.addControl(new mapboxgl.FullscreenControl(), "bottom-right");
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 110, unit: "metric" }), "bottom-right");
 
+    const probeAbort = new AbortController();
     map.on("load", () => {
-      map.addSource("search-radius", {
-        type: "geojson",
-        data: { type: "Feature", geometry: circlePolygon({ lat, lng }, 250), properties: {} },
-      });
-      map.addLayer({
-        id: "search-radius-fill",
-        type: "fill",
-        source: "search-radius",
-        slot: "bottom",
-        paint: {
-          "fill-color": MAP_COLORS.accent,
-          "fill-opacity": 0.05,
-          "fill-emissive-strength": 0.08,
-        },
-      });
-      map.addLayer({
-        id: "search-radius",
-        type: "line",
-        source: "search-radius",
-        slot: "bottom",
-        paint: {
-          "line-color": MAP_COLORS.accentDeep,
-          "line-width": 1.4,
-          "line-dasharray": [2, 2],
-          "line-opacity": 0.7,
-          "line-emissive-strength": 0.2,
-        },
-      });
-
-      if (property.buildingGeometry) {
-        map.addSource("building", {
-          type: "geojson",
-          data: { type: "Feature", geometry: property.buildingGeometry, properties: {} },
-        });
-        map.addLayer({
-          id: "building-fill",
-          type: "fill",
-          source: "building",
-          slot: "bottom",
-          paint: { "fill-color": MAP_COLORS.accent, "fill-opacity": 0.18, "fill-emissive-strength": 0.35 },
-        });
-        map.addLayer({
-          id: "building-line",
-          type: "line",
-          source: "building",
-          slot: "bottom",
-          paint: { "line-color": MAP_COLORS.accent, "line-width": 2.2, "line-emissive-strength": 0.45 },
-        });
-      }
-
-      if (nearbyProperties.length) {
-        map.addSource("nearby-homes", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: nearbyProperties.map((home) => ({
-              type: "Feature" as const,
-              geometry: { type: "Point" as const, coordinates: [home.coordinates.lng, home.coordinates.lat] },
-              properties: {
-                address: home.addressLabel,
-                distance: home.distanceM,
-                bagId: home.bagVboId,
-                houseNumber: houseNumberFromLabel(home.addressLabel),
-                area: home.areaM2 ?? "",
-              },
-            })),
-          },
-        });
-        map.addLayer({
-          id: "nearby-homes",
-          type: "circle",
-          source: "nearby-homes",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "distance"], 25, 8, 250, 5],
-            "circle-color": "#ffffff",
-            "circle-stroke-color": MAP_COLORS.accentDeep,
-            "circle-stroke-width": 2,
-            "circle-emissive-strength": 0.55,
-          },
-        });
-        map.addLayer({
-          id: "nearby-labels",
-          type: "symbol",
-          source: "nearby-homes",
-          slot: "top",
-          layout: {
-            "text-field": ["get", "houseNumber"],
-            "text-size": 11,
-            "text-offset": [0, 1.15],
-            "text-anchor": "top",
-          },
-          paint: { "text-color": MAP_COLORS.labels, "text-halo-color": "#ffffff", "text-halo-width": 1.2 },
-        });
-        map.on("click", "nearby-homes", (event) => {
-          const feature = event.features?.[0];
-          if (!feature || !event.lngLat) return;
-          const bagId = String(feature.properties?.bagId ?? "");
-          const area = feature.properties?.area ? `${feature.properties.area} m² · ` : "";
-          new mapboxgl.Popup({ offset: 10, className: "map-popup" })
-            .setLngLat(event.lngLat)
-            .setHTML(
-              `<strong>${escapeHtml(String(feature.properties?.address ?? ""))}</strong><br/>${escapeHtml(area)}${escapeHtml(String(feature.properties?.distance ?? ""))} m`
-              + (bagId ? `<br/><a href="/woning/${encodeURIComponent(bagId)}">Open woningcheck</a>` : ""),
-            )
-            .addTo(map);
-        });
-        map.on("mouseenter", "nearby-homes", () => { map.getCanvas().style.cursor = "pointer"; });
-        map.on("mouseleave", "nearby-homes", () => { map.getCanvas().style.cursor = ""; });
-      }
-
-      if (garden) {
-        const tip = destinationPoint({ lat, lng }, garden.bearing, 70);
-        map.addSource("garden", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                geometry: { type: "LineString", coordinates: [[lng, lat], [tip.lng, tip.lat]] },
-                properties: { kind: "line", label: garden.label },
-              },
-              {
-                type: "Feature",
-                geometry: { type: "Point", coordinates: [tip.lng, tip.lat] },
-                properties: { kind: "tip", label: garden.label },
-              },
-            ],
-          },
-        });
-        map.addLayer({
-          id: "garden-line",
-          type: "line",
-          source: "garden",
-          filter: ["==", ["get", "kind"], "line"],
-          paint: { "line-color": MAP_COLORS.attention, "line-width": 3, "line-emissive-strength": 0.6 },
-        });
-        map.addLayer({
-          id: "garden-point",
-          type: "circle",
-          source: "garden",
-          filter: ["==", ["get", "kind"], "tip"],
-          paint: { "circle-radius": 5, "circle-color": MAP_COLORS.attention, "circle-emissive-strength": 0.6 },
-        });
-      }
-
-      addHomeMarker(map, lng, lat, houseNumber);
-      void ensureContextLayers(map)
-        .then(() => {
-          const current = overlaysRef.current;
-          if (current.noise) ensureRivmLayer(map, "noise");
-          if (current.no2) ensureRivmLayer(map, "no2");
-          if (current.pm25) ensureRivmLayer(map, "pm25");
-          applyOverlays(map, current);
-        })
-        .catch(() => setLayerError("Sommige kaartlagen konden niet worden geladen."));
-
+      restoreRef.current(map);
       if (!reduceMotion) {
         map.flyTo({
           center: [lng, lat],
@@ -418,65 +519,143 @@ export function PropertyMap({
           essential: true,
         });
       }
-
-      map.on("click", async (event) => {
-        const raster = (["noise", "no2", "pm25"] as const).find((id) => overlaysRef.current[id]);
-        if (!raster) return;
-        if (map.queryRenderedFeatures(event.point, { layers: ["nearby-homes", "ndov-stops"].filter((id) => map.getLayer(id)) }).length) return;
-        const response = await fetch(`/api/map/rivm/sample?layer=${raster}&lat=${event.lngLat.lat}&lng=${event.lngLat.lng}`);
-        if (!response.ok) return;
-        const sample = (await response.json()) as { value?: number; unit?: string };
-        if (sample.value == null) return;
-        new mapboxgl.Popup({ offset: 8, className: "map-popup" })
-          .setLngLat(event.lngLat)
-          .setHTML(`<strong>${raster === "noise" ? "Geluid" : raster.toUpperCase()}</strong><br/>${sample.value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} ${escapeHtml(sample.unit ?? "")}<br/><small>RIVM-screening, geen gevelmeting</small>`)
-          .addTo(map);
-      });
-    });
-
-    map.once("idle", () => {
-      const highlighted = selectStandardBuilding(map, lng, lat);
-      if (!highlighted && map.getSource("building") && !map.getLayer("building-extrusion")) {
-        map.addLayer({
-          id: "building-extrusion",
-          type: "fill-extrusion",
-          source: "building",
-          slot: "middle",
-          paint: {
-            "fill-extrusion-color": MAP_COLORS.accent,
-            "fill-extrusion-height": BAG_EXTRUSION_HEIGHT_M,
-            "fill-extrusion-opacity": 0.78,
-            "fill-extrusion-emissive-strength": 0.3,
-          },
+      if (!layerEventsRef.current.probe) {
+        layerEventsRef.current.probe = true;
+        map.on("click", async (event) => {
+          const raster = (["noise", "no2", "pm25"] as const).find((id) => overlaysRef.current[id])
+            ?? (probeRef.current ? "no2" as const : undefined);
+          if (!raster) return;
+          if (map.queryRenderedFeatures(event.point, { layers: ["nearby-homes", "ndov-stops"].filter((id) => map.getLayer(id)) }).length) return;
+          if (probeRef.current && !overlaysRef.current[raster]) {
+            const next = { ...overlaysRef.current, [raster]: true };
+            setOverlays(next);
+            ensureRivmRef.current(map, raster);
+            applyOverlaysRef.current(map, next);
+          }
+          let response: Response;
+          try {
+            response = await fetch(`/api/map/rivm/sample?layer=${raster}&lat=${event.lngLat.lat}&lng=${event.lngLat.lng}`, {
+              signal: probeAbort.signal,
+            });
+          } catch {
+            return;
+          }
+          if (!response.ok) return;
+          const sample = (await response.json()) as { value?: number; unit?: string };
+          if (sample.value == null) return;
+          if (mapInstance.current !== map) return;
+          new mapboxgl.Popup({ offset: 8, className: "map-popup" })
+            .setLngLat(event.lngLat)
+            .setHTML(`<strong>${raster === "noise" ? "Geluid" : raster.toUpperCase()}</strong><br/>${sample.value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} ${escapeHtml(sample.unit ?? "")}<br/><small>RIVM-screening, geen gevelmeting</small>`)
+            .addTo(map);
         });
       }
     });
 
+    map.on("style.load", () => {
+      restoreRef.current(map);
+    });
+
+    map.once("idle", () => {
+      selectStandardBuilding(map, lng, lat);
+    });
+
     mapInstance.current = map;
     return () => {
+      probeAbort.abort();
       observer.disconnect();
+      homeMarkerRef.current = null;
+      layerEventsRef.current = { nearby: false, ndov: false, probe: false };
       map.remove();
       mapInstance.current = null;
     };
-  }, [applyOverlays, ensureContextLayers, ensureRivmLayer, garden, houseNumber, lat, lng, nearbyProperties, property.buildingGeometry]);
+  }, [lat, lng]);
 
   useEffect(() => {
     const map = mapInstance.current;
     if (!map || !isMapboxStandardStyle(mapStyleUrl())) return;
-    const preset = LIGHT_PRESETS.find((item) => item.key === lightKey)?.id ?? "day";
-    map.setConfigProperty("basemap", "lightPreset", preset);
-  }, [lightKey]);
+    map.setConfigProperty("basemap", "lightPreset", lightPresetForHour(hour));
+  }, [hour]);
 
   useEffect(() => {
     const map = mapInstance.current;
     if (!map) return;
     map.easeTo({ pitch: pitched ? MAP_CAMERA.pitch : MAP_CAMERA.flatPitch, duration: 500 });
     setVisible(map, "building-extrusion", pitched);
+    if (isMapboxStandardStyle(mapStyleUrl())) {
+      map.setConfigProperty("basemap", "show3dObjects", pitched);
+      map.setConfigProperty("basemap", "show3dBuildings", pitched);
+    }
   }, [pitched]);
+
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !focusBagId) return;
+    const home = nearbyProperties.find((item) => item.bagVboId === focusBagId);
+    if (!home) return;
+    map.flyTo({
+      center: [home.coordinates.lng, home.coordinates.lat],
+      zoom: Math.max(map.getZoom(), 18),
+      duration: 700,
+    });
+    const area = home.areaM2 ? `${home.areaM2} m² · ` : "";
+    focusPopupRef.current?.remove();
+    const popup = new mapboxgl.Popup({ offset: 10, className: "map-popup" })
+      .setLngLat([home.coordinates.lng, home.coordinates.lat])
+      .setHTML(
+        `<strong>${escapeHtml(home.addressLabel)}</strong><br/>${escapeHtml(area)}${home.distanceM} m`
+        + `<br/><a href="/woning/${encodeURIComponent(home.bagVboId)}">Open woningcheck</a>`,
+      )
+      .addTo(map);
+    focusPopupRef.current = popup;
+    return () => {
+      popup.remove();
+      if (focusPopupRef.current === popup) focusPopupRef.current = null;
+    };
+  }, [focusBagId, nearbyProperties]);
+
+  async function applyScene(nextScene: MapSceneId) {
+    const next = overlaysForScene(nextScene);
+    if (!garden) next.garden = false;
+    setScene(nextScene);
+    setOverlays(next);
+    const map = mapInstance.current;
+    if (nextScene === "health") {
+      setProbe(true);
+      setPitched(false);
+      map?.easeTo({ pitch: MAP_CAMERA.flatPitch, duration: 450 });
+      if (map && isMapboxStandardStyle(mapStyleUrl())) {
+        map.setConfigProperty("basemap", "show3dObjects", false);
+        map.setConfigProperty("basemap", "show3dBuildings", false);
+      }
+    }
+    if (!map) return;
+    try {
+      if (next.green || next.water || next.transit || next.walk || next.roads) await ensureContextLayers(map);
+      if (next.noise) ensureRivmLayer(map, "noise");
+      if (next.no2) ensureRivmLayer(map, "no2");
+      if (next.pm25) ensureRivmLayer(map, "pm25");
+      applyOverlays(map, next);
+      setLayerError(null);
+    } catch {
+      setLayerError("Deze laag kon niet worden geladen.");
+    }
+  }
+
+  function recenter() {
+    mapInstance.current?.easeTo({
+      center: [lng, lat],
+      zoom: MAP_CAMERA.zoom,
+      pitch: pitched ? MAP_CAMERA.pitch : MAP_CAMERA.flatPitch,
+      bearing: MAP_CAMERA.bearing,
+      duration: 700,
+    });
+  }
 
   async function toggleOverlay(id: OverlayId) {
     const next = { ...overlays, [id]: !overlays[id] };
     setOverlays(next);
+    setScene("custom");
     const map = mapInstance.current;
     if (!map) return;
     try {
@@ -491,19 +670,14 @@ export function PropertyMap({
     }
   }
 
-  const lightLabel = sunLabelForPreset(lightKey);
-  const activeNotes = [
-    overlays.walk ? "5 en 10 minuten lopen via Mapbox Isochrone." : null,
-    overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart voor een RIVM-screeningswaarde." : null,
-    overlays.transit ? "NDOV-haltes binnen 1 km." : null,
-    overlays.green || overlays.water || overlays.roads ? "BGT groen, water en wegen binnen 250 m." : null,
-    garden && overlays.garden ? garden.label : null,
-    "Schaduw is een Mapbox-indicatie, geen zonstudie.",
-  ].filter(Boolean);
+  const lightLabel = `${formatMapHour(hour)} · ${lightPeriodLabel(hour)} · ${sunLabelForHour(hour)}`;
+  const hint = scene === "custom"
+    ? (probe || overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart om te meten." : lightLabel)
+    : MAP_SCENES.find((item) => item.id === scene)?.hint ?? lightLabel;
 
   if (!hasToken) {
     return (
-      <div className="map-card map-empty">
+      <div className={`map-card map-empty is-${variant}`}>
         <div className="map-badge"><MapPinned size={12} /> locatie</div>
         <div className="map-empty-copy">
           <strong>3D-kaart niet beschikbaar</strong>
@@ -515,45 +689,77 @@ export function PropertyMap({
   }
 
   return (
-    <div className="map-card interactive-map">
+    <div className={`map-card interactive-map is-${variant}${probe ? " is-probe" : ""}`}>
       <div ref={mapRef} className="map-canvas" />
-      <div className="map-badge">
-        <MapPinned size={12} /> {property.street} {houseNumber}
-      </div>
-      <div className="map-tools">
-        <button type="button" onClick={() => setPitched((value) => !value)}>
-          <Box size={12} /> {pitched ? "Plattegrond" : "3D"}
-        </button>
-        <div className="map-sun" role="group" aria-label="Zon en schaduw">
-          <span className="map-sun-label"><SunMedium size={12} /> Zon</span>
-          {LIGHT_PRESETS.map((preset) => (
+      <div className="map-chrome">
+        <div className="map-scenes" role="group" aria-label="Kaartscènes">
+          {MAP_SCENES.map((item) => (
             <button
-              key={preset.key}
+              key={item.id}
               type="button"
-              className={lightKey === preset.key ? "selected" : undefined}
-              onClick={() => {
-                setLightKey(preset.key);
-                if (!pitched) setPitched(true);
-              }}
+              className={scene === item.id ? "selected" : undefined}
+              aria-pressed={scene === item.id}
+              onClick={() => { void applyScene(item.id); }}
             >
-              {preset.label}
+              {item.label}
             </button>
           ))}
         </div>
-        <div className="map-layers">
-          <button type="button" aria-expanded={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
-            <Layers3 size={12} /> Lagen
+        <div className="map-tools">
+          <button type="button" onClick={() => setPitched((value) => !value)}>
+            <Box size={13} /> {pitched ? "Plat" : "3D"}
           </button>
-          {layersOpen && (
-            <div className="map-layers-panel">
-              {OVERLAYS.filter((overlay) => overlay.id !== "garden" || garden).map((overlay) => (
-                <label key={overlay.id}>
-                  <input type="checkbox" checked={overlays[overlay.id]} onChange={() => { void toggleOverlay(overlay.id); }} />
-                  {overlay.label}
-                </label>
-              ))}
-            </div>
+          <button type="button" className={probe ? "selected" : undefined} aria-pressed={probe} onClick={() => setProbe((value) => !value)}>
+            <Crosshair size={13} /> Meet
+          </button>
+          <button type="button" onClick={recenter}>
+            <Locate size={13} /> Hier
+          </button>
+          {onExpand && (
+            <button type="button" onClick={onExpand}>
+              <Expand size={13} /> Groter
+            </button>
           )}
+          <label className="map-time">
+            <span className="map-sun-label"><SunMedium size={12} /></span>
+            <input
+              type="range"
+              min={0}
+              max={23}
+              step={1}
+              value={hour}
+              aria-label="Tijd van de dag"
+              aria-valuetext={`${formatMapHour(hour)} ${lightPeriodLabel(hour)}`}
+              onChange={(event) => {
+                setHour(Number(event.target.value));
+                if (!overlays.noise && !overlays.no2 && !overlays.pm25 && !pitched) setPitched(true);
+              }}
+            />
+            <span className="map-time-meta">
+              <strong>{formatMapHour(hour)}</strong>
+              <small>{lightPeriodLabel(hour)}</small>
+            </span>
+          </label>
+          <div className="map-layers">
+            <button type="button" aria-expanded={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
+              <Layers3 size={13} /> Lagen
+            </button>
+            {layersOpen && (
+              <div className="map-layers-panel">
+                {OVERLAY_GROUPS.map((group) => (
+                  <div className="map-layers-group" key={group.label}>
+                    <small>{group.label}</small>
+                    {group.ids.filter((id) => id !== "garden" || garden).map((id) => (
+                      <label key={id}>
+                        <input type="checkbox" checked={overlays[id]} onChange={() => { void toggleOverlay(id); }} />
+                        {OVERLAY_LABELS[id]}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="map-legend">
@@ -561,16 +767,12 @@ export function PropertyMap({
         {overlays.nearby && <span><i className="legend-dot nearby" /> buren</span>}
         {overlays.walk && <span><i className="legend-dot walk" /> loopafstand</span>}
         {overlays.transit && <span><i className="legend-dot transit" /> halte</span>}
-        {overlays.roads && <span><i className="legend-dot roads" /> wegen</span>}
         {overlays.green && <span><i className="legend-dot green" /> groen</span>}
         {overlays.water && <span><i className="legend-dot water" /> water</span>}
         {garden && overlays.garden && <span><i className="legend-dot garden" /> tuin</span>}
-        <span className="map-sun-chip">{lightLabel}</span>
+        <span className="map-sun-chip">{hint}</span>
       </div>
-      <div className="map-source-notes">
-        {activeNotes.map((note) => <small key={note}>{note}</small>)}
-        {layerError && <small role="alert">{layerError}</small>}
-      </div>
+      {layerError && <div className="map-source-notes"><small role="alert">{layerError}</small></div>}
     </div>
   );
 }

@@ -3,8 +3,15 @@ import test from "node:test";
 import { GET as getIsochrone } from "@/app/api/map/isochrone/route";
 import { GET as getRivmSample } from "@/app/api/map/rivm/sample/route";
 import { GET as getRivmTile } from "@/app/api/map/rivm/[layer]/[z]/[x]/[y]/route";
-import { circlePolygon, defaultMapOverlays, gardenOrientation, houseNumberFromLabel } from "@/src/lib/map/geo";
-import { LIGHT_PRESETS, sunLabelForPreset } from "@/src/lib/map/style";
+import { circlePolygon, defaultMapOverlays, gardenOrientation, houseNumberFromLabel, overlaysForScene } from "@/src/lib/map/geo";
+import {
+  LIGHT_PRESETS,
+  formatMapHour,
+  lightPeriodLabel,
+  lightPresetForHour,
+  sunLabelForHour,
+  sunLabelForPreset,
+} from "@/src/lib/map/style";
 import { isValidTile, parseRivmOverlay, parseTileIndex, rivmGetMapUrl, xyzToMercatorBbox } from "@/src/lib/map/tiles";
 
 test("RIVM overlay allowlist only accepts noise, no2 and pm25", () => {
@@ -37,10 +44,17 @@ test("rivm GetMap URL stays on the allowlisted WMS layer", () => {
   assert.match(url, /bbox=1%2C2%2C3%2C4/);
 });
 
-test("sun presets keep Dutch labels including winter light", () => {
-  assert.deepEqual(LIGHT_PRESETS.map((item) => item.key), ["dawn", "day", "dusk", "winter", "night"]);
+test("hour slider maps clock time onto Mapbox light presets", () => {
+  assert.deepEqual(LIGHT_PRESETS.map((item) => item.id), ["dawn", "day", "dusk", "night"]);
+  assert.equal(lightPresetForHour(0), "night");
+  assert.equal(lightPresetForHour(6), "dawn");
+  assert.equal(lightPresetForHour(14), "day");
+  assert.equal(lightPresetForHour(19), "dusk");
+  assert.equal(lightPresetForHour(22), "night");
+  assert.equal(formatMapHour(9), "09:00");
+  assert.equal(lightPeriodLabel(19), "Avond");
+  assert.equal(sunLabelForHour(14), "zon uit het zuiden");
   assert.equal(sunLabelForPreset("dusk"), "zon uit het westen");
-  assert.equal(sunLabelForPreset("winter"), "lage winterzon uit het zuiden");
 });
 
 test("RIVM tile proxy rejects unknown layers without fetching", async () => {
@@ -65,20 +79,30 @@ test("gardenOrientation maps Dutch listing copy to a bearing", () => {
   assert.equal(houseNumberFromLabel("Korenstraat 18, Epe"), "18");
 });
 
-test("defaultMapOverlays turns on context plus attention rasters", () => {
+test("defaultMapOverlays keeps the street quiet and turns on attention rasters", () => {
   const overlays = defaultMapOverlays([
     { key: "noise", severity: "attention" },
     { key: "air", severity: "attention" },
     { key: "green", severity: "good" },
   ]);
   assert.equal(overlays.nearby, true);
-  assert.equal(overlays.walk, true);
-  assert.equal(overlays.transit, true);
-  assert.equal(overlays.roads, true);
+  assert.equal(overlays.walk, false);
+  assert.equal(overlays.roads, false);
   assert.equal(overlays.noise, true);
   assert.equal(overlays.no2, true);
-  assert.equal(overlays.pm25, true);
+  assert.equal(overlays.pm25, false);
   assert.equal(overlays.green, true);
+});
+
+test("overlaysForScene isolates health and reach layers", () => {
+  const health = overlaysForScene("health");
+  assert.equal(health.noise, true);
+  assert.equal(health.no2, true);
+  assert.equal(health.nearby, false);
+  const reach = overlaysForScene("reach");
+  assert.equal(reach.walk, true);
+  assert.equal(reach.transit, true);
+  assert.equal(reach.noise, false);
 });
 
 test("isochrone and RIVM sample reject incomplete requests", async () => {
