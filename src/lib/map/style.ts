@@ -126,15 +126,29 @@ export function applyBasemapTheme(map: MapboxMap) {
 }
 
 export function applyMapLighting(map: MapboxMap, hour: number, castShadows: boolean) {
+  const applyLightsAndPaint = () => {
+    if (!map.isStyleLoaded()) {
+      map.once("idle", applyLightsAndPaint);
+      return;
+    }
+    try {
+      map.setLights(lightsForHour(hour, castShadows) as never);
+      if (isMapboxStandardStyle(mapStyleUrl())) applyBasemapTheme(map);
+    } catch {
+      map.once("idle", applyLightsAndPaint);
+    }
+  };
+
   if (isMapboxStandardStyle(mapStyleUrl())) {
     map.setConfigProperty("basemap", "lightPreset", lightPresetForHour(hour));
     map.setConfigProperty("basemap", "show3dObjects", castShadows);
     map.setConfigProperty("basemap", "show3dBuildings", castShadows);
     map.setConfigProperty("basemap", "show3dTrees", castShadows);
     map.setConfigProperty("basemap", "show3dFacades", castShadows);
-    applyBasemapTheme(map);
   }
-  map.setLights(lightsForHour(hour, castShadows) as never);
+
+  if (map.isStyleLoaded()) applyLightsAndPaint();
+  else map.once("idle", applyLightsAndPaint);
 }
 
 export function isMapboxStandardStyle(styleUrl: string) {

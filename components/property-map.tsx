@@ -538,7 +538,7 @@ export function PropertyMap({
     const probeAbort = new AbortController();
     map.on("load", () => {
       restoreRef.current(map);
-      applyMapLighting(map, hourRef.current, pitchedRef.current);
+      map.once("idle", () => applyMapLighting(map, hourRef.current, pitchedRef.current));
       if (!reduceMotion) {
         map.flyTo({
           center: [lng, lat],
@@ -584,7 +584,6 @@ export function PropertyMap({
 
     map.on("style.load", () => {
       restoreRef.current(map);
-      applyMapLighting(map, hourRef.current, pitchedRef.current);
     });
 
     map.once("idle", () => {
