@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Layers3, MapPinned, SunMedium } from "lucide-react";
+import { Box, Crosshair, Expand, Layers3, Locate, MapPinned, SunMedium } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -10,6 +10,10 @@ import {
   destinationPoint,
   gardenOrientation,
   houseNumberFromLabel,
+  MAP_SCENES,
+  overlaysForScene,
+  type MapSceneId,
+  type OverlayId,
 } from "@/src/lib/map/geo";
 import {
   BAG_EXTRUSION_HEIGHT_M,
@@ -23,8 +27,6 @@ import {
 } from "@/src/lib/map/style";
 import type { GeoJsonFeatureCollection, NearbyProperty, Property } from "@/src/lib/types";
 
-type OverlayId = "nearby" | "walk" | "transit" | "noise" | "no2" | "pm25" | "green" | "water" | "garden" | "roads";
-
 type MapLayersResponse = {
   green: GeoJsonFeatureCollection;
   water: GeoJsonFeatureCollection;
@@ -32,17 +34,24 @@ type MapLayersResponse = {
   stops?: GeoJsonFeatureCollection;
 };
 
-const OVERLAYS: { id: OverlayId; label: string }[] = [
-  { id: "nearby", label: "Woningen" },
-  { id: "walk", label: "5–10 min lopen" },
-  { id: "transit", label: "OV-haltes" },
-  { id: "roads", label: "Wegen" },
-  { id: "noise", label: "Geluid" },
-  { id: "no2", label: "NO₂" },
-  { id: "pm25", label: "PM2.5" },
-  { id: "green", label: "Groen" },
-  { id: "water", label: "Water" },
-  { id: "garden", label: "Tuinligging" },
+const OVERLAY_LABELS: Record<OverlayId, string> = {
+  nearby: "Woningen",
+  walk: "5–10 min lopen",
+  transit: "OV-haltes",
+  roads: "Wegen",
+  noise: "Geluid",
+  no2: "NO₂",
+  pm25: "PM2.5",
+  green: "Groen",
+  water: "Water",
+  garden: "Tuinligging",
+};
+
+const OVERLAY_GROUPS: { label: string; ids: OverlayId[] }[] = [
+  { label: "Plek", ids: ["nearby", "garden", "roads"] },
+  { label: "Bereik", ids: ["walk", "transit"] },
+  { label: "Gezondheid", ids: ["noise", "no2", "pm25"] },
+  { label: "Natuur", ids: ["green", "water"] },
 ];
 
 function escapeHtml(value: string) {
@@ -81,11 +90,17 @@ export function PropertyMap({
   nearbyProperties = [],
   signals = [],
   gardenOrientationText,
+  variant = "studio",
+  focusBagId,
+  onExpand,
 }: {
   property: Property;
   nearbyProperties?: NearbyProperty[];
   signals?: { key: string; severity: string }[];
   gardenOrientationText?: string;
+  variant?: "hero" | "studio";
+  focusBagId?: string | null;
+  onExpand?: () => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
@@ -93,10 +108,14 @@ export function PropertyMap({
   const [pitched, setPitched] = useState(true);
   const [lightKey, setLightKey] = useState("day");
   const [layersOpen, setLayersOpen] = useState(false);
+  const [scene, setScene] = useState<MapSceneId | "custom">("street");
+  const [probe, setProbe] = useState(false);
   const [overlays, setOverlays] = useState(() => defaultMapOverlays(signals));
   const [layerError, setLayerError] = useState<string | null>(null);
   const overlaysRef = useRef(overlays);
   overlaysRef.current = overlays;
+  const probeRef = useRef(probe);
+  probeRef.current = probe;
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
   const lng = property.coordinates.lng;
   const lat = property.coordinates.lat;
@@ -183,7 +202,7 @@ export function PropertyMap({
         if (!feature || !event.lngLat) return;
         new mapboxgl.Popup({ offset: 8, className: "map-popup" })
           .setLngLat(event.lngLat)
-          .setHTML(`<strong>OV-halte</strong><br/>${escapeHtml(String(feature.properties?.distance ?? ""))} m hemelsbreed`)
+          .setHTML(`<strong>OV-halte</strong><br/>${escapeHtml(String(feature.properties?.distance ?? ""))} m hemelsbreed<br/><small>NDOV-catalogus, geen dienstregeling</small>`)
           .addTo(map);
       });
       map.on("mouseenter", "ndov-stops", () => { map.getCanvas().style.cursor = "pointer"; });
@@ -420,9 +439,14 @@ export function PropertyMap({
       }
 
       map.on("click", async (event) => {
-        const raster = (["noise", "no2", "pm25"] as const).find((id) => overlaysRef.current[id]);
+        const raster = (["noise", "no2", "pm25"] as const).find((id) => overlaysRef.current[id])
+          ?? (probeRef.current ? "no2" as const : undefined);
         if (!raster) return;
         if (map.queryRenderedFeatures(event.point, { layers: ["nearby-homes", "ndov-stops"].filter((id) => map.getLayer(id)) }).length) return;
+        if (probeRef.current && !overlaysRef.current[raster]) {
+          ensureRivmLayer(map, raster);
+          applyOverlays(map, { ...overlaysRef.current, [raster]: true });
+        }
         const response = await fetch(`/api/map/rivm/sample?layer=${raster}&lat=${event.lngLat.lat}&lng=${event.lngLat.lng}`);
         if (!response.ok) return;
         const sample = (await response.json()) as { value?: number; unit?: string };
@@ -474,9 +498,60 @@ export function PropertyMap({
     setVisible(map, "building-extrusion", pitched);
   }, [pitched]);
 
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !focusBagId) return;
+    const home = nearbyProperties.find((item) => item.bagVboId === focusBagId);
+    if (!home) return;
+    map.flyTo({
+      center: [home.coordinates.lng, home.coordinates.lat],
+      zoom: Math.max(map.getZoom(), 18),
+      duration: 700,
+    });
+    const area = home.areaM2 ? `${home.areaM2} m² · ` : "";
+    new mapboxgl.Popup({ offset: 10, className: "map-popup" })
+      .setLngLat([home.coordinates.lng, home.coordinates.lat])
+      .setHTML(
+        `<strong>${escapeHtml(home.addressLabel)}</strong><br/>${escapeHtml(area)}${home.distanceM} m`
+        + `<br/><a href="/woning/${encodeURIComponent(home.bagVboId)}">Open woningcheck</a>`,
+      )
+      .addTo(map);
+  }, [focusBagId, nearbyProperties]);
+
+  async function applyScene(nextScene: MapSceneId) {
+    const next = overlaysForScene(nextScene);
+    if (!garden) next.garden = false;
+    setScene(nextScene);
+    setOverlays(next);
+    if (nextScene === "health") setProbe(true);
+    const map = mapInstance.current;
+    if (!map) return;
+    try {
+      if (next.green || next.water || next.transit || next.walk || next.roads) await ensureContextLayers(map);
+      if (next.noise) ensureRivmLayer(map, "noise");
+      if (next.no2) ensureRivmLayer(map, "no2");
+      if (next.pm25) ensureRivmLayer(map, "pm25");
+      applyOverlays(map, next);
+      setLayerError(null);
+    } catch {
+      setLayerError("Deze laag kon niet worden geladen.");
+    }
+  }
+
+  function recenter() {
+    mapInstance.current?.easeTo({
+      center: [lng, lat],
+      zoom: MAP_CAMERA.zoom,
+      pitch: pitched ? MAP_CAMERA.pitch : MAP_CAMERA.flatPitch,
+      bearing: MAP_CAMERA.bearing,
+      duration: 700,
+    });
+  }
+
   async function toggleOverlay(id: OverlayId) {
     const next = { ...overlays, [id]: !overlays[id] };
     setOverlays(next);
+    setScene("custom");
     const map = mapInstance.current;
     if (!map) return;
     try {
@@ -492,18 +567,13 @@ export function PropertyMap({
   }
 
   const lightLabel = sunLabelForPreset(lightKey);
-  const activeNotes = [
-    overlays.walk ? "5 en 10 minuten lopen via Mapbox Isochrone." : null,
-    overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart voor een RIVM-screeningswaarde." : null,
-    overlays.transit ? "NDOV-haltes binnen 1 km." : null,
-    overlays.green || overlays.water || overlays.roads ? "BGT groen, water en wegen binnen 250 m." : null,
-    garden && overlays.garden ? garden.label : null,
-    "Schaduw is een Mapbox-indicatie, geen zonstudie.",
-  ].filter(Boolean);
+  const hint = scene === "custom"
+    ? (probe || overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart om te meten." : lightLabel)
+    : MAP_SCENES.find((item) => item.id === scene)?.hint ?? lightLabel;
 
   if (!hasToken) {
     return (
-      <div className="map-card map-empty">
+      <div className={`map-card map-empty is-${variant}`}>
         <div className="map-badge"><MapPinned size={12} /> locatie</div>
         <div className="map-empty-copy">
           <strong>3D-kaart niet beschikbaar</strong>
@@ -515,45 +585,72 @@ export function PropertyMap({
   }
 
   return (
-    <div className="map-card interactive-map">
+    <div className={`map-card interactive-map is-${variant}${probe ? " is-probe" : ""}`}>
       <div ref={mapRef} className="map-canvas" />
-      <div className="map-badge">
-        <MapPinned size={12} /> {property.street} {houseNumber}
-      </div>
-      <div className="map-tools">
-        <button type="button" onClick={() => setPitched((value) => !value)}>
-          <Box size={12} /> {pitched ? "Plattegrond" : "3D"}
-        </button>
-        <div className="map-sun" role="group" aria-label="Zon en schaduw">
-          <span className="map-sun-label"><SunMedium size={12} /> Zon</span>
-          {LIGHT_PRESETS.map((preset) => (
+      <div className="map-chrome">
+        <div className="map-scenes" role="group" aria-label="Kaartscènes">
+          {MAP_SCENES.map((item) => (
             <button
-              key={preset.key}
+              key={item.id}
               type="button"
-              className={lightKey === preset.key ? "selected" : undefined}
-              onClick={() => {
-                setLightKey(preset.key);
-                if (!pitched) setPitched(true);
-              }}
+              className={scene === item.id ? "selected" : undefined}
+              onClick={() => { void applyScene(item.id); }}
             >
-              {preset.label}
+              {item.label}
             </button>
           ))}
         </div>
-        <div className="map-layers">
-          <button type="button" aria-expanded={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
-            <Layers3 size={12} /> Lagen
+        <div className="map-tools">
+          <button type="button" onClick={() => setPitched((value) => !value)}>
+            <Box size={13} /> {pitched ? "Plat" : "3D"}
           </button>
-          {layersOpen && (
-            <div className="map-layers-panel">
-              {OVERLAYS.filter((overlay) => overlay.id !== "garden" || garden).map((overlay) => (
-                <label key={overlay.id}>
-                  <input type="checkbox" checked={overlays[overlay.id]} onChange={() => { void toggleOverlay(overlay.id); }} />
-                  {overlay.label}
-                </label>
-              ))}
-            </div>
+          <button type="button" className={probe ? "selected" : undefined} onClick={() => setProbe((value) => !value)}>
+            <Crosshair size={13} /> Meet
+          </button>
+          <button type="button" onClick={recenter}>
+            <Locate size={13} /> Hier
+          </button>
+          {onExpand && (
+            <button type="button" onClick={onExpand}>
+              <Expand size={13} /> Groter
+            </button>
           )}
+          <div className="map-sun" role="group" aria-label="Zon en schaduw">
+            <span className="map-sun-label"><SunMedium size={12} /></span>
+            {LIGHT_PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                type="button"
+                className={lightKey === preset.key ? "selected" : undefined}
+                onClick={() => {
+                  setLightKey(preset.key);
+                  if (!pitched) setPitched(true);
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <div className="map-layers">
+            <button type="button" aria-expanded={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
+              <Layers3 size={13} /> Lagen
+            </button>
+            {layersOpen && (
+              <div className="map-layers-panel">
+                {OVERLAY_GROUPS.map((group) => (
+                  <div className="map-layers-group" key={group.label}>
+                    <small>{group.label}</small>
+                    {group.ids.filter((id) => id !== "garden" || garden).map((id) => (
+                      <label key={id}>
+                        <input type="checkbox" checked={overlays[id]} onChange={() => { void toggleOverlay(id); }} />
+                        {OVERLAY_LABELS[id]}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="map-legend">
@@ -561,16 +658,12 @@ export function PropertyMap({
         {overlays.nearby && <span><i className="legend-dot nearby" /> buren</span>}
         {overlays.walk && <span><i className="legend-dot walk" /> loopafstand</span>}
         {overlays.transit && <span><i className="legend-dot transit" /> halte</span>}
-        {overlays.roads && <span><i className="legend-dot roads" /> wegen</span>}
         {overlays.green && <span><i className="legend-dot green" /> groen</span>}
         {overlays.water && <span><i className="legend-dot water" /> water</span>}
         {garden && overlays.garden && <span><i className="legend-dot garden" /> tuin</span>}
-        <span className="map-sun-chip">{lightLabel}</span>
+        <span className="map-sun-chip">{hint}</span>
       </div>
-      <div className="map-source-notes">
-        {activeNotes.map((note) => <small key={note}>{note}</small>)}
-        {layerError && <small role="alert">{layerError}</small>}
-      </div>
+      {layerError && <div className="map-source-notes"><small role="alert">{layerError}</small></div>}
     </div>
   );
 }

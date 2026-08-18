@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   Check,
-  Database,
   GitCompare,
   Heart,
   MapPinned,
@@ -102,6 +101,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [tab, setTab] = useState<TabId>("overzicht");
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set(["overzicht"]));
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
+  const [mapFocusId, setMapFocusId] = useState<string | null>(null);
   const { workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
@@ -602,7 +602,17 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
       {tab === "overzicht" && (
         <div className="dash-tab-panel" role="tabpanel" id="panel-overzicht" aria-labelledby="tab-overzicht">
-          <PropertyScoreCharts analysis={analysis} />
+          <div className="dash-hero" id="kaart">
+            <PropertyScoreCharts analysis={analysis} />
+            <PropertyMap
+              property={property}
+              nearbyProperties={nearbyProperties}
+              signals={analysis.signals}
+              gardenOrientationText={marketListing?.gardenOrientation}
+              variant="hero"
+              onExpand={() => selectTab("omgeving")}
+            />
+          </div>
           {(analysis.everydayInsights ?? []).length > 0 && (
             <section className="dash-insights-panel">
               <div className="section-kicker">In het dagelijks leven</div>
@@ -676,37 +686,37 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
       {tab === "omgeving" && (
         <div className="dash-tab-panel" role="tabpanel" id="panel-omgeving" aria-labelledby="tab-omgeving">
-          <div className="dash-hero dash-hero-map-only" id="kaart">
+          <div className="dash-map-studio" id="kaart">
             <PropertyMap
               property={property}
               nearbyProperties={nearbyProperties}
               signals={analysis.signals}
               gardenOrientationText={marketListing?.gardenOrientation}
+              variant="studio"
+              focusBagId={mapFocusId}
             />
+            <aside className="dash-map-nearby">
+              <div className="section-kicker">Woningen dichtbij</div>
+              <h2>Klik om te zien op de kaart</h2>
+              {nearbyProperties.length ? (
+                <div className="nearby-list">
+                  {nearbyProperties.map((nearby) => (
+                    <article className={`nearby-card ${mapFocusId === nearby.bagVboId ? "is-on" : ""}`} key={nearby.bagVboId}>
+                      <button type="button" className="nearby-card-focus" onClick={() => setMapFocusId(nearby.bagVboId)}>
+                        <strong>{nearby.addressLabel.split(",")[0]}</strong>
+                        <span>
+                          {nearby.areaM2 ? `${nearby.areaM2} m²` : "oppervlakte onbekend"} · {nearby.distanceM} m
+                        </span>
+                      </button>
+                      <Link href={`/woning/${nearby.bagVboId}`}>Open check</Link>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p>Geen omliggende woonadressen gevonden.</p>
+              )}
+            </aside>
           </div>
-          <section className="nearby-section">
-            <div className="section-inline-heading">
-              <div>
-                <div className="eyebrow"><Database size={13} /> omgeving</div>
-                <h2>Woningen dichtbij</h2>
-              </div>
-              <span className="coverage-pill">{nearbyProperties.length}</span>
-            </div>
-            {nearbyProperties.length ? (
-              <div className="nearby-grid">
-                {nearbyProperties.map((nearby) => (
-                  <Link className="nearby-card" href={`/woning/${nearby.bagVboId}`} key={nearby.bagVboId}>
-                    <strong>{nearby.addressLabel.split(",")[0]}</strong>
-                    <span>
-                      {nearby.areaM2 ? `${nearby.areaM2} m²` : "oppervlakte onbekend"} · {nearby.distanceM} m
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p>Geen omliggende woonadressen gevonden.</p>
-            )}
-          </section>
         </div>
       )}
 

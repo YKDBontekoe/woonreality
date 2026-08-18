@@ -54,18 +54,50 @@ export function gardenOrientation(text: string | undefined) {
   return { bearing: match[1], label: match[2] };
 }
 
-export function defaultMapOverlays(signals: { key: string; severity: string }[]) {
+export type OverlayId = "nearby" | "walk" | "transit" | "noise" | "no2" | "pm25" | "green" | "water" | "garden" | "roads";
+
+export type MapOverlays = Record<OverlayId, boolean>;
+
+export type MapSceneId = "street" | "reach" | "health" | "nature";
+
+const ALL_OFF: MapOverlays = {
+  nearby: false,
+  walk: false,
+  transit: false,
+  noise: false,
+  no2: false,
+  pm25: false,
+  green: false,
+  water: false,
+  garden: false,
+  roads: false,
+};
+
+export const MAP_SCENES: { id: MapSceneId; label: string; hint: string; overlays: OverlayId[] }[] = [
+  { id: "street", label: "Straat", hint: "Deze woning en buren", overlays: ["nearby", "garden"] },
+  { id: "reach", label: "Bereik", hint: "Lopen en OV", overlays: ["walk", "transit", "nearby"] },
+  { id: "health", label: "Lucht", hint: "Geluid en NO₂ — klik om te meten", overlays: ["noise", "no2"] },
+  { id: "nature", label: "Groen", hint: "Bomen, water, tuin", overlays: ["green", "water", "garden"] },
+];
+
+export function overlaysForScene(scene: MapSceneId): MapOverlays {
+  const next = { ...ALL_OFF };
+  for (const id of MAP_SCENES.find((item) => item.id === scene)?.overlays ?? []) next[id] = true;
+  return next;
+}
+
+export function defaultMapOverlays(signals: { key: string; severity: string }[]): MapOverlays {
   const byKey = Object.fromEntries(signals.map((signal) => [signal.key, signal.severity]));
   return {
     nearby: true,
-    walk: true,
-    transit: true,
+    walk: false,
+    transit: byKey.transit === "attention",
     noise: byKey.noise === "attention",
-    no2: byKey.air === "attention" || byKey.health === "attention",
-    pm25: byKey.air === "attention",
-    green: byKey.green === "good",
+    no2: byKey.air === "attention",
+    pm25: false,
+    green: byKey.green === "good" || byKey.green === "attention",
     water: byKey.water === "attention",
     garden: true,
-    roads: true,
+    roads: false,
   };
 }

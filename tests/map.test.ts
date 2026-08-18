@@ -3,7 +3,7 @@ import test from "node:test";
 import { GET as getIsochrone } from "@/app/api/map/isochrone/route";
 import { GET as getRivmSample } from "@/app/api/map/rivm/sample/route";
 import { GET as getRivmTile } from "@/app/api/map/rivm/[layer]/[z]/[x]/[y]/route";
-import { circlePolygon, defaultMapOverlays, gardenOrientation, houseNumberFromLabel } from "@/src/lib/map/geo";
+import { circlePolygon, defaultMapOverlays, gardenOrientation, houseNumberFromLabel, overlaysForScene } from "@/src/lib/map/geo";
 import { LIGHT_PRESETS, sunLabelForPreset } from "@/src/lib/map/style";
 import { isValidTile, parseRivmOverlay, parseTileIndex, rivmGetMapUrl, xyzToMercatorBbox } from "@/src/lib/map/tiles";
 
@@ -65,20 +65,30 @@ test("gardenOrientation maps Dutch listing copy to a bearing", () => {
   assert.equal(houseNumberFromLabel("Korenstraat 18, Epe"), "18");
 });
 
-test("defaultMapOverlays turns on context plus attention rasters", () => {
+test("defaultMapOverlays keeps the street quiet and turns on attention rasters", () => {
   const overlays = defaultMapOverlays([
     { key: "noise", severity: "attention" },
     { key: "air", severity: "attention" },
     { key: "green", severity: "good" },
   ]);
   assert.equal(overlays.nearby, true);
-  assert.equal(overlays.walk, true);
-  assert.equal(overlays.transit, true);
-  assert.equal(overlays.roads, true);
+  assert.equal(overlays.walk, false);
+  assert.equal(overlays.roads, false);
   assert.equal(overlays.noise, true);
   assert.equal(overlays.no2, true);
-  assert.equal(overlays.pm25, true);
+  assert.equal(overlays.pm25, false);
   assert.equal(overlays.green, true);
+});
+
+test("overlaysForScene isolates health and reach layers", () => {
+  const health = overlaysForScene("health");
+  assert.equal(health.noise, true);
+  assert.equal(health.no2, true);
+  assert.equal(health.nearby, false);
+  const reach = overlaysForScene("reach");
+  assert.equal(reach.walk, true);
+  assert.equal(reach.transit, true);
+  assert.equal(reach.noise, false);
 });
 
 test("isochrone and RIVM sample reject incomplete requests", async () => {
