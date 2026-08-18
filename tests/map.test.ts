@@ -9,6 +9,8 @@ import {
   formatMapHour,
   lightPeriodLabel,
   lightPresetForHour,
+  lightsForHour,
+  sunDirectionForHour,
   sunLabelForHour,
   sunLabelForPreset,
 } from "@/src/lib/map/style";
@@ -55,6 +57,20 @@ test("hour slider maps clock time onto Mapbox light presets", () => {
   assert.equal(lightPeriodLabel(19), "Avond");
   assert.equal(sunLabelForHour(14), "zon uit het zuiden");
   assert.equal(sunLabelForPreset("dusk"), "zon uit het westen");
+});
+
+test("sun direction moves from east at dawn to west at dusk", () => {
+  const [dawnAzimuth, dawnPolar] = sunDirectionForHour(6);
+  const [noonAzimuth, noonPolar] = sunDirectionForHour(13);
+  const [duskAzimuth, duskPolar] = sunDirectionForHour(18);
+  assert.ok(dawnAzimuth < noonAzimuth && noonAzimuth < duskAzimuth);
+  assert.ok(noonPolar < dawnPolar);
+  assert.ok(noonPolar < duskPolar);
+  const duskLights = lightsForHour(18, true);
+  const sun = duskLights.find((item) => item.id === "woonreality-sun");
+  assert.equal(sun?.properties["cast-shadows"], true);
+  assert.ok((sun?.properties["shadow-intensity"] ?? 0) > 0.5);
+  assert.deepEqual(sun?.properties.direction, sunDirectionForHour(18));
 });
 
 test("RIVM tile proxy rejects unknown layers without fetching", async () => {

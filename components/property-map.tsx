@@ -20,10 +20,10 @@ import {
   DEFAULT_MAP_HOUR,
   MAP_CAMERA,
   MAP_COLORS,
+  applyMapLighting,
   formatMapHour,
   isMapboxStandardStyle,
   lightPeriodLabel,
-  lightPresetForHour,
   mapStyleUrl,
   sunLabelForHour,
   woonrealityBasemapConfig,
@@ -136,7 +136,9 @@ export function PropertyMap({
   const overlaysRef = useRef(overlays);
   const probeRef = useRef(probe);
   const pitchedRef = useRef(pitched);
+  const hourRef = useRef(hour);
   pitchedRef.current = pitched;
+  hourRef.current = hour;
   const focusPopupRef = useRef<mapboxgl.Popup | null>(null);
   const contextLayersRef = useRef<MapLayersResponse | null>(null);
   const walkDataRef = useRef<GeoJsonFeatureCollection | null>(null);
@@ -164,6 +166,7 @@ export function PropertyMap({
     setVisible(map, "bgt-green", next.green);
     setVisible(map, "bgt-water", next.water);
     setVisible(map, "bgt-roads", next.roads);
+    setVisible(map, "bgt-roads-outline", next.roads);
     setVisible(map, "garden-line", next.garden);
     setVisible(map, "garden-point", next.garden);
   }, []);
@@ -234,7 +237,32 @@ export function PropertyMap({
       type: "fill",
       source: "bgt-roads",
       slot: "middle",
-      paint: { "fill-color": "#6f6a64", "fill-opacity": 0.42, "fill-emissive-strength": 0.2 },
+      paint: {
+        "fill-color": [
+          "match",
+          ["downcase", ["to-string", ["coalesce", ["get", "bgt-functie"], ["get", "functie"], ["get", "function"], ""]]],
+          "fietspad", MAP_COLORS.cycleFill,
+          "voetpad", MAP_COLORS.pathFill,
+          "voetgangersgebied", MAP_COLORS.pathFill,
+          "parkeervlak", MAP_COLORS.parkingFill,
+          "overweg", MAP_COLORS.parkingFill,
+          MAP_COLORS.roadFill,
+        ],
+        "fill-opacity": 0.88,
+        "fill-emissive-strength": 0.04,
+      },
+    });
+    addLayerIfMissing(map, {
+      id: "bgt-roads-outline",
+      type: "line",
+      source: "bgt-roads",
+      slot: "middle",
+      paint: {
+        "line-color": MAP_COLORS.roadCasing,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.4, 18, 1.1],
+        "line-opacity": 0.7,
+        "line-emissive-strength": 0.08,
+      },
     });
     addLayerIfMissing(map, {
       id: "ndov-stops",
@@ -342,6 +370,7 @@ export function PropertyMap({
           "fill-extrusion-height": BAG_EXTRUSION_HEIGHT_M,
           "fill-extrusion-opacity": 0.78,
           "fill-extrusion-emissive-strength": 0.3,
+          "fill-extrusion-cast-shadows": true,
         },
       });
       setVisible(map, "building-extrusion", pitchedRef.current);
@@ -509,6 +538,7 @@ export function PropertyMap({
     const probeAbort = new AbortController();
     map.on("load", () => {
       restoreRef.current(map);
+      map.once("idle", () => applyMapLighting(map, hourRef.current, pitchedRef.current));
       if (!reduceMotion) {
         map.flyTo({
           center: [lng, lat],
@@ -573,19 +603,15 @@ export function PropertyMap({
 
   useEffect(() => {
     const map = mapInstance.current;
-    if (!map || !isMapboxStandardStyle(mapStyleUrl())) return;
-    map.setConfigProperty("basemap", "lightPreset", lightPresetForHour(hour));
-  }, [hour]);
+    if (!map) return;
+    applyMapLighting(map, hour, pitched);
+  }, [hour, pitched]);
 
   useEffect(() => {
     const map = mapInstance.current;
     if (!map) return;
     map.easeTo({ pitch: pitched ? MAP_CAMERA.pitch : MAP_CAMERA.flatPitch, duration: 500 });
     setVisible(map, "building-extrusion", pitched);
-    if (isMapboxStandardStyle(mapStyleUrl())) {
-      map.setConfigProperty("basemap", "show3dObjects", pitched);
-      map.setConfigProperty("basemap", "show3dBuildings", pitched);
-    }
   }, [pitched]);
 
   useEffect(() => {
@@ -624,10 +650,7 @@ export function PropertyMap({
       setProbe(true);
       setPitched(false);
       map?.easeTo({ pitch: MAP_CAMERA.flatPitch, duration: 450 });
-      if (map && isMapboxStandardStyle(mapStyleUrl())) {
-        map.setConfigProperty("basemap", "show3dObjects", false);
-        map.setConfigProperty("basemap", "show3dBuildings", false);
-      }
+      if (map) applyMapLighting(map, hour, false);
     }
     if (!map) return;
     try {
@@ -732,7 +755,7 @@ export function PropertyMap({
               aria-valuetext={`${formatMapHour(hour)} ${lightPeriodLabel(hour)}`}
               onChange={(event) => {
                 setHour(Number(event.target.value));
-                if (!overlays.noise && !overlays.no2 && !overlays.pm25 && !pitched) setPitched(true);
+                if (!overlays.noise && !overlays.no2 && !overlays.pm25) setPitched(true);
               }}
             />
             <span className="map-time-meta">
@@ -744,24 +767,24 @@ export function PropertyMap({
             <button type="button" aria-expanded={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
               <Layers3 size={13} /> Lagen
             </button>
-            {layersOpen && (
-              <div className="map-layers-panel">
-                {OVERLAY_GROUPS.map((group) => (
-                  <div className="map-layers-group" key={group.label}>
-                    <small>{group.label}</small>
-                    {group.ids.filter((id) => id !== "garden" || garden).map((id) => (
-                      <label key={id}>
-                        <input type="checkbox" checked={overlays[id]} onChange={() => { void toggleOverlay(id); }} />
-                        {OVERLAY_LABELS[id]}
-                      </label>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>
+      {layersOpen && (
+        <div className="map-layers-panel" role="dialog" aria-label="Kaartlagen">
+          {OVERLAY_GROUPS.map((group) => (
+            <div className="map-layers-group" key={group.label}>
+              <small>{group.label}</small>
+              {group.ids.filter((id) => id !== "garden" || garden).map((id) => (
+                <label key={id}>
+                  <input type="checkbox" checked={overlays[id]} onChange={() => { void toggleOverlay(id); }} />
+                  {OVERLAY_LABELS[id]}
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="map-legend">
         <span><i className="legend-dot home" /> deze woning</span>
         {overlays.nearby && <span><i className="legend-dot nearby" /> buren</span>}
@@ -769,6 +792,7 @@ export function PropertyMap({
         {overlays.transit && <span><i className="legend-dot transit" /> halte</span>}
         {overlays.green && <span><i className="legend-dot green" /> groen</span>}
         {overlays.water && <span><i className="legend-dot water" /> water</span>}
+        {overlays.roads && <span><i className="legend-dot roads" /> wegen</span>}
         {garden && overlays.garden && <span><i className="legend-dot garden" /> tuin</span>}
         <span className="map-sun-chip">{hint}</span>
       </div>
