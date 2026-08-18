@@ -597,11 +597,16 @@ export function PropertyMap({
     if (!garden) next.garden = false;
     setScene(nextScene);
     setOverlays(next);
+    const map = mapInstance.current;
     if (nextScene === "health") {
       setProbe(true);
       setPitched(false);
+      map?.easeTo({ pitch: MAP_CAMERA.flatPitch, duration: 450 });
+      if (map && isMapboxStandardStyle(mapStyleUrl())) {
+        map.setConfigProperty("basemap", "show3dObjects", false);
+        map.setConfigProperty("basemap", "show3dBuildings", false);
+      }
     }
-    const map = mapInstance.current;
     if (!map) return;
     try {
       if (next.green || next.water || next.transit || next.walk || next.roads) await ensureContextLayers(map);
@@ -704,7 +709,7 @@ export function PropertyMap({
               aria-valuetext={`${formatMapHour(hour)} ${lightPeriodLabel(hour)}`}
               onChange={(event) => {
                 setHour(Number(event.target.value));
-                if (!pitched) setPitched(true);
+                if (!overlays.noise && !overlays.no2 && !overlays.pm25 && !pitched) setPitched(true);
               }}
             />
             <span className="map-time-meta">
