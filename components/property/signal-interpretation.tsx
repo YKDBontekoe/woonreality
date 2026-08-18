@@ -29,9 +29,21 @@ export function SignalInterpretationBlock({
             ))}
           </div>
           <div className="signal-benchmark-legend">
-            {interpretation.benchmark.markers.map((marker) => (
-              <span key={`legend-${marker.kind}-${marker.label}`}>{marker.label}</span>
-            ))}
+            {interpretation.benchmark.markers.map((marker) => {
+              const value =
+                marker.kind === "you"
+                  ? interpretation.benchmark?.value
+                  : marker.kind === "reference"
+                    ? interpretation.benchmark?.referenceValue
+                    : interpretation.benchmark?.secondaryReferenceValue;
+              return (
+                <span key={`legend-${marker.kind}-${marker.label}`}>
+                  <i className={`signal-benchmark-swatch is-${marker.kind}`} />
+                  {marker.label}
+                  {value != null && ` ${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}`}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

@@ -1580,7 +1580,12 @@ button.text-link { background: none; border: 0; padding: 0; }
 .signal-benchmark-marker.is-you { background: var(--accent); z-index: 2; width: 14px; height: 14px; }
 .signal-benchmark-marker.is-reference { background: var(--ink); }
 .signal-benchmark-marker.is-secondary { background: var(--attention); }
-.signal-benchmark-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 11px; }
+.signal-benchmark-legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--ink-soft); font-size: 12px; }
+.signal-benchmark-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.signal-benchmark-swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.signal-benchmark-swatch.is-you { background: var(--accent); }
+.signal-benchmark-swatch.is-reference { background: var(--ink); }
+.signal-benchmark-swatch.is-secondary { background: var(--attention); }
 .signal-explainer { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
 .signal-explainer strong { color: var(--ink); font-weight: 600; }
 .dash-kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin: 8px 0 16px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--line); }
