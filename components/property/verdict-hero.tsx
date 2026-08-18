@@ -13,6 +13,11 @@ function personalFitLabel(score: number) {
   return "Minder match met je voorkeuren";
 }
 
+function firstSentence(text: string) {
+  const match = text.match(/^[^.!?]+[.!?]?/);
+  return (match?.[0] ?? text).trim();
+}
+
 export function VerdictHero({
   analysis,
   listing,
@@ -38,25 +43,28 @@ export function VerdictHero({
 }) {
   const verdict = buildVerdict(analysis);
   const things = topThings(analysis, 3);
+  const hasListingFacts = Boolean(
+    listing?.askingPrice || listing?.livingAreaM2 || listing?.constructionYear || listing?.energyLabel,
+  );
 
   return (
-    <section className="dash-verdict-hero" id="overzicht">
+    <section className={`dash-verdict-hero is-${verdict.tone}`} id="overzicht">
       <div className="dash-verdict-main">
         <div className="dash-verdict-score">
-          <ScoreDonut score={analysis.overallScore} />
+          <ScoreDonut score={analysis.overallScore} size="lg" />
           <div>
             <div className="section-kicker">Omgevingsscore</div>
-            <h2 className={`dash-verdict-headline is-${verdict.tone}`}>{verdict.headline}</h2>
+            <h2 className="dash-verdict-headline">{verdict.headline}</h2>
             <p className="dash-verdict-summary">{verdict.summary}</p>
           </div>
         </div>
         <div className="dash-verdict-fit">
           <div className="dash-verdict-fit-head">
             <span>Persoonlijke fit</span>
-            <strong>{personalFit != null ? `${personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10` : "—"}</strong>
+            <strong>{personalFit != null ? personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) : "—"}</strong>
           </div>
           <small>{personalFit != null ? personalFitLabel(personalFit) : "Stel je voorkeuren in voor een persoonlijke match."}</small>
-          <button className="secondary-button" type="button" onClick={onTogglePreferences}>
+          <button className="ghost-button" type="button" onClick={onTogglePreferences}>
             <Settings2 size={14} />
             {showPreferences ? "Sluiten" : preferencesConfigured ? "Voorkeuren" : "Stel voorkeuren in"}
           </button>
@@ -89,19 +97,24 @@ export function VerdictHero({
       {things.length > 0 && (
         <div className="dash-verdict-things">
           <div className="section-kicker">3 dingen om te weten</div>
-          <ul className="dash-point-list">
+          <ul className="dash-verdict-thing-grid">
             {things.map((thing) => (
-              <li className={`is-${thing.tone === "good" ? "positive" : thing.tone === "attention" ? "attention" : "neutral"}`} key={`${thing.title}-${thing.text.slice(0, 24)}`}>
-                <button type="button" className="dash-verdict-thing-button" onClick={() => onJumpToSignal(thing)}>
+              <li key={`${thing.title}-${thing.text.slice(0, 24)}`}>
+                <button
+                  type="button"
+                  className={`dash-verdict-thing is-${thing.tone}`}
+                  onClick={() => onJumpToSignal(thing)}
+                >
+                  <em>{thing.tone === "good" ? "Plus" : thing.tone === "attention" ? "Let op" : "Context"}</em>
                   <strong>{thing.title}</strong>
-                  <span>{thing.text}</span>
+                  <span>{firstSentence(thing.text)}</span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
       )}
-      <PropertyKpiStrip analysis={analysis} listing={listing} variant="compact" />
+      {hasListingFacts && <PropertyKpiStrip analysis={analysis} listing={listing} variant="compact" />}
     </section>
   );
 }

@@ -30,7 +30,8 @@ export type TriagedSignals = {
   byDomain: Partial<Record<SignalCategory, Signal[]>>;
 };
 
-function toneFromScore(score: number): VerdictTone {
+export function scoreBand(score: number | null | undefined): VerdictTone {
+  if (score == null) return "neutral";
   if (score >= 7) return "good";
   if (score >= 5) return "neutral";
   return "attention";
@@ -40,7 +41,7 @@ export function buildVerdict(analysis: Analysis): Verdict {
   const attentionHighlights = (analysis.highlights ?? []).filter(
     (item) => item.type === "attention",
   );
-  const scoreTone = toneFromScore(analysis.overallScore);
+  const scoreTone = scoreBand(analysis.overallScore);
   const tone: VerdictTone =
     attentionHighlights.length >= 2
       ? "attention"

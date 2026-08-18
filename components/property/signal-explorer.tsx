@@ -2,9 +2,9 @@
 
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { SignalCard } from "@/components/signal-card";
-import { interpretSignal, interpretationForDomain } from "@/src/lib/signal-interpretation";
-import { triageSignals } from "@/src/lib/report-summary";
+import { SignalInterpretationBlock } from "@/components/property/signal-interpretation";
+import { interpretSignal } from "@/src/lib/signal-interpretation";
+import { scoreBand, triageSignals } from "@/src/lib/report-summary";
 import type { Analysis, Signal } from "@/src/lib/types";
 
 type FilterId = "focus" | "attention" | "good" | "unavailable" | "all";
@@ -27,6 +27,14 @@ function matchesFilter(filter: FilterId, signal: Signal, triaged: ReturnType<typ
   return triaged.unavailable.includes(signal);
 }
 
+function signalValue(signal: Signal) {
+  if (signal.availability === "unavailable") return "—";
+  if (typeof signal.value === "number") {
+    return `${signal.value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}${signal.unit ? ` ${signal.unit}` : ""}`;
+  }
+  return String(signal.value);
+}
+
 export function SignalExplorer({
   analysis,
   focusSignalKey,
@@ -36,7 +44,6 @@ export function SignalExplorer({
 }) {
   const [filter, setFilter] = useState<FilterId>("focus");
   const [expandedKey, setExpandedKey] = useState<string | null>(focusSignalKey ?? null);
-  const [openDomains, setOpenDomains] = useState<Record<string, boolean>>({});
 
   const triaged = useMemo(() => triageSignals(analysis.signals), [analysis.signals]);
 
@@ -44,17 +51,21 @@ export function SignalExplorer({
     if (!focusSignalKey) return;
     setExpandedKey(focusSignalKey);
     setFilter("all");
-    const signal = analysis.signals.find((item) => item.key === focusSignalKey);
-    if (signal?.category) {
-      setOpenDomains((current) => ({ ...current, [signal.category as string]: true }));
-    }
     window.setTimeout(() => {
       document.getElementById(`signal-${focusSignalKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 80);
-  }, [analysis.signals, focusSignalKey]);
+  }, [focusSignalKey]);
 
-  const hiddenCount =
-    triaged.good.length + triaged.unavailable.length;
+  const visibleCount =
+    filter === "focus"
+      ? triaged.attention.length + triaged.watch.length
+      : filter === "attention"
+        ? triaged.attention.length + triaged.watch.length
+        : filter === "good"
+          ? triaged.good.length
+          : filter === "unavailable"
+            ? triaged.unavailable.length
+            : analysis.signals.length;
 
   return (
     <section className="dash-signal-explorer" id="signalen">
@@ -62,13 +73,10 @@ export function SignalExplorer({
         <div>
           <div className="section-kicker">Open data</div>
           <h2>Signalen</h2>
-          {filter === "focus" && hiddenCount > 0 && (
-            <p className="dash-signal-explorer-note">
-              {triaged.attention.length + triaged.watch.length} punten nu zichtbaar · {hiddenCount} overige signalen onder filters
-            </p>
-          )}
+          <p className="dash-signal-explorer-note">
+            {visibleCount} {filter === "focus" ? "punten die opvallen" : "signalen"} · tik een regel voor uitleg
+          </p>
         </div>
-        <span className="coverage-pill">{analysis.signals.length}</span>
       </div>
       <div className="dash-point-filters" role="tablist" aria-label="Signaalfilters">
         {FILTERS.map((item) => (
@@ -88,72 +96,62 @@ export function SignalExplorer({
             matchesFilter(filter, signal, triaged),
           );
           if (!domainSignals.length) return null;
-          const open = openDomains[domain.key] ?? filter !== "all";
-          const domainSummary = interpretationForDomain(domain, analysis.signals);
+          const tone = scoreBand(domain.score);
           return (
             <section className="dash-signal-domain" key={domain.key}>
-              <button
-                type="button"
-                className="dash-signal-domain-toggle"
-                aria-expanded={open}
-                onClick={() =>
-                  setOpenDomains((current) => ({ ...current, [domain.key]: !open }))
-                }
-              >
+              <header className="dash-signal-domain-head">
                 <div>
                   <strong>{domain.label}</strong>
-                  <span>{domainSummary}</span>
-                </div>
-                <ChevronDown size={16} className={open ? "is-open" : ""} />
-              </button>
-              {open && (
-                <div className="dash-signal-domain-body">
                   {domain.score != null && (
-                    <div className="profile-row dash-signal-domain-score">
-                      <span>Domeinscore</span>
-                      <div className="profile-track">
-                        <i style={{ width: `${Math.round(domain.score * 10)}%` }} />
-                      </div>
-                      <strong>{domain.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}</strong>
-                    </div>
+                    <span className={`dash-signal-domain-score is-${tone}`}>
+                      {domain.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}
+                    </span>
                   )}
-                  <div className="dash-signal-list">
-                    {domainSignals.map((signal) => {
-                      const interpretation = interpretSignal(signal);
-                      const expanded = expandedKey === signal.key;
-                      return (
-                        <div className={`dash-signal-row ${expanded ? "is-expanded" : ""}`} key={signal.key} id={`signal-${signal.key}`}>
-                          <button
-                            type="button"
-                            className="dash-signal-row-toggle"
-                            aria-expanded={expanded}
-                            onClick={() => setExpandedKey(expanded ? null : signal.key)}
-                          >
-                            <div>
-                              <strong>{signal.label}</strong>
-                              {interpretation && (
-                                <span className={`signal-interpretation-pill is-${interpretation.verdict}`}>
-                                  {interpretation.label}
-                                </span>
-                              )}
-                            </div>
-                            {typeof signal.score === "number" && signal.availability !== "unavailable" && (
-                              <div className="signal-bar">
-                                <div
-                                  className={`signal-bar-fill ${signal.severity}`}
-                                  style={{ width: `${Math.max(0, Math.min(100, signal.score * 10))}%` }}
-                                />
-                              </div>
-                            )}
-                            <ChevronDown size={14} className={expanded ? "is-open" : ""} />
-                          </button>
-                          {expanded && <SignalCard signal={signal} interpretation={interpretation} />}
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
-              )}
+                <div className="profile-track dash-signal-domain-track">
+                  <i className={`is-${tone}`} style={{ width: `${Math.round((domain.score ?? 0) * 10)}%` }} />
+                </div>
+              </header>
+              <div className="dash-signal-list">
+                {domainSignals.map((signal) => {
+                  const interpretation = interpretSignal(signal);
+                  const expanded = expandedKey === signal.key;
+                  return (
+                    <article
+                      className={`dash-signal-row is-${interpretation?.verdict ?? signal.severity} ${expanded ? "is-expanded" : ""}`}
+                      key={signal.key}
+                      id={`signal-${signal.key}`}
+                    >
+                      <button
+                        type="button"
+                        className="dash-signal-row-toggle"
+                        aria-expanded={expanded}
+                        onClick={() => setExpandedKey(expanded ? null : signal.key)}
+                      >
+                        <span className="dash-signal-row-copy">
+                          <strong>{signal.label}</strong>
+                          {interpretation && (
+                            <span className={`signal-interpretation-pill is-${interpretation.verdict}`}>
+                              {interpretation.label}
+                            </span>
+                          )}
+                        </span>
+                        <span className="dash-signal-row-value">{signalValue(signal)}</span>
+                        <ChevronDown size={16} className={expanded ? "is-open" : ""} />
+                      </button>
+                      {expanded && (
+                        <div className="dash-signal-detail">
+                          {interpretation && (
+                            <SignalInterpretationBlock interpretation={interpretation} hidePill />
+                          )}
+                          <p className="signal-summary">{signal.summary}</p>
+                          <p className="signal-action"><strong>Check dit:</strong> {signal.action}</p>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
             </section>
           );
         })}

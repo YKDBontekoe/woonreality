@@ -3,15 +3,19 @@ import type { SignalInterpretation } from "@/src/lib/signal-interpretation";
 export function SignalInterpretationBlock({
   interpretation,
   compact = false,
+  hidePill = false,
 }: {
   interpretation: SignalInterpretation;
   compact?: boolean;
+  hidePill?: boolean;
 }) {
   return (
     <div className={`signal-interpretation ${compact ? "is-compact" : ""}`}>
-      <span className={`signal-interpretation-pill is-${interpretation.verdict}`}>
-        {interpretation.label}
-      </span>
+      {!hidePill && (
+        <span className={`signal-interpretation-pill is-${interpretation.verdict}`}>
+          {interpretation.label}
+        </span>
+      )}
       {interpretation.benchmark && !compact && (
         <div className="signal-benchmark" aria-hidden="true">
           <div className="signal-benchmark-track">

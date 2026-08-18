@@ -1,28 +1,44 @@
-export function ScoreDonut({ score }: { score: number }) {
+import { scoreBand } from "@/src/lib/report-summary";
+
+export function ScoreDonut({
+  score,
+  size = "md",
+}: {
+  score: number;
+  size?: "md" | "lg";
+}) {
   const clamped = Math.max(0, Math.min(10, score));
-  const radius = 36;
+  const radius = size === "lg" ? 46 : 36;
+  const view = size === "lg" ? 120 : 96;
+  const cx = view / 2;
   const circ = 2 * Math.PI * radius;
   const offset = circ * (1 - clamped / 10);
+  const stroke = {
+    good: "var(--ok)",
+    neutral: "var(--accent)",
+    attention: "var(--attention)",
+  }[scoreBand(score)];
+
   return (
-    <svg className="dash-donut" viewBox="0 0 96 96" aria-hidden="true">
-      <circle cx="48" cy="48" r={radius} fill="none" stroke="var(--line)" strokeWidth="8" />
+    <svg className={`dash-donut is-${size}`} viewBox={`0 0 ${view} ${view}`} aria-hidden="true">
+      <circle cx={cx} cy={cx} r={radius} fill="none" stroke="var(--line)" strokeWidth={size === "lg" ? 10 : 8} />
       <circle
-        cx="48"
-        cy="48"
+        cx={cx}
+        cy={cx}
         r={radius}
         fill="none"
-        stroke="var(--accent)"
-        strokeWidth="8"
+        stroke={stroke}
+        strokeWidth={size === "lg" ? 10 : 8}
         strokeDasharray={circ}
         strokeDashoffset={offset}
         strokeLinecap="round"
-        transform="rotate(-90 48 48)"
+        transform={`rotate(-90 ${cx} ${cx})`}
       />
       <text
-        x="48"
-        y="52"
+        x={cx}
+        y={cx + (size === "lg" ? 8 : 6)}
         textAnchor="middle"
-        fontSize="18"
+        fontSize={size === "lg" ? 28 : 18}
         fontFamily="Space Grotesk, sans-serif"
         fontWeight="600"
         fill="var(--ink)"

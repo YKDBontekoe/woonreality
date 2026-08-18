@@ -70,6 +70,7 @@ export function PropertyKpiStrip({
   ];
 
   const visible = variant === "compact" ? kpis.filter((kpi) => kpi.compact) : kpis;
+  if (variant === "compact" && !label && visible.every((kpi) => kpi.value === "—")) return null;
 
   return (
     <section className={`dash-kpis ${variant === "compact" ? "is-compact" : ""}`} aria-label="Kerncijfers">
