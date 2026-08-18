@@ -1,7 +1,10 @@
+import type { ListingHistoryItem } from "@/src/lib/listing-history";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { EMPTY_BUYER_PROFILE, type BuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import type { CalculatorState, MortgageSnapshot } from "@/src/lib/mortgage/calculator-state";
+
+export type { ListingHistoryItem };
 
 export type WorkspaceData = {
   preferences: PersonalPreferences;
@@ -13,6 +16,7 @@ export type WorkspaceData = {
   mortgageConfigured: boolean;
   onboardingDismissed: boolean;
   saved: SavedProperty[];
+  listingHistory: ListingHistoryItem[];
   compare: string[];
   propertyStages: Record<string, PropertyStage>;
   askingPrices: Record<string, number>;
@@ -28,6 +32,7 @@ export const emptyWorkspace = (): WorkspaceData => ({
   mortgageConfigured: false,
   onboardingDismissed: false,
   saved: [],
+  listingHistory: [],
   compare: [],
   propertyStages: {},
   askingPrices: {},

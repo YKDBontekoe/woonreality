@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Puzzle } from "lucide-react";
 import { ExtensionSetup } from "@/components/extension-setup";
+import { ListingHistoryFromWorkspace } from "@/components/listing-history";
 import { PageShell } from "@/components/ui/page-shell";
 import { getLatestExtensionRelease } from "@/src/lib/extension-release";
 
@@ -60,6 +61,10 @@ export default async function ExtensiePage() {
       <section>
         <h2>Koppelen</h2>
         <ExtensionSetup />
+      </section>
+
+      <section className="cockpit-section" id="funda-geschiedenis">
+        <ListingHistoryFromWorkspace compact />
       </section>
     </PageShell>
   );

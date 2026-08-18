@@ -4,6 +4,7 @@ import { ArrowRight, Check, CircleAlert, FileText, Hammer, Home, Landmark, MapPi
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
+import { ListingHistory } from "@/components/listing-history";
 import { PasskeySettings } from "@/components/passkey-settings";
 import { SignOutButton } from "@/components/sign-out-button";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
@@ -38,7 +39,7 @@ export function PurchaseCockpit({
   focusCase?: string;
   account?: AccountInfo | null;
 }) {
-  const { workspace, workspaceReady, workspaceError, setBuyerProfile, setPropertyStage, setListingPrice } = usePropertyWorkspace();
+  const { workspace, workspaceReady, workspaceError, authStatus, setBuyerProfile, setPropertyStage, setListingPrice, toggleCompare, saveHistoryItem, removeListingHistory } = usePropertyWorkspace();
   const [profile, setProfile] = useState<BuyerProfile>(EMPTY_BUYER_PROFILE);
   const [editingProfile, setEditingProfile] = useState(false);
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({});
@@ -138,7 +139,8 @@ export function PurchaseCockpit({
   }
 
   const hasHomes = workspace.saved.length > 0;
-  const firstRun = !hasHomes && initialCases.length === 0 && !mortgageConfigured;
+  const hasHistory = workspace.listingHistory.length > 0;
+  const firstRun = !hasHomes && !hasHistory && initialCases.length === 0 && !mortgageConfigured;
 
   return <main className="site-shell"><div className="container purchase-cockpit">
     <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>{firstRun ? "Begin met een adres." : "Jouw aankoopdashboard."}</h1><p className="hero-copy">{firstRun ? "Zoek een woning, klik op Bewaar, en alles wat je nodig hebt komt hier terug." : "Koopkracht, bewaarde huizen en dossiers op één plek — alsof je een makelaar meeneemt, maar dan voor jezelf."}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link>}</div>
@@ -151,8 +153,8 @@ export function PurchaseCockpit({
         <EmptyState
           icon={<Home size={20} />}
           title="Nog geen woningen bewaard"
-          text="Zoek een adres hieronder. Op de woningcheck klik je op Bewaar — daarna verschijnt het huis hier. Of begin met je hypotheek."
-          action={<Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> Hypotheek berekenen</Link>}
+          text="Zoek een adres hieronder. Op de woningcheck klik je op Bewaar — daarna verschijnt het huis hier. Of open Funda-advertenties met de extensie."
+          action={<span className="listing-history-empty-actions"><Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> Hypotheek berekenen</Link><Link className="secondary-button" href="/extensie"><Puzzle size={14} /> Funda-extensie</Link></span>}
         />
         <AddressSearch submitLabel="Bekijk adres" />
       </section>
@@ -197,6 +199,17 @@ export function PurchaseCockpit({
           </section>
           <section className="cockpit-card next-action-card"><div className="section-kicker">Jouw volgende stap</div><h2>{nextAction.title}</h2><p>{nextAction.text}</p><Link className="primary-button" href={nextAction.href as never}>Open stap <ArrowRight size={15} /></Link><div className="action-note"><ShieldCheck size={14} /> WoonReality verstuurt geen bod en vervangt geen notaris of keurder.</div></section>
         </div>
+
+        <section className="cockpit-section" id="funda-geschiedenis">
+          <ListingHistory
+            workspace={workspace}
+            workspaceReady={workspaceReady}
+            authStatus={authStatus}
+            toggleCompare={toggleCompare}
+            saveHistoryItem={saveHistoryItem}
+            removeListingHistory={removeListingHistory}
+          />
+        </section>
 
         <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> stap 02 · mijn woningen</div><h2>Je woningbord</h2><p>Per huis: past het bij je koopkracht, wat blijft over voor verbouwing, en wat is de volgende status.</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> Adres zoeken</Link></div>
           {!hasHomes ? (

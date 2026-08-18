@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ListingHistoryItem } from "@/src/lib/listing-history";
 import type { PersonalPreferences, Property } from "@/src/lib/types";
 import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
 import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
@@ -77,6 +78,38 @@ export function usePropertyWorkspace() {
     await mutate({ action: "compare", compare });
   }, [mutate, workspace.compare]);
 
+  const saveHistoryItem = useCallback(async (item: ListingHistoryItem) => {
+    const exists = workspace.saved.some((saved) => saved.bagVboId === item.bagVboId);
+    if (exists) return { ok: true } as const;
+    return mutate({
+      action: "save",
+      bagVboId: item.bagVboId,
+      addressLabel: item.addressLabel,
+      city: item.city || "Onbekend",
+      postcode: item.postcode || "onbekend",
+      ...(item.askingPrice && item.askingPrice > 0 ? { askingPrice: item.askingPrice } : {}),
+    });
+  }, [mutate, workspace.saved]);
+
+  const removeListingHistory = useCallback(async (bagVboId: string): Promise<WorkspaceMutationResult> => {
+    try {
+      const response = await fetch(`/api/listing/user/${encodeURIComponent(bagVboId)}`, { method: "DELETE" });
+      const body = await response.json() as { error?: string };
+      if (response.status === 401) {
+        setAuthStatus("anonymous");
+        window.location.href = "/login";
+        return { ok: false, error: "Log in om wijzigingen te bewaren." };
+      }
+      if (!response.ok) throw new Error(body.error ?? "Advertentie kon niet uit de geschiedenis worden gehaald.");
+      await refresh();
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Advertentie kon niet uit de geschiedenis worden gehaald.";
+      setWorkspaceError(message);
+      return { ok: false, error: message };
+    }
+  }, [refresh]);
+
   const setPreferences = useCallback(async (preferences: PersonalPreferences) => mutate({ action: "profile", preferences }), [mutate]);
 
   const setBuyerProfile = useCallback(async (buyerProfile: BuyerProfile) => mutate({ action: "profile", buyerProfile }), [mutate]);
@@ -97,6 +130,8 @@ export function usePropertyWorkspace() {
     authenticated: authStatus === "authenticated",
     toggleSaved,
     toggleCompare,
+    saveHistoryItem,
+    removeListingHistory,
     setPreferences,
     setBuyerProfile,
     setPropertyStage,

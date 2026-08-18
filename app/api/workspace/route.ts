@@ -13,6 +13,7 @@ import { parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { listingHistoryFromRows, type ListingHistoryRow } from "@/src/lib/listing-history";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
 
@@ -43,7 +44,7 @@ async function readWorkspace() {
   const [{ data: profile, error: profileError }, { data: saved, error: savedError }, { data: listings, error: listingsError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.from("saved_properties").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
-    supabase.from("user_listings").select("bag_vbo_id, asking_price").eq("user_id", user.id),
+    supabase.from("user_listings").select("bag_vbo_id, source_url, asking_price, extracted_json, created_at, updated_at").eq("user_id", user.id),
   ]);
   if (profileError) throw profileError;
   if (savedError) throw savedError;
@@ -53,11 +54,13 @@ async function readWorkspace() {
   const buyerProfile = normalizeBuyerProfile(profilePreferences.buyerProfile ?? EMPTY_BUYER_PROFILE);
   const preferences = { ...DEFAULT_PREFERENCES, ...record(profilePreferences.personalPreferences) } as PersonalPreferences;
   const propertyStages = Object.fromEntries(savedProperties.map((item) => [item.bag_vbo_id, isStage(item.stage) ? item.stage : "saved"]));
+  const listingRows = (listings ?? []) as ListingHistoryRow[];
   const askingPrices = Object.fromEntries(
-    ((listings ?? []) as Array<{ bag_vbo_id: string; asking_price: number | null }>)
-      .filter((item) => typeof item.asking_price === "number" && Number.isFinite(item.asking_price) && item.asking_price > 0)
-      .map((item) => [item.bag_vbo_id, item.asking_price as number]),
+    listingRows
+      .filter((item) => typeof item.asking_price === "number" && Number.isFinite(item.asking_price) && item.asking_price > 0 && item.bag_vbo_id)
+      .map((item) => [item.bag_vbo_id as string, item.asking_price as number]),
   );
+  const listingHistory = listingHistoryFromRows(listingRows);
   const mortgageRaw = profilePreferences.mortgageState;
   const mortgageRecord = record(mortgageRaw);
   const mortgageState = mortgageRaw ? restoreCalculatorState(mortgageRaw) : null;
@@ -91,6 +94,7 @@ async function readWorkspace() {
         savedAt: item.saved_at,
         askingPrice: askingPrices[item.bag_vbo_id] ?? null,
       })),
+      listingHistory,
       compare: Array.isArray(profile?.compare_ids) ? profile.compare_ids.filter(isBagId).slice(0, 4) : [],
       propertyStages,
       askingPrices,
