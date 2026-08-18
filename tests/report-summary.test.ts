@@ -102,11 +102,19 @@ test("triageSignals buckets unscored attention signals and groups by domain", ()
     baseSignal({ key: "noise", label: "Geluid", category: "gezondheid", score: 4.2, severity: "attention" }),
     baseSignal({ key: "missing", label: "Leeg", availability: "unavailable" }),
     baseSignal({ key: "green", label: "Groen", category: "klimaat", score: 8.5, severity: "good" }),
+    baseSignal({ key: "schools", label: "Scholen", category: "buurt", score: 6.2, severity: "neutral" }),
+    baseSignal({ key: "water", label: "Water", category: "klimaat", score: 9.1, severity: "good" }),
+    baseSignal({ key: "air", label: "Lucht", category: "gezondheid", score: 3.4, severity: "attention" }),
+    baseSignal({ key: "ses", label: "SES", category: "buurt", score: 5.5, severity: "neutral" }),
   ]);
 
-  assert.equal(triaged.attention.length, 2);
+  assert.equal(triaged.attention.length, 3);
+  assert.equal(triaged.watch.length, 2);
   assert.equal(triaged.unavailable.length, 1);
-  assert.equal(triaged.good.length, 1);
+  assert.equal(triaged.good.length, 2);
+  assert.deepEqual(triaged.watch.map((item) => item.key), ["ses", "schools"]);
+  assert.deepEqual(triaged.good.map((item) => item.key), ["water", "green"]);
+  assert.deepEqual(triaged.attention.map((item) => item.key), ["air", "noise", "foundation"]);
   assert.equal(triaged.byDomain.woning?.length, 1);
-  assert.equal(triaged.byDomain.gezondheid?.length, 1);
+  assert.equal(triaged.byDomain.gezondheid?.length, 2);
 });

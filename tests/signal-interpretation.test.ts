@@ -97,3 +97,52 @@ test("interpretationForDomain summarizes domain labels", () => {
   ]);
   assert.match(text, /Buurt & voorzieningen:/);
 });
+
+test("noise and ses benchmark markers share the you-marker scale", () => {
+  const noise = interpretSignal(
+    signal({
+      key: "noise",
+      label: "Geluid",
+      raw: { value: 60, unit: "dB", metric: "Lden wegverkeer" },
+    }),
+  );
+  const noiseYou = noise?.benchmark?.markers.find((marker) => marker.kind === "you");
+  const noiseReference = noise?.benchmark?.markers.find((marker) => marker.kind === "reference");
+  assert.equal(noiseYou?.position, noise?.benchmark?.position);
+  assert.equal(noiseReference?.position, 29);
+
+  const ses = interpretSignal(
+    signal({
+      key: "ses",
+      label: "SES",
+      category: "buurt",
+      raw: { value: 0.1, unit: "SES-WOA", metric: "CBS gemiddelde totaalscore" },
+    }),
+  );
+  const sesReference = ses?.benchmark?.markers.find((marker) => marker.kind === "reference");
+  assert.equal(sesReference?.position, 50);
+  assert.equal(ses?.benchmark?.precision, 3);
+});
+
+test("air interpretation does not treat NOISE as NO2 and parses km strings", () => {
+  const pm = interpretSignal(
+    signal({
+      value: "12 µg/m³",
+      raw: { value: 12, unit: "µg/m³", metric: "RIVM jaargemiddelde PM2.5" },
+    }),
+  );
+  assert.equal(pm?.benchmark?.referenceValue, SIGNAL_BENCHMARKS.WHO_PM25);
+  assert.equal(pm?.label, "Boven EU-jaarlimiet");
+
+  const transit = interpretSignal(
+    signal({
+      key: "transit",
+      label: "OV",
+      category: "mobiliteit",
+      value: "1,2 km",
+      unit: undefined,
+      raw: undefined,
+    }),
+  );
+  assert.equal(transit?.label, "Verder weg");
+});

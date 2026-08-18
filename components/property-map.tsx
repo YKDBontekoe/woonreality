@@ -134,11 +134,10 @@ export function PropertyMap({
   const [overlays, setOverlays] = useState(() => defaultMapOverlays(signals));
   const [layerError, setLayerError] = useState<string | null>(null);
   const overlaysRef = useRef(overlays);
-  overlaysRef.current = overlays;
   const probeRef = useRef(probe);
-  probeRef.current = probe;
   const pitchedRef = useRef(pitched);
   pitchedRef.current = pitched;
+  const focusPopupRef = useRef<mapboxgl.Popup | null>(null);
   const contextLayersRef = useRef<MapLayersResponse | null>(null);
   const walkDataRef = useRef<GeoJsonFeatureCollection | null>(null);
   const layerEventsRef = useRef({ nearby: false, ndov: false, probe: false });
@@ -147,6 +146,11 @@ export function PropertyMap({
   const lng = property.coordinates.lng;
   const lat = property.coordinates.lat;
   const houseNumber = String(property.houseNumber) + (property.houseLetter ?? "");
+
+  useEffect(() => {
+    overlaysRef.current = overlays;
+    probeRef.current = probe;
+  }, [overlays, probe]);
 
   const applyOverlays = useCallback((map: mapboxgl.Map, next: Record<OverlayId, boolean>) => {
     setVisible(map, "nearby-homes", next.nearby);
@@ -502,6 +506,7 @@ export function PropertyMap({
     map.addControl(new mapboxgl.FullscreenControl(), "bottom-right");
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 110, unit: "metric" }), "bottom-right");
 
+    const probeAbort = new AbortController();
     map.on("load", () => {
       restoreRef.current(map);
       if (!reduceMotion) {
@@ -522,13 +527,23 @@ export function PropertyMap({
           if (!raster) return;
           if (map.queryRenderedFeatures(event.point, { layers: ["nearby-homes", "ndov-stops"].filter((id) => map.getLayer(id)) }).length) return;
           if (probeRef.current && !overlaysRef.current[raster]) {
+            const next = { ...overlaysRef.current, [raster]: true };
+            setOverlays(next);
             ensureRivmRef.current(map, raster);
-            applyOverlaysRef.current(map, { ...overlaysRef.current, [raster]: true });
+            applyOverlaysRef.current(map, next);
           }
-          const response = await fetch(`/api/map/rivm/sample?layer=${raster}&lat=${event.lngLat.lat}&lng=${event.lngLat.lng}`);
+          let response: Response;
+          try {
+            response = await fetch(`/api/map/rivm/sample?layer=${raster}&lat=${event.lngLat.lat}&lng=${event.lngLat.lng}`, {
+              signal: probeAbort.signal,
+            });
+          } catch {
+            return;
+          }
           if (!response.ok) return;
           const sample = (await response.json()) as { value?: number; unit?: string };
           if (sample.value == null) return;
+          if (mapInstance.current !== map) return;
           new mapboxgl.Popup({ offset: 8, className: "map-popup" })
             .setLngLat(event.lngLat)
             .setHTML(`<strong>${raster === "noise" ? "Geluid" : raster.toUpperCase()}</strong><br/>${sample.value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} ${escapeHtml(sample.unit ?? "")}<br/><small>RIVM-screening, geen gevelmeting</small>`)
@@ -547,6 +562,7 @@ export function PropertyMap({
 
     mapInstance.current = map;
     return () => {
+      probeAbort.abort();
       observer.disconnect();
       homeMarkerRef.current = null;
       layerEventsRef.current = { nearby: false, ndov: false, probe: false };
@@ -583,13 +599,19 @@ export function PropertyMap({
       duration: 700,
     });
     const area = home.areaM2 ? `${home.areaM2} m² · ` : "";
-    new mapboxgl.Popup({ offset: 10, className: "map-popup" })
+    focusPopupRef.current?.remove();
+    const popup = new mapboxgl.Popup({ offset: 10, className: "map-popup" })
       .setLngLat([home.coordinates.lng, home.coordinates.lat])
       .setHTML(
         `<strong>${escapeHtml(home.addressLabel)}</strong><br/>${escapeHtml(area)}${home.distanceM} m`
         + `<br/><a href="/woning/${encodeURIComponent(home.bagVboId)}">Open woningcheck</a>`,
       )
       .addTo(map);
+    focusPopupRef.current = popup;
+    return () => {
+      popup.remove();
+      if (focusPopupRef.current === popup) focusPopupRef.current = null;
+    };
   }, [focusBagId, nearbyProperties]);
 
   async function applyScene(nextScene: MapSceneId) {
@@ -676,6 +698,7 @@ export function PropertyMap({
               key={item.id}
               type="button"
               className={scene === item.id ? "selected" : undefined}
+              aria-pressed={scene === item.id}
               onClick={() => { void applyScene(item.id); }}
             >
               {item.label}
@@ -686,7 +709,7 @@ export function PropertyMap({
           <button type="button" onClick={() => setPitched((value) => !value)}>
             <Box size={13} /> {pitched ? "Plat" : "3D"}
           </button>
-          <button type="button" className={probe ? "selected" : undefined} onClick={() => setProbe((value) => !value)}>
+          <button type="button" className={probe ? "selected" : undefined} aria-pressed={probe} onClick={() => setProbe((value) => !value)}>
             <Crosshair size={13} /> Meet
           </button>
           <button type="button" onClick={recenter}>

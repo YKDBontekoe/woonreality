@@ -17,8 +17,8 @@ export function SignalInterpretationBlock({
         </span>
       )}
       {interpretation.benchmark && !compact && (
-        <div className="signal-benchmark" aria-hidden="true">
-          <div className="signal-benchmark-track">
+        <div className="signal-benchmark">
+          <div className="signal-benchmark-track" aria-hidden="true">
             {interpretation.benchmark.markers.map((marker) => (
               <i
                 className={`signal-benchmark-marker is-${marker.kind}`}
@@ -36,11 +36,12 @@ export function SignalInterpretationBlock({
                   : marker.kind === "reference"
                     ? interpretation.benchmark?.referenceValue
                     : interpretation.benchmark?.secondaryReferenceValue;
+              const digits = interpretation.benchmark?.precision ?? 1;
               return (
                 <span key={`legend-${marker.kind}-${marker.label}`}>
                   <i className={`signal-benchmark-swatch is-${marker.kind}`} />
                   {marker.label}
-                  {value != null && ` ${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}`}
+                  {value != null && ` ${value.toLocaleString("nl-NL", { maximumFractionDigits: digits })}`}
                 </span>
               );
             })}

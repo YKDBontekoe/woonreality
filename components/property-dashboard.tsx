@@ -115,10 +115,16 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   const selectTab = useCallback((next: TabId) => {
     setTab(next);
-    setVisitedTabs((current) => new Set(current).add(next));
+    setVisitedTabs((current) => {
+      if (current.has(next)) return current;
+      const nextVisited = new Set(current);
+      nextVisited.add(next);
+      return nextVisited;
+    });
     const hash = TABS.find((item) => item.id === next)?.hash ?? "#overzicht";
     window.history.replaceState(null, "", hash);
   }, []);
+  const tabButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     const initial = hashToTab(window.location.hash);
@@ -573,7 +579,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       />
 
       <nav className="dashboard-tabs" role="tablist" aria-label="Dashboardsecties">
-        {TABS.map((item) => (
+        {TABS.map((item, index) => (
           <button
             key={item.id}
             type="button"
@@ -581,8 +587,23 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             id={`tab-${item.id}`}
             aria-selected={tab === item.id}
             aria-controls={`panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
             className={tab === item.id ? "is-on" : ""}
+            ref={(node) => {
+              tabButtonRefs.current[index] = node;
+            }}
             onClick={() => selectTab(item.id)}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              const currentIndex = TABS.findIndex((entry) => entry.id === tab);
+              const delta = event.key === "ArrowRight" ? 1 : -1;
+              const nextIndex = (currentIndex + delta + TABS.length) % TABS.length;
+              const next = TABS[nextIndex];
+              if (!next) return;
+              selectTab(next.id);
+              tabButtonRefs.current[nextIndex]?.focus();
+            }}
           >
             {item.label}
           </button>

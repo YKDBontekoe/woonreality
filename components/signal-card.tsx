@@ -58,7 +58,7 @@ export function SignalCard({
         <div className="signal-bar">
           <div
             className={`signal-bar-fill ${signal.severity}`}
-            style={{ width: `${Math.max(0, Math.min(100, score * 10))}%` }}
+            style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
           />
         </div>
       )}

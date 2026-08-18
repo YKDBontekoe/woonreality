@@ -58,7 +58,7 @@ export function buildVerdict(analysis: Analysis): Verdict {
 
   const summary =
     tone === "good"
-      ? `Omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10. ${analysis.dataCoverage.label.toLowerCase()}.`
+      ? `Omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10. ${analysis.dataCoverage.label}.`
       : tone === "attention"
         ? `${attentionHighlights.length} punt${attentionHighlights.length === 1 ? "" : "en"} vragen extra aandacht naast de omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10.`
         : `Omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10 met zowel pluspunten als aandachtspunten. ${analysis.dataCoverage.label}.`;
@@ -81,8 +81,9 @@ export function topThings(analysis: Analysis, limit = 3): TopThing[] {
 
   for (const highlight of analysis.highlights ?? []) {
     if (highlight.type !== "attention") continue;
-    if (seen.has(highlight.signalKey)) continue;
-    seen.add(highlight.signalKey);
+    const key = `signal:${highlight.signalKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const signal = analysis.signals.find((item) => item.key === highlight.signalKey);
     items.push({
       tone: "attention",
@@ -94,17 +95,18 @@ export function topThings(analysis: Analysis, limit = 3): TopThing[] {
   }
 
   for (const insight of analysis.everydayInsights ?? []) {
-    const keys = insight.signalKeys.join("\0");
-    if (seen.has(keys)) continue;
-    seen.add(keys);
+    const key = `insight:${insight.signalKeys.join("\0")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     items.push(insightToTopThing(insight));
     if (items.length >= limit) return items;
   }
 
   for (const highlight of analysis.highlights ?? []) {
     if (highlight.type !== "positive") continue;
-    if (seen.has(highlight.signalKey)) continue;
-    seen.add(highlight.signalKey);
+    const key = `signal:${highlight.signalKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const signal = analysis.signals.find((item) => item.key === highlight.signalKey);
     items.push({
       tone: "good",

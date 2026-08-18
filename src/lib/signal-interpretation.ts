@@ -20,6 +20,7 @@ export type SignalBenchmark = {
   position: number;
   direction: "lower-is-better" | "higher-is-better" | "center-is-typical";
   markers: SignalBenchmarkMarker[];
+  precision?: number;
 };
 
 export type SignalInterpretation = {
@@ -32,6 +33,7 @@ export type SignalInterpretation = {
 const WHO_NO2 = 10;
 const EU_NO2 = 40;
 const WHO_PM25 = 5;
+const EU_PM25 = 10;
 const NOISE_QUIET = 55;
 const NOISE_AVERAGE = 65;
 const NOISE_LOUD = 70;
@@ -46,6 +48,7 @@ function buildBenchmark(input: {
   max: number;
   direction: SignalBenchmark["direction"];
   secondary?: { label: string; value: number };
+  precision?: number;
 }): SignalBenchmark {
   const position = clampPosition(input.value, input.min, input.max);
   return {
@@ -57,11 +60,12 @@ function buildBenchmark(input: {
     unit: input.unit,
     position,
     direction: input.direction,
+    precision: input.precision,
     markers: benchmarkMarkers(
-      input.value,
       position,
       input.referenceLabel,
       input.referenceValue,
+      input.min,
       input.max,
       input.secondary,
     ),
@@ -74,26 +78,25 @@ function clampPosition(value: number, min: number, max: number) {
 }
 
 function benchmarkMarkers(
-  _value: number,
   position: number,
   referenceLabel: string,
   referenceValue: number,
+  scaleMin: number,
   scaleMax: number,
   secondary?: { label: string; value: number },
 ): SignalBenchmarkMarker[] {
-  const min = 0;
   const markers: SignalBenchmarkMarker[] = [
     { label: "Jij", position, kind: "you" },
     {
       label: referenceLabel,
-      position: clampPosition(referenceValue, min, scaleMax),
+      position: clampPosition(referenceValue, scaleMin, scaleMax),
       kind: "reference",
     },
   ];
   if (secondary) {
     markers.push({
       label: secondary.label,
-      position: clampPosition(secondary.value, min, scaleMax),
+      position: clampPosition(secondary.value, scaleMin, scaleMax),
       kind: "secondary",
     });
   }
@@ -114,16 +117,20 @@ function scoreLabel(score: number): { verdict: InterpretationVerdict; label: str
 }
 
 function distanceKmFromSignal(signal: Signal): number | null {
+  if (typeof signal.value === "string" && /km/i.test(signal.value)) {
+    const parsed = Number.parseFloat(signal.value.replace(",", "."));
+    if (Number.isFinite(parsed)) return parsed;
+  }
   const value = numericRaw(signal);
   if (value == null) return null;
   const unit = signal.raw?.unit ?? signal.unit;
   if (unit === "km") return value;
   if (unit === "m") return value / 1000;
-  if (typeof signal.value === "string" && signal.value.includes("km")) {
-    const parsed = Number.parseFloat(signal.value.replace(",", "."));
-    return Number.isFinite(parsed) ? parsed : null;
-  }
   return null;
+}
+
+function mentionsNo2(text: string) {
+  return /NO\u2082|\bNO2\b/i.test(text);
 }
 
 function distanceLabel(km: number): { verdict: InterpretationVerdict; label: string; explainer: string } {
@@ -160,9 +167,9 @@ function interpretAir(signal: Signal): SignalInterpretation | null {
   const value = numericRaw(signal);
   if (value == null) return null;
 
-  const isNo2 = metric.includes("NO") || String(signal.value).includes("NO");
+  const isNo2 = mentionsNo2(metric) || mentionsNo2(String(signal.value));
   const whoLimit = isNo2 ? WHO_NO2 : WHO_PM25;
-  const euLimit = isNo2 ? EU_NO2 : WHO_PM25 * 4;
+  const euLimit = isNo2 ? EU_NO2 : EU_PM25;
   const pollutant = isNo2 ? "stikstofdioxide (NO₂)" : "fijnstof (PM₂·₅)";
 
   let verdict: InterpretationVerdict = "neutral";
@@ -264,13 +271,11 @@ function interpretSes(signal: Signal): SignalInterpretation | null {
   const value = numericRaw(signal);
   if (value == null) return null;
 
-  let verdict: InterpretationVerdict = "neutral";
+  const verdict: InterpretationVerdict = "neutral";
   let label = "Rond NL-gemiddelde";
   if (value <= -SES_TYPICAL) {
-    verdict = "neutral";
     label = "Onder NL-gemiddelde";
   } else if (value >= SES_TYPICAL) {
-    verdict = "neutral";
     label = "Boven NL-gemiddelde";
   }
 
@@ -286,6 +291,7 @@ function interpretSes(signal: Signal): SignalInterpretation | null {
       min: -1,
       max: 1,
       direction: "center-is-typical",
+      precision: 3,
     }),
   };
 }
@@ -417,6 +423,7 @@ export const SIGNAL_BENCHMARKS = {
   WHO_NO2,
   EU_NO2,
   WHO_PM25,
+  EU_PM25,
   NL_CRIME_PER_1000,
   NOISE_QUIET,
   NOISE_AVERAGE,

@@ -1717,6 +1717,6 @@ button.text-link { background: none; border: 0; padding: 0; }
 }
 @media print {
   .dash-dock, .dashboard-tabs { display: none !important; }
-  .dash-tab-panel { display: block !important; margin-bottom: 24px; page-break-inside: avoid; }
+  .dash-tab-panel { display: block !important; margin-bottom: 24px; break-inside: avoid; }
 }
 

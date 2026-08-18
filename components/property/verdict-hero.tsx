@@ -96,7 +96,7 @@ export function VerdictHero({
       </div>
       {things.length > 0 && (
         <div className="dash-verdict-things">
-          <div className="section-kicker">3 dingen om te weten</div>
+          <div className="section-kicker">{things.length === 1 ? "1 ding om te weten" : `${things.length} dingen om te weten`}</div>
           <ul className="dash-verdict-thing-grid">
             {things.map((thing) => (
               <li key={`${thing.title}-${thing.text.slice(0, 24)}`}>

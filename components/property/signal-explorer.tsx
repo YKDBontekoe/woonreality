@@ -22,7 +22,7 @@ function matchesFilter(filter: FilterId, signal: Signal, triaged: ReturnType<typ
   if (filter === "focus") {
     return triaged.attention.includes(signal) || triaged.watch.includes(signal);
   }
-  if (filter === "attention") return triaged.attention.includes(signal) || triaged.watch.includes(signal);
+  if (filter === "attention") return triaged.attention.includes(signal);
   if (filter === "good") return triaged.good.includes(signal);
   return triaged.unavailable.includes(signal);
 }
@@ -51,21 +51,13 @@ export function SignalExplorer({
     if (!focusSignalKey) return;
     setExpandedKey(focusSignalKey);
     setFilter("all");
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       document.getElementById(`signal-${focusSignalKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 80);
+    return () => window.clearTimeout(timer);
   }, [focusSignalKey]);
 
-  const visibleCount =
-    filter === "focus"
-      ? triaged.attention.length + triaged.watch.length
-      : filter === "attention"
-        ? triaged.attention.length + triaged.watch.length
-        : filter === "good"
-          ? triaged.good.length
-          : filter === "unavailable"
-            ? triaged.unavailable.length
-            : analysis.signals.length;
+  const visibleCount = analysis.signals.filter((signal) => matchesFilter(filter, signal, triaged)).length;
 
   return (
     <section className="dash-signal-explorer" id="signalen">
@@ -78,12 +70,13 @@ export function SignalExplorer({
           </p>
         </div>
       </div>
-      <div className="dash-point-filters" role="tablist" aria-label="Signaalfilters">
+      <div className="dash-point-filters" role="group" aria-label="Signaalfilters">
         {FILTERS.map((item) => (
           <button
             key={item.id}
             type="button"
             className={filter === item.id ? "is-on" : ""}
+            aria-pressed={filter === item.id}
             onClick={() => setFilter(item.id)}
           >
             {item.label}
