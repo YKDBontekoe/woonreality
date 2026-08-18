@@ -7,6 +7,12 @@ import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-inta
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type { AddressSearchResult, PropertyListing } from "@/src/lib/types";
 
+function addressSuggestionSubtitle(displayName: string) {
+  const parts = displayName.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) return parts.slice(1).join(", ");
+  return "Nederland";
+}
+
 const quickAddresses = ["Korenstraat 18, Epe", "Witte de Withstraat 42, Rotterdam", "Biltstraat 65, Utrecht"];
 
 type SearchMode = "adres" | "funda";
@@ -266,7 +272,7 @@ export function AddressSearch({
               <span className="suggestion-icon" aria-hidden="true"><MapPin size={15} /></span>
               <span className="suggestion-text">
                 <span>{result.displayName}</span>
-                <small>Officieel adres</small>
+                <small>{addressSuggestionSubtitle(result.displayName)}</small>
               </span>
             </button>
           ))}

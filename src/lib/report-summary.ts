@@ -1,7 +1,6 @@
 import type {
   Analysis,
   EverydayInsight,
-  PropertyListing,
   Signal,
   SignalCategory,
 } from "@/src/lib/types";
@@ -37,10 +36,7 @@ function toneFromScore(score: number): VerdictTone {
   return "attention";
 }
 
-export function buildVerdict(
-  analysis: Analysis,
-  _listing?: PropertyListing | null,
-): Verdict {
+export function buildVerdict(analysis: Analysis): Verdict {
   const attentionHighlights = (analysis.highlights ?? []).filter(
     (item) => item.type === "attention",
   );

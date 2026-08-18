@@ -1,8 +1,14 @@
 import { NL_CRIME_PER_1000 } from "@/src/lib/sources/politie";
 import { scoreSeverity } from "@/src/lib/scoring/score";
-import type { DomainSummary, Severity, Signal, SignalCategory } from "@/src/lib/types";
+import type { DomainSummary, Severity, Signal } from "@/src/lib/types";
 
 export type InterpretationVerdict = "good" | "neutral" | "attention";
+
+export type SignalBenchmarkMarker = {
+  label: string;
+  position: number;
+  kind: "you" | "reference" | "secondary";
+};
 
 export type SignalBenchmark = {
   referenceLabel: string;
@@ -13,6 +19,7 @@ export type SignalBenchmark = {
   unit?: string;
   position: number;
   direction: "lower-is-better" | "higher-is-better" | "center-is-typical";
+  markers: SignalBenchmarkMarker[];
 };
 
 export type SignalInterpretation = {
@@ -30,9 +37,67 @@ const NOISE_AVERAGE = 65;
 const NOISE_LOUD = 70;
 const SES_TYPICAL = 0.5;
 
+function buildBenchmark(input: {
+  referenceLabel: string;
+  referenceValue: number;
+  value: number;
+  unit?: string;
+  min: number;
+  max: number;
+  direction: SignalBenchmark["direction"];
+  secondary?: { label: string; value: number };
+}): SignalBenchmark {
+  const position = clampPosition(input.value, input.min, input.max);
+  return {
+    referenceLabel: input.referenceLabel,
+    referenceValue: input.referenceValue,
+    secondaryReferenceLabel: input.secondary?.label,
+    secondaryReferenceValue: input.secondary?.value,
+    value: input.value,
+    unit: input.unit,
+    position,
+    direction: input.direction,
+    markers: benchmarkMarkers(
+      input.value,
+      position,
+      input.referenceLabel,
+      input.referenceValue,
+      input.max,
+      input.secondary,
+    ),
+  };
+}
+
 function clampPosition(value: number, min: number, max: number) {
   if (max <= min) return 50;
   return Math.round(Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)));
+}
+
+function benchmarkMarkers(
+  _value: number,
+  position: number,
+  referenceLabel: string,
+  referenceValue: number,
+  scaleMax: number,
+  secondary?: { label: string; value: number },
+): SignalBenchmarkMarker[] {
+  const min = 0;
+  const markers: SignalBenchmarkMarker[] = [
+    { label: "Jij", position, kind: "you" },
+    {
+      label: referenceLabel,
+      position: clampPosition(referenceValue, min, scaleMax),
+      kind: "reference",
+    },
+  ];
+  if (secondary) {
+    markers.push({
+      label: secondary.label,
+      position: clampPosition(secondary.value, min, scaleMax),
+      kind: "secondary",
+    });
+  }
+  return markers;
 }
 
 function numericRaw(signal: Signal): number | null {
@@ -117,16 +182,16 @@ function interpretAir(signal: Signal): SignalInterpretation | null {
     verdict,
     label,
     explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} µg/m³ ${pollutant} is een buurtgemiddelde uit RIVM-data — lager is gezonder, maar ventilatie en verkeer op straatniveau tellen ook mee.`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "WHO",
       referenceValue: whoLimit,
-      secondaryReferenceLabel: isNo2 ? "EU" : undefined,
-      secondaryReferenceValue: isNo2 ? euLimit : undefined,
       value,
       unit: "µg/m³",
-      position: clampPosition(value, 0, euLimit * 1.2),
+      min: 0,
+      max: euLimit * 1.2,
       direction: "lower-is-better",
-    },
+      secondary: isNo2 ? { label: "EU", value: euLimit } : undefined,
+    }),
   };
 }
 
@@ -151,16 +216,16 @@ function interpretNoise(signal: Signal): SignalInterpretation | null {
     verdict,
     label,
     explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} dB Lden is een modelwaarde voor wegverkeersgeluid — luister tijdens de bezichtiging met open ramen op verschillende tijdstippen.`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "Rustig",
       referenceValue: NOISE_QUIET,
-      secondaryReferenceLabel: "Luid",
-      secondaryReferenceValue: NOISE_LOUD,
       value,
       unit: "dB",
-      position: clampPosition(value, 45, 80),
+      min: 45,
+      max: 80,
       direction: "lower-is-better",
-    },
+      secondary: { label: "Luid", value: NOISE_LOUD },
+    }),
   };
 }
 
@@ -183,14 +248,15 @@ function interpretCrime(signal: Signal): SignalInterpretation | null {
     verdict,
     label,
     explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} geregistreerde misdrijven per 1.000 inwoners — landelijk gemiddelde circa ${NL_CRIME_PER_1000}. Alleen politiecijfers, geen voorspelling voor jouw woning.`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "NL gem.",
       referenceValue: NL_CRIME_PER_1000,
       value,
       unit: "per 1.000",
-      position: clampPosition(value, 0, NL_CRIME_PER_1000 * 2),
+      min: 0,
+      max: NL_CRIME_PER_1000 * 2,
       direction: "lower-is-better",
-    },
+    }),
   };
 }
 
@@ -212,14 +278,15 @@ function interpretSes(signal: Signal): SignalInterpretation | null {
     verdict,
     label,
     explainer: `SES-WOA ${value.toLocaleString("nl-NL", { signDisplay: "exceptZero", maximumFractionDigits: 3 })} — Nederland ≈ 0. Dit is buurtcontext over welvaart, opleiding en werk, geen oordeel over de woning of je buren.`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "NL ≈ 0",
       referenceValue: 0,
       value,
       unit: "SES-WOA",
-      position: clampPosition(value, -1, 1),
+      min: -1,
+      max: 1,
       direction: "center-is-typical",
-    },
+    }),
   };
 }
 
@@ -231,14 +298,15 @@ function interpretDistanceSignal(signal: Signal, noun: string): SignalInterpreta
     verdict,
     label,
     explainer: `${noun}: ${explainer} CBS geeft buurtgemiddelden, geen exacte looproute vanaf de voordeur.`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "1 km",
       referenceValue: 1,
       value: km,
       unit: "km",
-      position: clampPosition(km, 0, 3),
+      min: 0,
+      max: 3,
       direction: "lower-is-better",
-    },
+    }),
   };
 }
 
@@ -263,14 +331,15 @@ function interpretScored(signal: Signal): SignalInterpretation {
     verdict,
     label,
     explainer: `${label} op onze 0–10 schaal (${signal.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}). ${signal.summary}`,
-    benchmark: {
+    benchmark: buildBenchmark({
       referenceLabel: "Midden",
       referenceValue: 5,
       value: signal.score,
       unit: "/ 10",
-      position: clampPosition(signal.score, 0, 10),
+      min: 0,
+      max: 10,
       direction: "higher-is-better",
-    },
+    }),
   };
 }
 
