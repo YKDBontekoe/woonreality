@@ -15,6 +15,21 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
   const housingTypeParam = url.searchParams.get("housingType");
 
   try {
+    const parseVveContribution = (input: string | null): number | undefined | null => {
+      if (input == null) return undefined;
+      const value = Number(input);
+      if (!Number.isFinite(value)) return null;
+      if (value < 0) return null;
+      // Keep in sync with listing extraction schema constraints.
+      if (value > 100_000) return null;
+      return value;
+    };
+
+    const parsedVve = parseVveContribution(vveParam);
+    if (parsedVve === null) {
+      return NextResponse.json({ error: "Ongeldige VvE-bijdrage." }, { status: 400 });
+    }
+
     const property = await getPropertyById(decodeURIComponent(bagId));
 
     const [tariffs, consumption] = await Promise.all([
@@ -30,7 +45,7 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
       tariffs,
       consumption,
       areaM2: property.areaM2,
-      vveContribution: vveParam ? Number(vveParam) : undefined,
+      vveContribution: parsedVve ?? undefined,
       gasConnection: gasParam === "false" ? false : undefined,
     });
 

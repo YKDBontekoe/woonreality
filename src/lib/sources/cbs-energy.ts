@@ -72,12 +72,25 @@ export async function fetchLatestEnergyTariffs(): Promise<EnergyTariffs> {
   const filter = `VAT eq '${VAT_INCL}' and startswith(Periods,'${year}')`;
   const url = `${CBS_API}/${TARIFF_TABLE}/TypedDataSet?$filter=${filter}&$select=${select}&$format=json`;
 
-  const response = await fetch(url, { next: { revalidate: 86400 } });
+  let response: Response;
+  try {
+    response = await fetch(url, { next: { revalidate: 86400 } });
+  } catch {
+    console.warn("CBS tariff fetch failed (transport error), using fallback");
+    return FALLBACK_TARIFFS;
+  }
   if (!response.ok) {
     console.warn(`CBS tariff fetch failed (${response.status}), using fallback`);
     return FALLBACK_TARIFFS;
   }
-  const payload = await response.json() as { value?: TariffRow[] };
+
+  let payload: { value?: TariffRow[] };
+  try {
+    payload = await response.json();
+  } catch {
+    console.warn("CBS tariff fetch failed (invalid JSON), using fallback");
+    return FALLBACK_TARIFFS;
+  }
   const rows = payload.value ?? [];
   const row = rows.sort((a, b) => b.Periods.localeCompare(a.Periods))[0];
   if (!row || row.VariableSupplyRateContractPrices_3 == null || row.VariableSupplyRateContractPrices_9 == null) {

@@ -47,6 +47,10 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
   const { tariffs, consumption, areaM2, vveContribution, gasConnection } = input;
   const lines: RunningCostLine[] = [];
 
+  const tariffsCbsSourced = tariffs.source.startsWith("CBS 85592ENG");
+  const consumptionCbsSourced = consumption.source.startsWith("CBS 85140NED");
+  const cbsSourcedEnergy = tariffsCbsSourced && consumptionCbsSourced;
+
   const elecYearly = round(
     consumption.avgElectricityKwh * tariffs.electricityTotalPerKwh
     + tariffs.electricityFixedYearly
@@ -59,7 +63,7 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
     amountMonthly: Math.max(0, round(elecYearly / 12)),
     note: `~${consumption.avgElectricityKwh.toLocaleString("nl-NL")} kWh/jaar × ${tariffs.electricityTotalPerKwh.toLocaleString("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 })}/kWh + vaste kosten.`,
     category: "energy",
-    cbsSourced: true,
+    cbsSourced: cbsSourcedEnergy,
   });
 
   if (!isGasloos(gasConnection)) {
@@ -74,7 +78,7 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
       amountMonthly: Math.max(0, round(gasYearly / 12)),
       note: `~${consumption.avgGasM3.toLocaleString("nl-NL")} m³/jaar × ${tariffs.gasTotalPerM3.toLocaleString("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 })}/m³ + vaste kosten. Inclusief verwarming, warm water en koken.`,
       category: "energy",
-      cbsSourced: true,
+      cbsSourced: cbsSourcedEnergy,
     });
   }
 

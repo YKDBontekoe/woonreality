@@ -133,7 +133,31 @@ test("CBS-sourced lines are marked", () => {
   const elec = result.lines.find((l) => l.key === "electricity")!;
   const gas = result.lines.find((l) => l.key === "gas")!;
   const water = result.lines.find((l) => l.key === "water")!;
+  assert.equal(elec.cbsSourced, false);
+  assert.equal(gas.cbsSourced, false);
+  assert.equal(water.cbsSourced, false);
+});
+
+test("CBS-sourced inputs retain CBS badge", () => {
+  const liveTariffs = {
+    ...FALLBACK_TARIFFS,
+    period: "2026MM07",
+    source: "CBS 85592ENG – Energieprijzen consumenten",
+  };
+  const liveConsumption = {
+    ...FALLBACK_CONSUMPTION,
+    period: "2024JJ00",
+    source: "CBS 85140NED – Energieverbruik woningen",
+  };
+
+  const result = estimateRunningCosts({
+    tariffs: liveTariffs,
+    consumption: liveConsumption,
+    areaM2: 100,
+  });
+
+  const elec = result.lines.find((l) => l.key === "electricity")!;
+  const gas = result.lines.find((l) => l.key === "gas")!;
   assert.equal(elec.cbsSourced, true);
   assert.equal(gas.cbsSourced, true);
-  assert.equal(water.cbsSourced, false);
 });

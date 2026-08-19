@@ -20,6 +20,12 @@ export function RunningCostsPanel({
 
   useEffect(() => {
     const controller = new AbortController();
+    let cancelled = false;
+
+    // Reset state before each request to avoid flicker and stale results.
+    setEstimate(null);
+    setError(false);
+
     const params = new URLSearchParams();
     if (vveContribution != null) params.set("vveContribution", String(vveContribution));
     if (gasConnection === false) params.set("gasConnection", "false");
@@ -31,12 +37,18 @@ export function RunningCostsPanel({
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("fetch failed");
-        setEstimate(await response.json() as RunningCostEstimate);
+        const payload = await response.json() as RunningCostEstimate;
+        if (cancelled) return;
+        setEstimate(payload);
       })
       .catch((caught) => {
+        if (cancelled) return;
         if (!(caught instanceof DOMException && caught.name === "AbortError")) setError(true);
       });
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [bagId, vveContribution, gasConnection, housingType]);
 
   if (error) return null;
