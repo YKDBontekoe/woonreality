@@ -9,7 +9,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - PDOK Location API address autocomplete
 - BAG-backed VBO/pand identity, geometry, building year, and surface area
 - BGT road, green-area, and water context within approximately 250 m
-- Mapbox Standard 3D map with sun/shadow lighting, RIVM noise/air overlays, and BGT green/water layers (`NEXT_PUBLIC_MAPBOX_TOKEN` required; no OSM fallback)
+- Mapbox Standard 3D map with sun/shadow lighting, RIVM noise/air overlays, BGT green/water layers, and a travel-time slider whose isochrones follow the street network for walking and driving (`NEXT_PUBLIC_MAPBOX_TOKEN` required; no OSM fallback)
 - RIVM WMS screening for road noise and air quality
 - CBS 2024 neighbourhood context (children, schools/childcare, amenities), CBS SES-WOA, Politie/CBS registered crime, NDOV halte proximity, and DSO spatial topics
 - Nearby BAG homes within 150 m, including registered usable area and links to their reports
@@ -77,6 +77,7 @@ Pull requests and pushes to `main` run the quality pipeline in `.github/workflow
 GET /api/address/search?q=...
 GET /api/property/:bagId
 GET /api/property/:bagId/map-layers
+GET /api/map/isochrone?lat=&lng=&profile=walking|driving&minutes=5..30
 GET /api/map/rivm/:layer/:z/:x/:y
 GET /api/analysis/:bagId
 GET /api/ai-analysis/:bagId

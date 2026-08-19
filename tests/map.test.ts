@@ -5,6 +5,16 @@ import { GET as getRivmSample } from "@/app/api/map/rivm/sample/route";
 import { GET as getRivmTile } from "@/app/api/map/rivm/[layer]/[z]/[x]/[y]/route";
 import { circlePolygon, defaultMapOverlays, gardenOrientation, houseNumberFromLabel, overlaysForScene } from "@/src/lib/map/geo";
 import {
+  contourMinutes,
+  ISOCHRONE_DENOISE,
+  ISOCHRONE_GENERALIZE_M,
+  isochroneLngLatBounds,
+  mapboxIsochroneUrl,
+  mergeLngLatBounds,
+  parseIsochroneMinutes,
+  parseIsochroneProfile,
+} from "@/src/lib/map/isochrone";
+import {
   LIGHT_PRESETS,
   formatMapHour,
   lightPeriodLabel,
@@ -121,9 +131,55 @@ test("overlaysForScene isolates health and reach layers", () => {
   assert.equal(reach.noise, false);
 });
 
+test("isochrone contours stay on the street-network API, not a growing circle", () => {
+  assert.deepEqual(contourMinutes(5), [5]);
+  assert.deepEqual(contourMinutes(10), [5, 10]);
+  assert.deepEqual(contourMinutes(20), [5, 10, 15, 20]);
+  assert.deepEqual(contourMinutes(30), [15, 20, 25, 30]);
+  assert.equal(parseIsochroneProfile(null), "walking");
+  assert.equal(parseIsochroneProfile("driving"), "driving");
+  assert.equal(parseIsochroneProfile("transit"), null);
+  assert.equal(parseIsochroneMinutes(null), 10);
+  assert.equal(parseIsochroneMinutes("15"), 15);
+  assert.equal(parseIsochroneMinutes("7"), null);
+  assert.equal(parseIsochroneMinutes("99"), null);
+  const url = mapboxIsochroneUrl({
+    token: "pk.test",
+    lng: 5.984,
+    lat: 52.346,
+    profile: "walking",
+    minutes: 15,
+  });
+  assert.match(url.pathname, /\/isochrone\/v1\/mapbox\/walking\/5\.984,52\.346/);
+  assert.equal(url.searchParams.get("polygons"), "true");
+  assert.equal(url.searchParams.get("contours_minutes"), "5,10,15");
+  assert.equal(url.searchParams.get("denoise"), ISOCHRONE_DENOISE);
+  assert.equal(url.searchParams.get("generalize"), ISOCHRONE_GENERALIZE_M);
+});
+
+test("isochrone bounds follow an irregular polygon instead of assuming a circle", () => {
+  const bounds = isochroneLngLatBounds({
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { contour: 10 },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[[6, 52], [6.02, 52.01], [6.01, 52.03], [5.99, 52.02], [6, 52]]],
+      },
+    }],
+  });
+  assert.deepEqual(bounds, [5.99, 52, 6.02, 52.03]);
+  assert.deepEqual(mergeLngLatBounds(bounds, [5.9, 51.9, 6.1, 52.1]), [5.9, 51.9, 6.1, 52.1]);
+});
+
 test("isochrone and RIVM sample reject incomplete requests", async () => {
   const isochrone = await getIsochrone(new Request("http://localhost/api/map/isochrone"));
+  const badProfile = await getIsochrone(new Request("http://localhost/api/map/isochrone?lat=52.346&lng=5.984&profile=transit"));
+  const badMinutes = await getIsochrone(new Request("http://localhost/api/map/isochrone?lat=52.346&lng=5.984&minutes=99"));
   const sample = await getRivmSample(new Request("http://localhost/api/map/rivm/sample?layer=secret&lat=52&lng=6"));
   assert.equal(isochrone.status, 400);
+  assert.equal(badProfile.status, 400);
+  assert.equal(badMinutes.status, 400);
   assert.equal(sample.status, 400);
 });

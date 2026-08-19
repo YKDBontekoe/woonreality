@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Crosshair, Expand, Layers3, Locate, MapPinned, SunMedium } from "lucide-react";
+import { Box, Bus, Car, Crosshair, Expand, Footprints, Layers3, Locate, MapPinned, SunMedium } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -15,6 +15,16 @@ import {
   type MapSceneId,
   type OverlayId,
 } from "@/src/lib/map/geo";
+import {
+  ISOCHRONE_MINUTES_DEFAULT,
+  ISOCHRONE_MINUTES_MAX,
+  ISOCHRONE_MINUTES_MIN,
+  ISOCHRONE_MINUTES_STEP,
+  isochroneCacheKey,
+  isochroneLngLatBounds,
+  mergeLngLatBounds,
+  type IsochroneProfile,
+} from "@/src/lib/map/isochrone";
 import {
   BAG_EXTRUSION_HEIGHT_M,
   DEFAULT_MAP_HOUR,
@@ -37,9 +47,15 @@ type MapLayersResponse = {
   stops?: GeoJsonFeatureCollection;
 };
 
+type ReachMode = "walk" | "transit" | "drive";
+type ReachModes = Record<ReachMode, boolean>;
+
+const EMPTY_ISOCHRONE: GeoJsonFeatureCollection = { type: "FeatureCollection", features: [] };
+const DEFAULT_REACH_MODES: ReachModes = { walk: true, transit: true, drive: false };
+
 const OVERLAY_LABELS: Record<OverlayId, string> = {
   nearby: "Woningen",
-  walk: "5–10 min lopen",
+  walk: "Reistijd (wegennet)",
   transit: "OV-haltes",
   roads: "Wegen",
   noise: "Geluid",
@@ -106,6 +122,16 @@ function addHomeMarker(map: mapboxgl.Map, lng: number, lat: number, houseNumber:
   return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
 }
 
+function contourFillOpacity(minutes: number): mapboxgl.ExpressionSpecification | number {
+  if (minutes <= ISOCHRONE_MINUTES_MIN) return 0.22;
+  return ["interpolate", ["linear"], ["to-number", ["get", "contour"]], ISOCHRONE_MINUTES_MIN, 0.32, minutes, 0.1];
+}
+
+function setGeoJsonData(map: mapboxgl.Map, sourceId: string, data: GeoJsonFeatureCollection) {
+  const source = map.getSource(sourceId);
+  if (source?.type === "geojson") source.setData(data);
+}
+
 export function PropertyMap({
   property,
   nearbyProperties = [],
@@ -132,16 +158,22 @@ export function PropertyMap({
   const [scene, setScene] = useState<MapSceneId | "custom">("street");
   const [probe, setProbe] = useState(false);
   const [overlays, setOverlays] = useState(() => defaultMapOverlays(signals));
+  const [reachMinutes, setReachMinutes] = useState(ISOCHRONE_MINUTES_DEFAULT);
+  const [reachModes, setReachModes] = useState<ReachModes>(DEFAULT_REACH_MODES);
   const [layerError, setLayerError] = useState<string | null>(null);
   const overlaysRef = useRef(overlays);
   const probeRef = useRef(probe);
   const pitchedRef = useRef(pitched);
   const hourRef = useRef(hour);
+  const reachMinutesRef = useRef(reachMinutes);
+  const reachModesRef = useRef(reachModes);
   pitchedRef.current = pitched;
   hourRef.current = hour;
+  reachMinutesRef.current = reachMinutes;
+  reachModesRef.current = reachModes;
   const focusPopupRef = useRef<mapboxgl.Popup | null>(null);
   const contextLayersRef = useRef<MapLayersResponse | null>(null);
-  const walkDataRef = useRef<GeoJsonFeatureCollection | null>(null);
+  const reachCacheRef = useRef(new Map<string, GeoJsonFeatureCollection>());
   const layerEventsRef = useRef({ nearby: false, ndov: false, probe: false });
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
@@ -155,11 +187,18 @@ export function PropertyMap({
   }, [overlays, probe]);
 
   const applyOverlays = useCallback((map: mapboxgl.Map, next: Record<OverlayId, boolean>) => {
+    const modes = reachModesRef.current;
+    const walkIsochrone = next.walk && (modes.walk || modes.transit);
+    const driveIsochrone = next.walk && modes.drive;
     setVisible(map, "nearby-homes", next.nearby);
     setVisible(map, "nearby-labels", next.nearby);
-    setVisible(map, "walk-fill", next.walk);
-    setVisible(map, "walk-line", next.walk);
-    setVisible(map, "ndov-stops", next.transit);
+    setVisible(map, "walk-fill", walkIsochrone);
+    setVisible(map, "walk-line", walkIsochrone);
+    setVisible(map, "drive-fill", driveIsochrone);
+    setVisible(map, "drive-line", driveIsochrone);
+    setVisible(map, "ndov-stops", next.transit || (next.walk && modes.transit));
+    setVisible(map, "search-radius-fill", !next.walk);
+    setVisible(map, "search-radius", !next.walk);
     setVisible(map, "rivm-noise", next.noise);
     setVisible(map, "rivm-no2", next.no2);
     setVisible(map, "rivm-pm25", next.pm25);
@@ -278,38 +317,131 @@ export function PropertyMap({
       },
     });
     bindNdovEvents(map);
+  }, [bindNdovEvents, property.bagVboId]);
 
-    if (!walkDataRef.current) {
-      const response = await fetch(`/api/map/isochrone?lat=${lat}&lng=${lng}`);
-      if (response.ok) walkDataRef.current = (await response.json()) as GeoJsonFeatureCollection;
+  const ensureReachLayers = useCallback((map: mapboxgl.Map) => {
+    addSourceIfMissing(map, "walk", { type: "geojson", data: EMPTY_ISOCHRONE });
+    addSourceIfMissing(map, "drive", { type: "geojson", data: EMPTY_ISOCHRONE });
+    addLayerIfMissing(map, {
+      id: "walk-fill",
+      type: "fill",
+      source: "walk",
+      slot: "middle",
+      paint: {
+        "fill-color": MAP_COLORS.walkFill,
+        "fill-opacity": contourFillOpacity(ISOCHRONE_MINUTES_DEFAULT),
+        "fill-emissive-strength": 0.25,
+      },
+    });
+    addLayerIfMissing(map, {
+      id: "walk-line",
+      type: "line",
+      source: "walk",
+      slot: "top",
+      paint: {
+        "line-color": MAP_COLORS.accentDeep,
+        "line-width": 1.8,
+        "line-opacity": 0.85,
+        "line-emissive-strength": 0.3,
+      },
+    });
+    addLayerIfMissing(map, {
+      id: "drive-fill",
+      type: "fill",
+      source: "drive",
+      slot: "middle",
+      paint: {
+        "fill-color": MAP_COLORS.driveFill,
+        "fill-opacity": contourFillOpacity(ISOCHRONE_MINUTES_DEFAULT),
+        "fill-emissive-strength": 0.2,
+      },
+    });
+    addLayerIfMissing(map, {
+      id: "drive-line",
+      type: "line",
+      source: "drive",
+      slot: "top",
+      paint: {
+        "line-color": MAP_COLORS.attention,
+        "line-width": 1.8,
+        "line-opacity": 0.9,
+        "line-emissive-strength": 0.3,
+      },
+    });
+  }, []);
+
+  const loadReachIsochrones = useCallback(async (
+    map: mapboxgl.Map,
+    minutes: number,
+    modes: ReachModes,
+    signal?: AbortSignal,
+  ) => {
+    ensureReachLayers(map);
+    const wantWalk = modes.walk || modes.transit;
+    const wantDrive = modes.drive;
+
+    async function loadProfile(profile: IsochroneProfile, sourceId: "walk" | "drive") {
+      const key = isochroneCacheKey(profile, minutes);
+      let data = reachCacheRef.current.get(key);
+      if (!data) {
+        const response = await fetch(`/api/map/isochrone?lat=${lat}&lng=${lng}&profile=${profile}&minutes=${minutes}`, { signal });
+        if (!response.ok) throw new Error("isochrone");
+        data = (await response.json()) as GeoJsonFeatureCollection;
+        reachCacheRef.current.set(key, data);
+      }
+      if (signal?.aborted || mapInstance.current !== map) return;
+      setGeoJsonData(map, sourceId, data);
+      map.setPaintProperty(`${sourceId}-fill`, "fill-opacity", contourFillOpacity(minutes));
     }
-    if (walkDataRef.current) {
-      addSourceIfMissing(map, "walk", { type: "geojson", data: walkDataRef.current });
-      addLayerIfMissing(map, {
-        id: "walk-fill",
-        type: "fill",
-        source: "walk",
-        slot: "middle",
-        paint: {
-          "fill-color": MAP_COLORS.walkFill,
-          "fill-opacity": ["match", ["to-number", ["get", "contour"]], 5, 0.28, 0.16],
-          "fill-emissive-strength": 0.25,
-        },
-      });
-      addLayerIfMissing(map, {
-        id: "walk-line",
-        type: "line",
-        source: "walk",
-        slot: "top",
-        paint: {
-          "line-color": MAP_COLORS.accentDeep,
-          "line-width": 1.8,
-          "line-opacity": 0.85,
-          "line-emissive-strength": 0.3,
-        },
-      });
+
+    const loads: Promise<void>[] = [];
+    if (wantWalk) loads.push(loadProfile("walking", "walk"));
+    else setGeoJsonData(map, "walk", EMPTY_ISOCHRONE);
+    if (wantDrive) loads.push(loadProfile("driving", "drive"));
+    else setGeoJsonData(map, "drive", EMPTY_ISOCHRONE);
+    await Promise.all(loads);
+    if (signal?.aborted || mapInstance.current !== map) return;
+
+    applyOverlays(map, overlaysRef.current);
+
+    let bounds = wantWalk ? isochroneLngLatBounds(reachCacheRef.current.get(isochroneCacheKey("walking", minutes)) ?? EMPTY_ISOCHRONE) : null;
+    if (wantDrive) {
+      bounds = mergeLngLatBounds(
+        bounds,
+        isochroneLngLatBounds(reachCacheRef.current.get(isochroneCacheKey("driving", minutes)) ?? EMPTY_ISOCHRONE),
+      );
     }
-  }, [bindNdovEvents, lat, lng, property.bagVboId]);
+    if (!bounds) return;
+    map.fitBounds(bounds, {
+      padding: { top: 72, bottom: 96, left: 48, right: 48 },
+      duration: 700,
+      maxZoom: 16,
+      pitch: pitchedRef.current ? MAP_CAMERA.pitch : MAP_CAMERA.flatPitch,
+    });
+  }, [applyOverlays, ensureReachLayers, lat, lng]);
+
+  useEffect(() => {
+    if (!overlays.walk) return;
+    const map = mapInstance.current;
+    if (!map) return;
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (reachModes.transit) await ensureContextLayers(map);
+          await loadReachIsochrones(map, reachMinutes, reachModes, abort.signal);
+          if (!abort.signal.aborted) setLayerError(null);
+        } catch (error) {
+          if (abort.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+          setLayerError("Reistijd kon niet worden berekend.");
+        }
+      })();
+    }, 280);
+    return () => {
+      abort.abort();
+      window.clearTimeout(timer);
+    };
+  }, [ensureContextLayers, loadReachIsochrones, overlays.walk, reachMinutes, reachModes]);
 
   const ensureBaseLayers = useCallback((map: mapboxgl.Map) => {
     addSourceIfMissing(map, "search-radius", {
@@ -489,6 +621,9 @@ export function PropertyMap({
       try {
         await ensureContextLayers(map);
         const current = overlaysRef.current;
+        if (current.walk) {
+          await loadReachIsochrones(map, reachMinutesRef.current, reachModesRef.current);
+        }
         if (current.noise) ensureRivmLayer(map, "noise");
         if (current.no2) ensureRivmLayer(map, "no2");
         if (current.pm25) ensureRivmLayer(map, "pm25");
@@ -498,7 +633,7 @@ export function PropertyMap({
         setLayerError("Sommige kaartlagen konden niet worden geladen.");
       }
     });
-  }, [applyOverlays, ensureBaseLayers, ensureContextLayers, ensureRivmLayer]);
+  }, [applyOverlays, ensureBaseLayers, ensureContextLayers, ensureRivmLayer, loadReachIsochrones]);
   const restoreRef = useRef(restoreCustomLayers);
   restoreRef.current = restoreCustomLayers;
   const applyOverlaysRef = useRef(applyOverlays);
@@ -645,6 +780,10 @@ export function PropertyMap({
     if (!garden) next.garden = false;
     setScene(nextScene);
     setOverlays(next);
+    if (nextScene === "reach") {
+      setReachModes(DEFAULT_REACH_MODES);
+      setPitched(false);
+    }
     const map = mapInstance.current;
     if (nextScene === "health") {
       setProbe(true);
@@ -654,7 +793,7 @@ export function PropertyMap({
     }
     if (!map) return;
     try {
-      if (next.green || next.water || next.transit || next.walk || next.roads) await ensureContextLayers(map);
+      if (next.green || next.water || next.transit || next.roads) await ensureContextLayers(map);
       if (next.noise) ensureRivmLayer(map, "noise");
       if (next.no2) ensureRivmLayer(map, "no2");
       if (next.pm25) ensureRivmLayer(map, "pm25");
@@ -682,7 +821,7 @@ export function PropertyMap({
     const map = mapInstance.current;
     if (!map) return;
     try {
-      if ((id === "green" || id === "water" || id === "transit" || id === "walk" || id === "roads") && next[id]) {
+      if ((id === "green" || id === "water" || id === "transit" || id === "roads") && next[id]) {
         await ensureContextLayers(map);
       }
       if ((id === "noise" || id === "no2" || id === "pm25") && next[id]) ensureRivmLayer(map, id);
@@ -693,10 +832,28 @@ export function PropertyMap({
     }
   }
 
+  function toggleReachMode(mode: ReachMode) {
+    setReachModes((current) => {
+      const next = { ...current, [mode]: !current[mode] };
+      if (!next.walk && !next.transit && !next.drive) return current;
+      return next;
+    });
+    if (mode === "transit") {
+      setOverlays((current) => ({ ...current, walk: true, transit: !reachModes.transit }));
+    } else {
+      setOverlays((current) => (current.walk ? current : { ...current, walk: true }));
+    }
+    setScene((current) => (current === "reach" ? current : "custom"));
+  }
+
   const lightLabel = `${formatMapHour(hour)} · ${lightPeriodLabel(hour)} · ${sunLabelForHour(hour)}`;
-  const hint = scene === "custom"
-    ? (probe || overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart om te meten." : lightLabel)
-    : MAP_SCENES.find((item) => item.id === scene)?.hint ?? lightLabel;
+  const hint = scene === "reach" || overlays.walk
+    ? `${reachMinutes} min via het wegennet`
+    : scene === "custom"
+      ? (probe || overlays.noise || overlays.no2 || overlays.pm25 ? "Klik op de kaart om te meten." : lightLabel)
+      : MAP_SCENES.find((item) => item.id === scene)?.hint ?? lightLabel;
+  const showWalkIsochrone = overlays.walk && (reachModes.walk || reachModes.transit);
+  const showDriveIsochrone = overlays.walk && reachModes.drive;
 
   if (!hasToken) {
     return (
@@ -772,6 +929,55 @@ export function PropertyMap({
             </button>
           </div>
         </div>
+        {overlays.walk && (
+          <div className="map-reach" role="group" aria-label="Reistijd via het wegennet">
+            <div className="map-reach-modes">
+              <button
+                type="button"
+                className={reachModes.walk ? "selected is-walk" : undefined}
+                aria-pressed={reachModes.walk}
+                onClick={() => toggleReachMode("walk")}
+              >
+                <Footprints size={13} /> Voet
+              </button>
+              <button
+                type="button"
+                className={reachModes.transit ? "selected is-transit" : undefined}
+                aria-pressed={reachModes.transit}
+                onClick={() => toggleReachMode("transit")}
+              >
+                <Bus size={13} /> OV
+              </button>
+              <button
+                type="button"
+                className={reachModes.drive ? "selected is-drive" : undefined}
+                aria-pressed={reachModes.drive}
+                onClick={() => toggleReachMode("drive")}
+              >
+                <Car size={13} /> Auto
+              </button>
+            </div>
+            <label className="map-reach-slider">
+              <input
+                type="range"
+                min={ISOCHRONE_MINUTES_MIN}
+                max={ISOCHRONE_MINUTES_MAX}
+                step={ISOCHRONE_MINUTES_STEP}
+                value={reachMinutes}
+                aria-label="Reistijd in minuten"
+                aria-valuetext={`${reachMinutes} minuten via het wegennet`}
+                onChange={(event) => setReachMinutes(Number(event.target.value))}
+              />
+              <span className="map-time-meta">
+                <strong>{reachMinutes} min</strong>
+                <small>wegennet</small>
+              </span>
+            </label>
+            {reachModes.transit && (
+              <small className="map-reach-note">OV toont loopafstand tot haltes, geen dienstregeling.</small>
+            )}
+          </div>
+        )}
       </div>
       {layersOpen && (
         <div className="map-layers-panel" role="dialog" aria-label="Kaartlagen">
@@ -791,8 +997,9 @@ export function PropertyMap({
       <div className="map-legend">
         <span><i className="legend-dot home" /> deze woning</span>
         {overlays.nearby && <span><i className="legend-dot nearby" /> buren</span>}
-        {overlays.walk && <span><i className="legend-dot walk" /> loopafstand</span>}
-        {overlays.transit && <span><i className="legend-dot transit" /> halte</span>}
+        {showWalkIsochrone && <span><i className="legend-dot walk" /> {reachModes.transit && !reachModes.walk ? "loop naar halte" : "te voet"}</span>}
+        {showDriveIsochrone && <span><i className="legend-dot drive" /> auto</span>}
+        {(overlays.transit || (overlays.walk && reachModes.transit)) && <span><i className="legend-dot transit" /> halte</span>}
         {overlays.green && <span><i className="legend-dot green" /> groen</span>}
         {overlays.water && <span><i className="legend-dot water" /> water</span>}
         {overlays.roads && <span><i className="legend-dot roads" /> wegen</span>}

@@ -25,6 +25,7 @@ export const MAP_COLORS = {
   greenFill: "#1c7358",
   waterFill: "#3d7ec9",
   walkFill: "#0a84ff",
+  driveFill: "#ff9f0a",
   roadFill: "#f3eee6",
   roadCasing: "#c9bfb2",
   pathFill: "#f7f3ec",
