@@ -7,7 +7,7 @@
  * Both datasets are CC-BY 4.0 from CBS / Statistics Netherlands.
  */
 
-const CBS_FEED = "https://opendata.cbs.nl/ODataFeed/OData";
+const CBS_API = "https://opendata.cbs.nl/ODataApi/OData";
 
 // ---------------------------------------------------------------------------
 // CBS 85592ENG – Average energy prices for consumers
@@ -59,6 +59,7 @@ export const FALLBACK_TARIFFS: EnergyTariffs = {
 };
 
 export async function fetchLatestEnergyTariffs(): Promise<EnergyTariffs> {
+  const year = new Date().getFullYear();
   const select = [
     "VAT", "Periods",
     "VariableSupplyRateContractPrices_3", "EnergyTax_6",
@@ -68,7 +69,8 @@ export async function fetchLatestEnergyTariffs(): Promise<EnergyTariffs> {
     "EnergyTaxRefund_15",
   ].join(",");
 
-  const url = `${CBS_FEED}/${TARIFF_TABLE}/TypedDataSet?$filter=VAT eq '${VAT_INCL}'&$orderby=Periods desc&$top=1&$select=${select}&$format=json`;
+  const filter = `VAT eq '${VAT_INCL}' and startswith(Periods,'${year}')`;
+  const url = `${CBS_API}/${TARIFF_TABLE}/TypedDataSet?$filter=${filter}&$select=${select}&$format=json`;
 
   const response = await fetch(url, { next: { revalidate: 86400 } });
   if (!response.ok) {
@@ -76,7 +78,8 @@ export async function fetchLatestEnergyTariffs(): Promise<EnergyTariffs> {
     return FALLBACK_TARIFFS;
   }
   const payload = await response.json() as { value?: TariffRow[] };
-  const row = payload.value?.[0];
+  const rows = payload.value ?? [];
+  const row = rows.sort((a, b) => b.Periods.localeCompare(a.Periods))[0];
   if (!row || row.VariableSupplyRateContractPrices_3 == null || row.VariableSupplyRateContractPrices_9 == null) {
     return FALLBACK_TARIFFS;
   }
@@ -188,7 +191,7 @@ export async function fetchEnergyConsumption(
     `Woningtype eq '${typeKey}'`,
     `Gebruiksoppervlakte eq '${areaKey}'`,
     `Bouwjaar eq '${yearKey}'`,
-    `Bewonersklasse eq 'T001116'`,
+    `Bewonersklasse eq 'T001351'`,
     `HoofdverwarmingEnZonnestroom eq 'T001614'`,
   ].join(" and ");
 
@@ -199,7 +202,7 @@ export async function fetchEnergyConsumption(
     "GemiddeldeElektriciteitslevering_23",
   ].join(",");
 
-  const url = `${CBS_FEED}/${CONSUMPTION_TABLE}/TypedDataSet?$filter=${filters}&$orderby=Perioden desc&$top=1&$select=${select}&$format=json`;
+  const url = `${CBS_API}/${CONSUMPTION_TABLE}/TypedDataSet?$filter=${filters}&$select=${select}&$format=json`;
 
   const response = await fetch(url, { next: { revalidate: 604800 } });
   if (!response.ok) {
@@ -207,7 +210,8 @@ export async function fetchEnergyConsumption(
     return FALLBACK_CONSUMPTION;
   }
   const payload = await response.json() as { value?: ConsumptionRow[] };
-  const row = payload.value?.[0];
+  const rows = payload.value ?? [];
+  const row = rows.sort((a, b) => b.Perioden.localeCompare(a.Perioden))[0];
   if (!row) {
     return FALLBACK_CONSUMPTION;
   }
