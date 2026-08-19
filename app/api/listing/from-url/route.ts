@@ -10,6 +10,7 @@ import {
   normalizeFundaListingUrl,
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
+import { requireSearchLogin } from "@/src/lib/search-auth";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { userListingImportBodySchema } from "@/src/lib/validation/workspace";
 
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
   if (!parsed.success || !isHttpUrl(parsed.data.sourceUrl) || !sourceUrl) {
     return NextResponse.json({ error: "Dit is geen Funda-advertentielink. Plak de link van één woning, geen zoekresultaat." }, { status: 400 });
   }
+
+  const denied = await requireSearchLogin();
+  if (denied) return denied;
 
   let inspected;
   try {

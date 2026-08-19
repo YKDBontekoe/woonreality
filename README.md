@@ -96,6 +96,8 @@ GET /api/cron/source-health
 GET /api/health
 ```
 
+The address search (`GET /api/address/search`) and Funda-link import (`POST /api/listing/from-url`) endpoints require authentication when Supabase is configured. Set `REQUIRE_LOGIN_FOR_SEARCH=false` in `.env.local` to disable the gate for local development.
+
 The source adapters live below `src/lib/sources/`, the normalized contracts are in `src/lib/types.ts`, and score calculation is in `src/lib/scoring/`.
 
 Current listing data can come from an explicitly configured licensed

@@ -121,6 +121,7 @@ export function AddressSearch({
       setSearching(true);
       try {
         const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (response.status === 401) { window.location.href = "/login"; return; }
         const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
         if (requestId !== requestIdRef.current || dismissedRef.current) return;
         if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
@@ -161,6 +162,7 @@ export function AddressSearch({
     setSearching(true);
     try {
       const response = await fetch(`/api/address/search?q=${encodeURIComponent(address)}`);
+      if (response.status === 401) { window.location.href = "/login"; return; }
       const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
       const result = body.results?.[0];
@@ -184,6 +186,7 @@ export function AddressSearch({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sourceUrl }),
       });
+      if (response.status === 401) { window.location.href = "/login"; return; }
       const body = await response.json() as FromUrlResponse;
       if (!response.ok || !body.address) {
         setError(body.error ?? "Deze Funda-link kon niet worden ingelezen.");
