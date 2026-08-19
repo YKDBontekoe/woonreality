@@ -25,6 +25,7 @@ import { ListingInsightsPanel } from "@/components/property/listing-insights-pan
 import { PropertyScoreCharts } from "@/components/property/score-charts";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PropertyActionDock } from "@/components/property/action-dock";
+import { RunningCostsPanel } from "@/components/property/running-costs-panel";
 import { VerdictHero, type TopThing } from "@/components/property/verdict-hero";
 import { PageShell } from "@/components/ui/page-shell";
 import {
@@ -650,6 +651,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </ul>
             </section>
           )}
+          <RunningCostsPanel
+            bagId={bagId}
+            vveContribution={marketListing?.vveContribution}
+            gasConnection={marketListing?.heating?.toLowerCase().includes("gasloos") ? false : undefined}
+            housingType={marketListing?.propertyType}
+          />
           <details className="dash-collapsible-panel" id="ai-onderzoek">
             <summary>AI-onderzoek</summary>
             <AiResearchSection
