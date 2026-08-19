@@ -62,21 +62,25 @@ export function ListingInsightsPanel({
           </button>
         ))}
       </div>
-      <ul className="dash-point-list">
-        {points.map((point, index) => (
-          <li className={`is-${point.impact}`} key={`${point.topic}-${index}`}>
-            <em>{point.topic}</em>
-            <strong>{point.title}{point.year ? ` · ${point.year}` : ""}</strong>
-            <span>{point.summary}</span>
-            {point.quote ? (
-              <details>
-                <summary>Quote</summary>
-                <q>{point.quote}</q>
-              </details>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      {points.length > 0 ? (
+        <ul className="dash-point-list" aria-live="polite">
+          {points.map((point, index) => (
+            <li className={`is-${point.impact}`} key={`${point.topic}-${index}`}>
+              <em>{point.topic}</em>
+              <strong>{point.title}{point.year ? ` · ${point.year}` : ""}</strong>
+              <span>{point.summary}</span>
+              {point.quote ? (
+                <details>
+                  <summary>Quote</summary>
+                  <q>{point.quote}</q>
+                </details>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted-copy" role="status">Geen punten in deze selectie. Kies “Alles” om de hele advertentieanalyse te zien.</p>
+      )}
     </section>
   );
 }

@@ -66,7 +66,9 @@ export function AddressSearch({
   const router = useRouter();
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const modeButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const requestIdRef = useRef(0);
+  const directAddressRef = useRef<string | null>(null);
   const dismissedRef = useRef(false);
   const [mode, setMode] = useState<SearchMode>("adres");
   const [query, setQuery] = useState("");
@@ -77,6 +79,20 @@ export function AddressSearch({
   const [searched, setSearched] = useState(false);
 
   const fundaMode = mode === "funda" || isFundaListingUrl(query);
+
+  function selectMode(nextMode: SearchMode) {
+    setQuery("");
+    setMode(nextMode);
+  }
+
+  function handleModeKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + 2) % 2;
+    const nextMode: SearchMode = nextIndex === 0 ? "adres" : "funda";
+    selectMode(nextMode);
+    modeButtonRefs.current[nextIndex]?.focus();
+  }
 
   useEffect(() => {
     if (isFundaListingUrl(query) && mode !== "funda") setMode("funda");
@@ -91,6 +107,11 @@ export function AddressSearch({
     if (fundaMode || query.trim().length < 3) {
       setSearching(false);
       setSearched(false);
+      return;
+    }
+
+    if (directAddressRef.current === query) {
+      directAddressRef.current = null;
       return;
     }
 
@@ -127,6 +148,31 @@ export function AddressSearch({
   function openResult(result: AddressSearchResult) {
     if (onSelect) onSelect(result);
     else router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
+  }
+
+  async function openQuickAddress(address: string) {
+    directAddressRef.current = address;
+    dismissedRef.current = false;
+    setMode("adres");
+    setQuery(address);
+    setResults([]);
+    setError("");
+    setSearched(false);
+    setSearching(true);
+    try {
+      const response = await fetch(`/api/address/search?q=${encodeURIComponent(address)}`);
+      const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
+      const result = body.results?.[0];
+      if (!result) throw new Error("Dit voorbeeldadres is nu niet beschikbaar. Probeer het later opnieuw.");
+      openResult(result);
+    } catch (caught) {
+      directAddressRef.current = null;
+      setError(caught instanceof Error ? caught.message : "Zoeken lukt nu niet");
+      setSearched(true);
+    } finally {
+      setSearching(false);
+    }
   }
 
   async function openFundaListing(sourceUrl: string) {
@@ -201,10 +247,9 @@ export function AddressSearch({
           role="radio"
           className={mode === "adres" && !isFundaListingUrl(query) ? "search-mode-tab selected" : "search-mode-tab"}
           aria-checked={mode === "adres" && !isFundaListingUrl(query)}
-          onClick={() => {
-            setQuery("");
-            setMode("adres");
-          }}
+          ref={(node) => { modeButtonRefs.current[0] = node; }}
+          onClick={() => selectMode("adres")}
+          onKeyDown={(event) => handleModeKeyDown(event, 0)}
         >
           <MapPin size={13} /> Adres
         </button>
@@ -213,7 +258,9 @@ export function AddressSearch({
           role="radio"
           className={fundaMode ? "search-mode-tab selected" : "search-mode-tab"}
           aria-checked={fundaMode}
-          onClick={() => setMode("funda")}
+          ref={(node) => { modeButtonRefs.current[1] = node; }}
+          onClick={() => selectMode("funda")}
+          onKeyDown={(event) => handleModeKeyDown(event, 1)}
         >
           <Link2 size={13} /> Funda-link
         </button>
@@ -230,7 +277,12 @@ export function AddressSearch({
             else setError("Plak de link van één Funda-woning, geen zoekresultaat.");
             return;
           }
-          if (dismissedRef.current || !results.length) return;
+          if (dismissedRef.current || !results.length) {
+            setError(query.trim().length < 3
+              ? "Vul straat, huisnummer en plaats in."
+              : "Kies een adres uit de lijst met gevonden adressen.");
+            return;
+          }
           const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
           if (pick) openResult(pick);
         }}
@@ -278,6 +330,16 @@ export function AddressSearch({
           ))}
         </div>
       )}
+      {searching && !fundaMode && (
+        <div className="search-loading" role="status" aria-live="polite">
+          <span className="sr-only">Adressen zoeken…</span>
+          <span className="search-loading-icon" aria-hidden="true" />
+          <span className="search-loading-copy" aria-hidden="true">
+            <span className="search-skeleton-line search-skeleton-line-title" />
+            <span className="search-skeleton-line search-skeleton-line-detail" />
+          </span>
+        </div>
+      )}
       {error && <div className="search-hint" role="alert">{error}</div>}
       {showEmpty && (
         <div className="search-empty" role="status">
@@ -290,7 +352,7 @@ export function AddressSearch({
             Probeer ook{" "}
             <span>een echt Nederlands adres</span>
             {quickAddresses.map((address) => (
-              <button type="button" className="quick-address" key={address} onClick={() => { setMode("adres"); setQuery(address); }}>
+              <button type="button" className="quick-address" key={address} onClick={() => { void openQuickAddress(address); }}>
                 {address}
               </button>
             ))}

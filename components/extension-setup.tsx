@@ -13,6 +13,7 @@ export function ExtensionSetup() {
   const [oneTimeToken, setOneTimeToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [serviceAvailable, setServiceAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -32,10 +33,16 @@ export function ExtensionSetup() {
     const response = await fetch("/api/listing/extension/token", { cache: "no-store" });
     if (response.status === 401) {
       setAuthed(false);
+      setServiceAvailable(true);
+      return;
+    }
+    if (!response.ok) {
+      setAuthed(null);
+      setServiceAvailable(false);
       return;
     }
     setAuthed(true);
-    if (!response.ok) return;
+    setServiceAvailable(true);
     const body = await response.json() as { tokens?: TokenRow[] };
     setTokens(body.tokens ?? []);
   }
@@ -74,9 +81,16 @@ export function ExtensionSetup() {
 
   async function revoke(id: string) {
     setBusy(true);
+    setMessage("");
     try {
-      await fetch(`/api/listing/extension/token/${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/listing/extension/token/${id}`, { method: "DELETE" });
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        setMessage(body.error ?? "Deze browserkoppeling kon niet worden ingetrokken.");
+        return;
+      }
       await loadTokens();
+      setMessage("Browserkoppeling ingetrokken.");
     } finally {
       setBusy(false);
     }
@@ -89,12 +103,17 @@ export function ExtensionSetup() {
           ? "De WoonReality-extensie is in deze browser gevonden."
           : "Installeer eerst de extensie. Daarna kun je deze browser koppelen aan je account."}
       </p>
-      {authed === false && (
+      {serviceAvailable === false && (
+        <p className="form-message" role="status">
+          Browserkoppeling is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld.
+        </p>
+      )}
+      {serviceAvailable !== false && authed === false && (
         <p>
           <Link href="/login">Log in</Link> om kenmerken in je dossier te bewaren.
         </p>
       )}
-      {authed && (
+      {serviceAvailable !== false && authed && (
         <>
           <button className="primary-button" type="button" disabled={busy} onClick={() => { void pair(); }}>
             {busy ? <RefreshCw size={14} className="spin" /> : <Puzzle size={14} />}
@@ -113,7 +132,7 @@ export function ExtensionSetup() {
                     <strong>{token.label || "Browser-extensie"}</strong>
                     <small> sinds {new Date(token.created_at).toLocaleString("nl-NL")}{token.last_used_at ? ` · laatst ${new Date(token.last_used_at).toLocaleString("nl-NL")}` : ""}</small>
                   </span>
-                  <button className="text-link" type="button" onClick={() => { void revoke(token.id); }}>
+                  <button className="text-link" type="button" disabled={busy} aria-label={`Koppeling met ${token.label || "deze browser"} intrekken`} onClick={() => { if (window.confirm(`Trek de koppeling met ${token.label || "deze browser"} in?`)) void revoke(token.id); }}>
                     <Unplug size={14} /> Intrekken
                   </button>
                 </li>

@@ -165,7 +165,11 @@ export function ListingHistory({
                   <button
                     className="text-link listing-history-link listing-history-remove"
                     type="button"
-                    onClick={() => { void removeListingHistory(item.bagVboId); }}
+                    aria-label={`Verwijder ${item.addressLabel} uit je advertentiegeschiedenis`}
+                    onClick={() => {
+                      if (!window.confirm(`Verwijder ${item.addressLabel} uit je advertentiegeschiedenis?`)) return;
+                      void removeListingHistory(item.bagVboId);
+                    }}
                   >
                     <Trash2 size={13} /> Verwijder
                   </button>

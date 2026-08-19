@@ -2,7 +2,6 @@
 
 import { CheckCircle2, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, Sparkles } from "lucide-react";
 import { AddressSearch } from "@/components/address-search";
-import { ListingIntake } from "@/components/listing-intake";
 import { SiteHeader } from "@/components/site-header";
 
 export function LandingPage() {
@@ -14,10 +13,9 @@ export function LandingPage() {
           <div className="eyebrow"><span className="eyebrow-dot" /> Gratis woningcheck</div>
           <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
           <p className="hero-copy">
-            Typ een Nederlands adres of plak een Funda-link. Kenmerken uit Funda komen via de browser-extensie. Een account is niet nodig voor de woningcheck.
+            Typ een Nederlands adres, of kies <strong>Funda-link</strong> in het zoekvak. Kenmerken komen via de browser-extensie. Een account is niet nodig voor je eerste woningcheck.
           </p>
           <AddressSearch />
-          <ListingIntake />
           <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen score. Wel uitleg met bronnen die je zelf kunt checken.</div>
         </div>
         <div className="hero-visual" aria-label="Voorbeeld van een WoonReality analyse">

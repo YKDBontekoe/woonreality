@@ -266,7 +266,10 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     lines.push({
       key: "funds-gap",
       label: ownFundsGap > 0 ? "Tekort eigen geld" : "Ruimte in eigen geld",
-      amount: ownFundsGap,
+      // `ownFundsGap` is signed for downstream affordability calculations:
+      // negative means a surplus. A line labelled “Ruimte” must never show a
+      // negative euro amount to a buyer.
+      amount: ownFundsGap > 0 ? ownFundsGap : Math.abs(ownFundsGap),
       note: ownFundsGap > 0 ? "Kosten koper plus het deel van de koopsom dat buiten je maximale hypotheek valt." : "Je inleg dekt de kosten koper en eventuele rest van de koopsom (tot LTV 100%).",
     });
   }

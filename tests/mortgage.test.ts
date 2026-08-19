@@ -349,6 +349,9 @@ test("full-cash purchase keeps zero financing and skips the NHG fee", () => {
   assert.ok(costs && !costs.lines.some((line) => line.key === "nhg"));
   assert.equal(result.buyerCosts, costs.total);
   assert.equal(result.ownFundsGap, Math.round(costs.ownFundsNeeded - 250_000));
+  const fundsLine = result.lines.find((line) => line.key === "funds-gap");
+  assert.equal(fundsLine?.label, "Ruimte in eigen geld");
+  assert.equal(fundsLine?.amount, Math.abs(result.ownFundsGap ?? 0));
 });
 
 test("NHG does not cap when the asking price is above the kostengrens", () => {

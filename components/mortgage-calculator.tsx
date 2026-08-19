@@ -386,8 +386,8 @@ export function MortgageCalculator({
         <h2>Wat is je inkomen?</h2>
         <p className="mortgage-lead">Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee; 13e maand en bonus kun je erbij optellen.</p>
         <div className="work-chips" role="group" aria-label="Kopers">
-          <button type="button" className={!state.withPartner ? "active" : undefined} onClick={() => patch("withPartner", false)}>Alleen</button>
-          <button type="button" className={state.withPartner ? "active" : undefined} onClick={() => patch("withPartner", true)}>Met partner</button>
+          <button type="button" className={!state.withPartner ? "active" : undefined} aria-pressed={!state.withPartner} onClick={() => patch("withPartner", false)}>Alleen</button>
+          <button type="button" className={state.withPartner ? "active" : undefined} aria-pressed={state.withPartner} onClick={() => patch("withPartner", true)}>Met partner</button>
         </div>
         <PersonFields
           title={state.withPartner ? "Jij" : undefined}
@@ -419,7 +419,7 @@ export function MortgageCalculator({
             {([5, 10, 20, 30] as FixedPeriodYears[]).map((period) => {
               const periodRate = marketIndicativeRate(market, period, state.nhg);
               return (
-                <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} onClick={() => setPeriod(period)}>
+                <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} aria-pressed={state.fixedPeriodYears === period} onClick={() => setPeriod(period)}>
                   <span>{period} jaar</span>
                   <small>{periodRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</small>
                 </button>
@@ -457,8 +457,8 @@ export function MortgageCalculator({
           <p className="mortgage-hint">{rateHint(market, state.fixedPeriodYears, state.nhg)}</p>
           <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot {formatEuro(NHG.limit)}</label>
           <div className="work-chips" role="group" aria-label="Aflosvorm">
-            <button type="button" className={state.repayment === "annuity" ? "active" : undefined} onClick={() => patch("repayment", "annuity")}>Annuïteit</button>
-            <button type="button" className={state.repayment === "linear" ? "active" : undefined} onClick={() => patch("repayment", "linear")}>Lineair</button>
+            <button type="button" className={state.repayment === "annuity" ? "active" : undefined} aria-pressed={state.repayment === "annuity"} onClick={() => patch("repayment", "annuity")}>Annuïteit</button>
+            <button type="button" className={state.repayment === "linear" ? "active" : undefined} aria-pressed={state.repayment === "linear"} onClick={() => patch("repayment", "linear")}>Lineair</button>
           </div>
         </div>
 
@@ -499,8 +499,8 @@ export function MortgageCalculator({
             return <div className="mortgage-debt-row" key={key}>
               {key === "student" ? <>
                 <div className="work-chips" role="group" aria-label="Studieschuld invoer">
-                  <button type="button" className={studentMode === "monthly" ? "active" : undefined} onClick={() => setStudentMode("monthly")}>Maandbedrag DUO</button>
-                  <button type="button" className={studentMode === "remaining" ? "active" : undefined} onClick={() => setStudentMode("remaining")}>Ik ken alleen het restant</button>
+                  <button type="button" className={studentMode === "monthly" ? "active" : undefined} aria-pressed={studentMode === "monthly"} onClick={() => setStudentMode("monthly")}>Maandbedrag DUO</button>
+                  <button type="button" className={studentMode === "remaining" ? "active" : undefined} aria-pressed={studentMode === "remaining"} onClick={() => setStudentMode("remaining")}>Ik ken alleen het restant</button>
                 </div>
                 {studentMode === "monthly"
                   ? <MoneyField label="DUO-termijn per maand" value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
@@ -514,7 +514,7 @@ export function MortgageCalculator({
               : key === "erfpacht" ? <MoneyField label={field.label} value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
               : key === "alimony" ? <MoneyField label={field.label} value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
               : <MoneyField label={field.label} value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />}
-              <button type="button" className="text-link" onClick={() => {
+              <button type="button" className="text-link" aria-label={`${field.label} verwijderen`} onClick={() => {
                 setState((current) => clearDebt(current, key));
                 setAddedDebts((current) => current.filter((item) => item !== key));
               }}>Verwijder</button>
@@ -695,13 +695,13 @@ function PersonFields({
   return <div className={title ? "mortgage-person" : "mortgage-person is-first"}>
     {title && <h3>{title}</h3>}
     <div className="work-chips" role="group" aria-label={title ? `Werktype ${title}` : "Werktype"}>
-      {workOptions.map((item) => <button type="button" key={item.value} className={work === item.value ? "active" : undefined} onClick={() => onChange({ ...person, workType: item.value })}>{item.label}</button>)}
+      {workOptions.map((item) => <button type="button" key={item.value} className={work === item.value ? "active" : undefined} aria-pressed={work === item.value} onClick={() => onChange({ ...person, workType: item.value })}>{item.label}</button>)}
       {!showMoreWork && <button type="button" className="is-quiet" onClick={onMoreWork}>DGA, pensioen of mix</button>}
     </div>
     {needsJob && <>
       <div className="work-chips" role="group" aria-label="Invoeren als">
-        <button type="button" className={person.incomeEntry === "monthly" ? "active" : undefined} onClick={() => onChange(switchIncomeEntry(person, "monthly"))}>Maandsalaris</button>
-        <button type="button" className={person.incomeEntry === "annual" ? "active" : undefined} onClick={() => onChange(switchIncomeEntry(person, "annual"))}>Jaaropgave</button>
+        <button type="button" className={person.incomeEntry === "monthly" ? "active" : undefined} aria-pressed={person.incomeEntry === "monthly"} onClick={() => onChange(switchIncomeEntry(person, "monthly"))}>Maandsalaris</button>
+        <button type="button" className={person.incomeEntry === "annual" ? "active" : undefined} aria-pressed={person.incomeEntry === "annual"} onClick={() => onChange(switchIncomeEntry(person, "annual"))}>Jaaropgave</button>
       </div>
       {person.incomeEntry === "monthly" ? <>
         <div className="form-grid">
@@ -710,9 +710,9 @@ function PersonFields({
         <div className="mortgage-subblock">
           <span className="mortgage-subhead">Vakantiegeld</span>
           <div className="work-chips" role="group" aria-label="Vakantiegeld">
-            <button type="button" className={person.holidayMode === "standard" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "standard" })}>8% wettelijk</button>
-            <button type="button" className={person.holidayMode === "included" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "included" })}>Al inbegrepen</button>
-            <button type="button" className={person.holidayMode === "custom" ? "active" : undefined} onClick={() => onChange({ ...person, holidayMode: "custom" })}>Ander bedrag</button>
+            <button type="button" className={person.holidayMode === "standard" ? "active" : undefined} aria-pressed={person.holidayMode === "standard"} onClick={() => onChange({ ...person, holidayMode: "standard" })}>8% wettelijk</button>
+            <button type="button" className={person.holidayMode === "included" ? "active" : undefined} aria-pressed={person.holidayMode === "included"} onClick={() => onChange({ ...person, holidayMode: "included" })}>Al inbegrepen</button>
+            <button type="button" className={person.holidayMode === "custom" ? "active" : undefined} aria-pressed={person.holidayMode === "custom"} onClick={() => onChange({ ...person, holidayMode: "custom" })}>Ander bedrag</button>
           </div>
           {person.holidayMode === "custom" && <div className="form-grid"><MoneyField label="Vakantiegeld per jaar" value={person.holidayCustom} onChange={(holidayCustom) => onChange({ ...person, holidayCustom })} step={50} /></div>}
         </div>

@@ -44,6 +44,19 @@ export type NearbyStop = {
   distanceM: number;
 };
 
+type NdovCatalog = {
+  stops: Coordinates[];
+  catalogDate: string;
+};
+
+// The daily catalogue is a sizeable compressed download. Next's data cache cannot
+// persist it because the response is over its cache-item limit, so retain the
+// parsed coordinates in this server process instead. The shared promise also
+// stops concurrent property checks from downloading the same file repeatedly.
+const NDOV_CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+let ndovCatalogCache: { value: NdovCatalog; expiresAt: number } | null = null;
+let ndovCatalogLoading: Promise<NdovCatalog | null> | null = null;
+
 function nearbyStopsFromCatalog(coordinates: Coordinates, stops: Coordinates[]): NearbyStop[] {
   return stops
     .map((stop) => ({ ...stop, distanceM: Math.round(distanceM(coordinates, stop)) }))
@@ -51,18 +64,33 @@ function nearbyStopsFromCatalog(coordinates: Coordinates, stops: Coordinates[]):
     .sort((a, b) => a.distanceM - b.distanceM);
 }
 
-async function loadNdovStops() {
+async function fetchNdovStops(): Promise<NdovCatalog | null> {
   const indexResponse = await fetch(ndovHaltesUrl, { next: { revalidate: 86400 } });
   if (!indexResponse.ok) throw new Error(`NDOV index ${indexResponse.status}`);
   const index = await indexResponse.text();
   const latest = latestNdovCatalogFile(index);
   if (!latest) return null;
-  const fileResponse = await fetch(new URL(latest.file, ndovHaltesUrl), { next: { revalidate: 86400 } });
+  // Keep the large response out of Next's data cache; the parsed version below
+  // is smaller and is retained by this module for the short, bounded TTL.
+  const fileResponse = await fetch(new URL(latest.file, ndovHaltesUrl), { cache: "no-store" });
   if (!fileResponse.ok) throw new Error(`NDOV haltebestand ${fileResponse.status}`);
   const xml = gunzipSync(Buffer.from(await fileResponse.arrayBuffer())).toString("utf8");
   const stops = ndovStopCoordinates(xml);
   if (!stops.length) throw new Error("NDOV haltebestand bevat geen leesbare haltecoördinaten");
   return { stops, catalogDate: latest.date };
+}
+
+async function loadNdovStops() {
+  if (ndovCatalogCache && ndovCatalogCache.expiresAt > Date.now()) return ndovCatalogCache.value;
+  if (!ndovCatalogLoading) {
+    ndovCatalogLoading = fetchNdovStops()
+      .then((catalog) => {
+        if (catalog) ndovCatalogCache = { value: catalog, expiresAt: Date.now() + NDOV_CATALOG_TTL_MS };
+        return catalog;
+      })
+      .finally(() => { ndovCatalogLoading = null; });
+  }
+  return ndovCatalogLoading;
 }
 
 export async function getNearbyNdovStops(coordinates: Coordinates, limit = 12): Promise<NearbyStop[]> {

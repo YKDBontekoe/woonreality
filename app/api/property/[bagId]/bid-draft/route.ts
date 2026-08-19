@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     if (error) return NextResponse.json({ error: "Bodconcept kon niet worden geladen." }, { status: 503 });
     return NextResponse.json({ draft: data });
   } catch {
-    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar. Log in en koppel Supabase om concepten te bewaren." }, { status: 503 });
+    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld." }, { status: 503 });
   }
 }
 
@@ -44,6 +44,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ bagId
     if (error) return NextResponse.json({ error: "Bodconcept kon niet worden opgeslagen." }, { status: 502 });
     return NextResponse.json({ draft: data });
   } catch {
-    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar. Log in en koppel Supabase om concepten te bewaren." }, { status: 503 });
+    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld." }, { status: 503 });
   }
 }

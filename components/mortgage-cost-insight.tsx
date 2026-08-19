@@ -257,12 +257,12 @@ export function MortgageCostInsight({
         >
           <div className="mortgage-insight-toggles">
             <div className="work-chips" role="group" aria-label="Type woning">
-              <button type="button" className={!options.newBuild ? "active" : undefined} onClick={() => onOptionsChange({ newBuild: false })}>Bestaande bouw</button>
-              <button type="button" className={options.newBuild ? "active" : undefined} onClick={() => onOptionsChange({ newBuild: true })}>Nieuwbouw v.o.n.</button>
+              <button type="button" className={!options.newBuild ? "active" : undefined} aria-pressed={!options.newBuild} onClick={() => onOptionsChange({ newBuild: false })}>Bestaande bouw</button>
+              <button type="button" className={options.newBuild ? "active" : undefined} aria-pressed={options.newBuild} onClick={() => onOptionsChange({ newBuild: true })}>Nieuwbouw v.o.n.</button>
             </div>
             <div className="work-chips" role="group" aria-label="Gebruik">
-              <button type="button" className={!options.investment ? "active" : undefined} onClick={() => onOptionsChange({ investment: false })}>Hoofdverblijf</button>
-              <button type="button" className={options.investment ? "active" : undefined} onClick={() => onOptionsChange({ investment: true })}>Belegging</button>
+              <button type="button" className={!options.investment ? "active" : undefined} aria-pressed={!options.investment} onClick={() => onOptionsChange({ investment: false })}>Hoofdverblijf</button>
+              <button type="button" className={options.investment ? "active" : undefined} aria-pressed={options.investment} onClick={() => onOptionsChange({ investment: true })}>Belegging</button>
             </div>
           </div>
           {!costs ? (

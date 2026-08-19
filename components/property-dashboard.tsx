@@ -11,9 +11,9 @@ import {
   Share2,
 } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PropertyMap } from "@/components/property-map";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { FundaListingPanel } from "@/components/funda-listing-panel";
@@ -37,6 +37,7 @@ import {
   listingQuestionItem,
   mergeChecklistWithDefaults,
 } from "@/src/lib/checklist";
+import { checklistSessionNotice, loadSessionChecklist, saveSessionChecklist, supportsSessionChecklistFallback } from "@/src/lib/checklist-storage";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
@@ -50,6 +51,17 @@ import type {
   PersonalPreferences,
   PropertyListing,
 } from "@/src/lib/types";
+
+// Mapbox accounts for most of the property page's JavaScript. Let people read
+// the verdict and key figures first; the interactive map follows immediately
+// after hydration instead of delaying the whole decision screen.
+const PropertyMap = dynamic(
+  () => import("@/components/property-map").then((module) => module.PropertyMap),
+  {
+    ssr: false,
+    loading: () => <div className="property-map-loading" role="status">Kaart laden…</div>,
+  },
+);
 
 const TAB_IDS = [
   "overzicht",
@@ -69,7 +81,7 @@ const TABS: { id: TabId; label: string; hash: string }[] = [
   { id: "advertentie", label: "Advertentie", hash: "#advertentie" },
   { id: "signalen", label: "Signalen", hash: "#signalen" },
   { id: "omgeving", label: "Omgeving", hash: "#omgeving" },
-  { id: "checklist", label: "Checklist", hash: "#checklist" },
+  { id: "checklist", label: "Bezichtiging", hash: "#checklist" },
   { id: "bronnen", label: "Bronnen", hash: "#bronnen" },
 ];
 
@@ -91,6 +103,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [shareFallback, setShareFallback] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
   const [listing, setListing] = useState<PropertyListing | null>(null);
   const [userListing, setUserListing] = useState<PropertyListing | null>(null);
@@ -102,7 +115,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set(["overzicht"]));
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
   const [mapFocusId, setMapFocusId] = useState<string | null>(null);
-  const { workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
+  const { authStatus, workspace, workspaceError, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -113,7 +126,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const pendingChecklist = useRef<ChecklistItem[] | null>(null);
   const persistChecklistRef = useRef<(next: ChecklistItem[]) => Promise<void>>(async () => undefined);
 
-  const selectTab = useCallback((next: TabId) => {
+  const selectTab = useCallback((next: TabId, updateHistory = true) => {
     setTab(next);
     setVisitedTabs((current) => {
       if (current.has(next)) return current;
@@ -122,7 +135,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       return nextVisited;
     });
     const hash = TABS.find((item) => item.id === next)?.hash ?? "#overzicht";
-    window.history.replaceState(null, "", hash);
+    if (updateHistory && window.location.hash !== hash) {
+      window.history.pushState(null, "", hash);
+    }
   }, []);
   const tabButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -130,9 +145,13 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     const initial = hashToTab(window.location.hash);
     setTab(initial);
     setVisitedTabs(new Set([initial]));
-    const onHashChange = () => selectTab(hashToTab(window.location.hash));
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const onLocationChange = () => selectTab(hashToTab(window.location.hash), false);
+    window.addEventListener("hashchange", onLocationChange);
+    window.addEventListener("popstate", onLocationChange);
+    return () => {
+      window.removeEventListener("hashchange", onLocationChange);
+      window.removeEventListener("popstate", onLocationChange);
+    };
   }, [selectTab]);
 
   useEffect(() => {
@@ -303,9 +322,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           items?: ChecklistItem[] | null;
           error?: string;
         };
-        if (response.status === 401) {
-          setChecklist(checklistForAnalysis(analysis));
-          setChecklistError("Log in om je checklist te bewaren.");
+        if (supportsSessionChecklistFallback(response.status)) {
+          const defaults = checklistForAnalysis(analysis);
+          const cached = loadSessionChecklist(bagId);
+          setChecklist(cached ? mergeChecklistWithDefaults(defaults, cached) : defaults);
+          setChecklistError(response.status === 401 ? "Log in om je checklist te bewaren." : checklistSessionNotice);
           return;
         }
         if (!response.ok)
@@ -399,6 +420,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           },
         );
         const body = (await response.json()) as { error?: string };
+        if (supportsSessionChecklistFallback(response.status)) {
+          if (!saveSessionChecklist(bagId, next)) throw new Error("Je checklist kon niet in deze browser worden bewaard.");
+          setChecklistError(response.status === 401 ? "Log in om je checklist te bewaren." : checklistSessionNotice);
+          return;
+        }
         if (!response.ok)
           throw new Error(
             body.error ?? "Checklist kon niet worden opgeslagen.",
@@ -462,12 +488,22 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   async function share() {
     const url = window.location.href;
+    setShareFallback(false);
     try {
+      if (navigator.share) {
+        await navigator.share({ title: "WoonReality woningcheck", url });
+        return;
+      }
       await navigator.clipboard.writeText(url);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* Clipboard may be unavailable in private contexts. */
+    } catch (caught) {
+      // Cancelling the native share sheet is intentional. In contexts without
+      // either share API, leave the URL selected in a native prompt instead of
+      // making the button appear to do nothing.
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
+      setShareFallback(true);
+      window.prompt("Kopieer de link naar deze woningcheck:", url);
     }
   }
 
@@ -492,6 +528,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const isSaved = workspace.saved.some(
     (item) => item.bagVboId === property.bagVboId,
   );
+  const isCompared = workspace.compare.includes(property.bagVboId);
+  const comparisonIsFull = !isCompared && workspace.compare.length >= 4;
   const personalFit = calculatePersonalFit(analysis, preferences);
   const nearbyProperties = analysis.nearbyProperties ?? [];
   const marketListing = mergeListings(userListing, listing);
@@ -548,20 +586,24 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               {isSaved ? "Bewaard" : "Bewaar"}
             </button>
             <button
-              className={`ghost-button ${workspace.compare.includes(property.bagVboId) ? "selected" : ""}`}
+              className={`ghost-button ${isCompared ? "selected" : ""}`}
               type="button"
+              disabled={comparisonIsFull}
+              title={comparisonIsFull ? "Je kunt maximaal vier woningen tegelijk vergelijken." : undefined}
               onClick={() => { void toggleCompare(property.bagVboId); }}
             >
               <GitCompare size={14} />
-              {workspace.compare.includes(property.bagVboId) ? "In vergelijking" : "Vergelijk"}
+              {isCompared ? "In vergelijking" : comparisonIsFull ? "Vergelijking vol" : "Vergelijk"}
             </button>
             <button className="ghost-button share-button" type="button" onClick={() => { void share(); }}>
               {copied ? <Check size={14} /> : <Share2 size={14} />}
-              {copied ? "Gekopieerd" : "Deel"}
+              {copied ? "Gekopieerd" : shareFallback ? "Kopieer link" : "Deel"}
             </button>
           </div>
         </div>
       </header>
+
+      {workspaceError && <p className="dashboard-workspace-notice" role="status">{workspaceError}</p>}
 
       <VerdictHero
         analysis={analysis}
@@ -577,6 +619,54 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         onSavePreferences={() => { void savePreferences(); }}
         onJumpToSignal={jumpToSignal}
       />
+
+      <section className="dash-decision-bar" aria-label="Jouw volgende stap">
+        <div className="dash-decision-copy">
+          <div className="section-kicker">Van indruk naar besluit</div>
+          <h2>Wat wil je nu uitzoeken?</h2>
+          <p>Ga van deze eerste indruk naar een concrete volgende stap. Je kunt altijd terug naar het overzicht.</p>
+        </div>
+        <div className="dash-decision-actions">
+          <Link className="dash-decision-action is-primary" href={`/woning/${bagId}/bezichtiging`}>
+            <strong>Bezichtiging voorbereiden</strong>
+            <span>Checklist en notities voor onderweg</span>
+          </Link>
+          {workspace.mortgageConfigured ? (
+            <button className="dash-decision-action" type="button" onClick={() => selectTab("deal")}>
+              <strong>Check je betaalbaarheid</strong>
+              <span>Koopprijs, kosten en jouw buffer</span>
+            </button>
+          ) : (
+            <Link className="dash-decision-action" href={hypotheekHref}>
+              <strong>Bereken je koopkracht</strong>
+              <span>Vul inkomen en eigen geld één keer in</span>
+            </Link>
+          )}
+          {isCompared ? (
+            workspace.compare.length >= 2 ? (
+              <Link className="dash-decision-action" href={`/vergelijken?ids=${workspace.compare.join(",")}`}>
+                <strong>Open vergelijking</strong>
+                <span>{workspace.compare.length} woningen naast elkaar</span>
+              </Link>
+            ) : (
+              <Link className="dash-decision-action" href="/#zoek-adres">
+                <strong>Kies een tweede woning</strong>
+                <span>Dan zie je de verschillen naast elkaar</span>
+              </Link>
+            )
+          ) : (
+            <button
+              className="dash-decision-action"
+              type="button"
+              disabled={comparisonIsFull}
+              onClick={() => { void toggleCompare(property.bagVboId); }}
+            >
+              <strong>{comparisonIsFull ? "Vergelijking is vol" : "Zet in vergelijking"}</strong>
+              <span>{comparisonIsFull ? "Vergelijk maximaal vier woningen tegelijk" : "Zet dit huis naast andere favorieten"}</span>
+            </button>
+          )}
+        </div>
+      </section>
 
       <nav className="dashboard-tabs" role="tablist" aria-label="Dashboardsecties">
         {TABS.map((item, index) => (
@@ -594,11 +684,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             }}
             onClick={() => selectTab(item.id)}
             onKeyDown={(event) => {
-              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
               event.preventDefault();
               const currentIndex = TABS.findIndex((entry) => entry.id === tab);
-              const delta = event.key === "ArrowRight" ? 1 : -1;
-              const nextIndex = (currentIndex + delta + TABS.length) % TABS.length;
+              const nextIndex = event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? TABS.length - 1
+                  : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
               const next = TABS[nextIndex];
               if (!next) return;
               selectTab(next.id);
@@ -610,13 +703,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         ))}
       </nav>
 
-      {workspace.compare.length >= 2 && (
-        <div className="compare-banner">
+      {workspace.compare.length > 0 && (
+        <div className="compare-banner" role="status">
           <span>
-            <GitCompare size={15} /> {workspace.compare.length} woningen geselecteerd om te vergelijken
+            <GitCompare size={15} /> {workspace.compare.length === 1
+              ? "1 woning staat klaar. Voeg nog één woning toe om de verschillen naast elkaar te zien."
+              : `${workspace.compare.length} woningen geselecteerd om te vergelijken`}
           </span>
-          <Link className="primary-button" href={`/vergelijken?ids=${workspace.compare.join(",")}`}>
-            Open vergelijking
+          <Link
+            className="primary-button"
+            href={workspace.compare.length >= 2 ? `/vergelijken?ids=${workspace.compare.join(",")}` : "/#zoek-adres"}
+          >
+            {workspace.compare.length >= 2 ? "Open vergelijking" : "Kies tweede woning"}
           </Link>
         </div>
       )}
@@ -750,7 +848,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 <h2>Bezichtiging</h2>
                 {checklistError && (
                   <p className="form-message" role="status">
-                    {checklistError} <Link href="/login">Inloggen</Link>
+                    {checklistError}{authStatus === "anonymous" && <> <Link href="/login">Inloggen</Link></>}
                   </p>
                 )}
               </div>

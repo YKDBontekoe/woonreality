@@ -117,6 +117,7 @@ export function FundaListingPanel({
         <label>
           Funda-advertentielink
           <input
+            type="url"
             value={sourceUrl}
             onChange={(event) => {
               sourceUrlTouchedRef.current = true;

@@ -10,6 +10,26 @@ import type { CalculatorState } from "@/src/lib/mortgage/calculator-state";
 export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
 export type WorkspaceAuthStatus = "unknown" | "authenticated" | "anonymous";
 
+const SESSION_COMPARE_KEY = "woonreality.compare";
+
+function sessionCompare(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const value: unknown = JSON.parse(window.sessionStorage.getItem(SESSION_COMPARE_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && /^\d{16}$/.test(id)).slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSessionCompare(compare: string[]) {
+  try {
+    window.sessionStorage.setItem(SESSION_COMPARE_KEY, JSON.stringify(compare));
+  } catch {
+    // The comparison still works in memory if browser storage is unavailable.
+  }
+}
+
 export function usePropertyWorkspace() {
   const [workspace, setWorkspace] = useState<WorkspaceData>(() => emptyWorkspace());
   const [workspaceError, setWorkspaceError] = useState("");
@@ -22,7 +42,16 @@ export function usePropertyWorkspace() {
       const body = await response.json() as { workspace?: WorkspaceData; error?: string };
       if (response.status === 401) {
         setAuthStatus("anonymous");
-        setWorkspaceError("Log in om je aankoopomgeving te bewaren.");
+        // A comparison is useful before someone creates an account. Keep that
+        // lightweight public workflow available, without suggesting the rest
+        // of the purchase workspace is stored for this visitor.
+        setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
+        setWorkspaceError("");
+        return;
+      }
+      if (response.status === 503) {
+        setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
+        setWorkspaceError("De aankoopomgeving is nu niet beschikbaar. Je kunt de woningcheck wel gewoon gebruiken.");
         return;
       }
       if (!response.ok || !body.workspace) throw new Error(body.error ?? "Aankoopomgeving kon niet worden geladen.");
@@ -42,6 +71,16 @@ export function usePropertyWorkspace() {
     try {
       const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json() as { workspace?: WorkspaceData; error?: string };
+      if ((response.status === 401 || response.status === 502 || response.status === 503) && payload.action === "compare" && authStatus !== "authenticated") {
+        if (response.status === 401) setAuthStatus("anonymous");
+        const compare = Array.isArray(payload.compare)
+          ? payload.compare.filter((id): id is string => typeof id === "string" && /^\d{16}$/.test(id)).slice(0, 4)
+          : [];
+        saveSessionCompare(compare);
+        setWorkspace((current) => ({ ...current, compare }));
+        setWorkspaceError("Je vergelijking blijft in deze browsersessie bewaard. Log in om die aan je aankoopomgeving te koppelen.");
+        return { ok: true };
+      }
       if (response.status === 401) {
         setAuthStatus("anonymous");
         window.location.href = "/login";
@@ -57,7 +96,7 @@ export function usePropertyWorkspace() {
       setWorkspaceError(message);
       return { ok: false, error: message };
     }
-  }, []);
+  }, [authStatus]);
 
   const toggleSaved = useCallback(async (property: Property, askingPrice?: number | null) => {
     const exists = workspace.saved.some((item) => item.bagVboId === property.bagVboId);

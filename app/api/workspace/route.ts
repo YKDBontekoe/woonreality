@@ -34,8 +34,9 @@ function isBagId(value: unknown): value is string {
 async function currentUser() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return { supabase, user: data.user };
+  // Supabase returns AuthSessionMissingError for a visitor without a session.
+  // That is an expected state, not an unavailable workspace service.
+  return { supabase, user: error ? null : data.user };
 }
 
 async function readWorkspace() {
