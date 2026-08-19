@@ -6,9 +6,11 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const url = new URL(request.url);
-  const lat = Number(url.searchParams.get("lat"));
-  const lng = Number(url.searchParams.get("lng"));
-  if (!token || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+  const latRaw = url.searchParams.get("lat");
+  const lngRaw = url.searchParams.get("lng");
+  const lat = latRaw != null ? Number(latRaw) : NaN;
+  const lng = lngRaw != null ? Number(lngRaw) : NaN;
+  if (!token || latRaw == null || lngRaw == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     return NextResponse.json({ error: "Isochroon vereist een Mapbox-token en coördinaten." }, { status: 400 });
   }
   try {
