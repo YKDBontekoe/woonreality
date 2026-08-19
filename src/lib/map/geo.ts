@@ -75,7 +75,7 @@ const ALL_OFF: MapOverlays = {
 
 export const MAP_SCENES: { id: MapSceneId; label: string; hint: string; overlays: OverlayId[] }[] = [
   { id: "street", label: "Straat", hint: "Deze woning en buren", overlays: ["nearby", "garden"] },
-  { id: "reach", label: "Bereik", hint: "Lopen en OV", overlays: ["walk", "transit", "nearby"] },
+  { id: "reach", label: "Bereik", hint: "Reistijd via het wegennet", overlays: ["walk", "transit", "nearby"] },
   { id: "health", label: "Lucht", hint: "Geluid en NO₂ — klik om te meten", overlays: ["noise", "no2"] },
   { id: "nature", label: "Groen", hint: "Bomen, water, tuin", overlays: ["green", "water", "garden"] },
 ];
