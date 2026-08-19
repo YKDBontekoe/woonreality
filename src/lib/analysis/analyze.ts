@@ -11,6 +11,7 @@ import { getNdovContext, ndovHaltesUrl, type NdovContext } from "@/src/lib/sourc
 import { getDsoContext, dsoOnderwerpenUrl, type DsoContext } from "@/src/lib/sources/dso";
 import { getSesContext, sesStatLineTableUrl, type SesContext } from "@/src/lib/sources/ses";
 import { crimeScoreFromRatePer1000, getCrimeContext, politieMisdrijvenTableUrl, type CrimeContext } from "@/src/lib/sources/politie";
+import { getBodemContext, type BodemContext } from "@/src/lib/sources/bodem";
 
 const ANALYSIS_VERSION = "2026.08.v1";
 
@@ -72,20 +73,23 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
   } catch (error) {
     console.warn("EP-Online unavailable; continuing without energy label", error);
   }
-  const [rivmResult, cbsResult, ndovResult, dsoResult] = await Promise.allSettled([
+  const [rivmResult, cbsResult, ndovResult, dsoResult, bodemResult] = await Promise.allSettled([
     getRivmContext(property.coordinates),
     getCbsContext(property.coordinates),
     getNdovContext(property.coordinates),
     getDsoContext(property.coordinates),
+    getBodemContext(property.coordinates, property.province),
   ]);
   const rivm: RivmContext | null = rivmResult.status === "fulfilled" ? rivmResult.value : null;
   const cbs: CbsContext | null = cbsResult.status === "fulfilled" ? cbsResult.value : null;
   const ndov: NdovContext | null = ndovResult.status === "fulfilled" ? ndovResult.value : null;
   const dso: DsoContext | null = dsoResult.status === "fulfilled" ? dsoResult.value : null;
+  const bodem: BodemContext | null = bodemResult.status === "fulfilled" ? bodemResult.value : null;
   if (rivmResult.status === "rejected") console.warn("RIVM unavailable", rivmResult.reason);
   if (cbsResult.status === "rejected") console.warn("CBS buurtcontext unavailable", cbsResult.reason);
   if (ndovResult.status === "rejected") console.warn("NDOV haltes unavailable", ndovResult.reason);
   if (dsoResult.status === "rejected") console.warn("DSO onderwerpen unavailable", dsoResult.reason);
+  if (bodemResult.status === "rejected") console.warn("Bodemregister WFS unavailable", bodemResult.reason);
   const [sesResult, crimeResult] = await Promise.allSettled([
     cbs ? getSesContext(cbs) : Promise.resolve(null),
     cbs ? getCrimeContext(cbs) : Promise.resolve(null),
@@ -229,12 +233,64 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     caveat: "De DSO-bevraging signaleert relevante onderwerpen; controleer de actuele regeling en kaartlagen voor juridische conclusies.",
   });
 
+  const bodemEvidence = bodem && bodem.totalMatches > 0 ? createEvidence({
+    id: "bodemregister-wfs",
+    source: "Lokale bodemregisters (WFS)",
+    sourceUrl: bodem.providers.map((p) => p.sourceUrl).join(", "),
+    sourceRecordId: bodem.providers
+      .map((p) => `${p.provider}: ${p.layers.map((l) => l.layerKey).join(", ")}`)
+      .join(" | "),
+    confidence: "medium",
+    fetchedAt: bodem.fetchedAt,
+    spatialResolution: "circa 200 m bbox rond dit adres",
+    caveat: bodem.caveat,
+  }) : null;
+
   const noiseScore = rivm?.noiseLden != null
     ? clamp(10 - Math.max(0, rivm.noiseLden - 35) / 4)
     : clamp(nearestRoadM === Infinity ? 8 : 8 - Math.max(0, 120 - nearestRoadM) / 25);
   const greenScore = clamp(4 + greenPercent / 8);
   const heatScore = clamp(9 - (100 - greenPercent) / 18);
   const olderBuilding = property.buildingYear != null && property.buildingYear < 1945;
+
+  const bodemLayerLabel: Record<string, string> = {
+    verontreinigd: "verontreinigingen",
+    verdacht: "verdachte locaties",
+    olietanks: "olietanks / tanklocaties",
+    hbb: "Historisch Bodem Bestand (HBB)",
+    stortplaatsen_vv: "voormalige stortplaatsen",
+    spoedlocaties: "spoedlocaties",
+  };
+  const bodemHitsByLayer =
+    bodem?.providers.flatMap((p) =>
+      p.layers
+        .filter((l) => l.matchedCount > 0)
+        .map((l) => `${p.provider}: ${bodemLayerLabel[l.layerKey] ?? l.layerKey} (${l.matchedCount})`),
+    ) ?? [];
+
+  let soilSignal: Signal | null = null;
+  if (bodem && bodem.totalMatches > 0 && bodemEvidence) {
+    soilSignal = {
+      key: "soil-contamination",
+      label: "Bodemverontreiniging (indicatie)",
+      category: "klimaat",
+      value: bodem.totalMatches > 99 ? "99+ locaties" : `${bodem.totalMatches} locatie(s)`,
+      severity: "attention",
+      summary: `In beschikbare regionale bodemregister-lagen zijn indicaties gevonden bij dit adres: ${bodemHitsByLayer.slice(0, 3).join("; ")}.${
+        bodemHitsByLayer.length > 3 ? " (meer hits mogelijk)" : ""
+      } Dit is screening op basis van WFS-bbox-hits; voor zekerheid check je het provinciaal/gemeentelijk bodemloket via Bodemloket.`,
+      action: "Check Bodemloket.nl en vraag bij de bevoegde omgevingsdienst naar de relevante bodemrapportage/dossierstatus.",
+      confidence: "medium",
+      spatialScale: "circa 200 m bbox rond dit adres",
+      raw: {
+        value: bodem.totalMatches,
+        unit: "locaties",
+        metric: "Aantal WFS-bbox matches (screening)",
+      },
+      evidence: [bodemEvidence],
+      availability: "available",
+    };
+  }
 
   const signals: Signal[] = [
     {
@@ -309,6 +365,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       evidence: [bgtWaterEvidence],
       availability: bgtAvailable ? "available" : "unavailable",
     },
+    ...(soilSignal ? [soilSignal] : []),
     {
       key: "access",
       label: "Lokale wegstructuur",
@@ -486,6 +543,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
     ...(crimeAvailable ? [crimeEvidence] : []),
     ...(ndovAvailable ? [ndovEvidence] : []),
     ...(dsoAvailable ? [dsoEvidence] : []),
+    ...(soilSignal ? [bodemEvidence!] : []),
   ];
   const categoryLabels = {
     woning: "Woning",
@@ -624,6 +682,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       ...(crimeAvailable ? ["Politie / CBS misdrijven"] : []),
       ...(ndovAvailable ? ["NDOV haltes"] : []),
       ...(dsoAvailable ? ["DSO Omgevingsdocumenten"] : []),
+      ...(bodem ? ["Lokale bodemregisters (WFS)"] : []),
     ],
     domains,
     everydayInsights: insights,
@@ -640,6 +699,19 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       { source: "Politie / CBS misdrijven", status: crimeAvailable ? "ok" : "unavailable", message: crimeAvailable ? undefined : "Geen geregistreerde misdrijvencijfers beschikbaar voor deze buurt.", sourceUrl: politieMisdrijvenTableUrl },
       { source: "NDOV haltes", status: ndovAvailable ? "ok" : "unavailable", message: ndovAvailable ? undefined : "De openbare haltecatalogus kon niet worden opgehaald.", sourceUrl: ndovHaltesUrl },
       { source: "DSO Omgevingsdocumenten", status: dsoAvailable ? "ok" : "unavailable", message: dsoAvailable ? undefined : "Ruimtelijke onderwerpen zijn nu niet beschikbaar voor dit adres.", sourceUrl: dsoOnderwerpenUrl },
+      {
+        source: "Lokale bodemregisters (WFS)",
+        status: bodemResult.status === "rejected" ? "unavailable" : bodem ? (bodem.overallStatus === "ok" ? "ok" : "partial") : "unavailable",
+        message:
+          bodemResult.status === "rejected"
+            ? "Bodemregister WFS kon niet worden opgehaald."
+            : bodem
+              ? bodem.totalMatches === 0
+                ? "Geen bodemregister-hits gevonden in de beschikbare regionale WFS-datasets voor dit adres."
+                : undefined
+              : "Bodemregister WFS is nog niet (volledig) geconfigureerd voor deze provincie.",
+        sourceUrl: bodem ? bodem.providers.map((p) => p.sourceUrl).join(", ") : undefined,
+      },
     ],
     knownGaps: [
       {
@@ -652,7 +724,7 @@ export async function analyzeProperty(property: Property): Promise<Analysis> {
       {
         key: "soil-contamination",
         label: "Bodemverontreiniging",
-        summary: "Bodemkwaliteit en historische activiteiten (bv. een voormalige stortplaats of tankstation) worden niet gecontroleerd; dit vraagt een provinciaal of gemeentelijk bodemloket.",
+        summary: "Bodemkwaliteit en historische activiteiten (bv. een voormalige stortplaats of tankstation) worden niet volledig landelijk gecontroleerd; dit vraagt een provinciaal of gemeentelijk bodemloket. In sommige regio's kan WoonReality via regionale WFS-datasets wel een indicatie tonen, maar dit is geen sluitend bewijs.",
         checkUrl: "https://www.bodemloket.nl/",
         checkLabel: "Check Bodemloket.nl",
       },
