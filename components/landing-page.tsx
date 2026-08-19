@@ -3,6 +3,7 @@
 import { CheckCircle2, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, Sparkles } from "lucide-react";
 import { AddressSearch } from "@/components/address-search";
 import { SiteHeader } from "@/components/site-header";
+import { Card } from "@/components/ui/card";
 
 export function LandingPage() {
   return (
@@ -41,11 +42,11 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-      <div className="container proof-strip" id="bronnen">
+      <Card className="container proof-strip" id="bronnen">
         <Proof icon={<LocateFixed size={17} />} title="Officieel adres" text="We zoeken op het echte woonadres" />
         <Proof icon={<FileCheck2 size={17} />} title="Elk punt met bron" text="Je ziet waar een signaal vandaan komt" />
         <Proof icon={<Map size={17} />} title="Jij belt en biedt" text="Wij versturen niets zonder jouw actie" />
-      </div>
+      </Card>
       <section className="container section" id="werkwijze">
         <div className="section-heading">
           <div className="eyebrow"><span className="eyebrow-dot" /> zo werkt het</div>
@@ -77,11 +78,11 @@ function Proof({ icon, title, text }: { icon: React.ReactNode; title: string; te
 
 function Step({ number, title, text }: { number: string; title: string; text: string }) {
   return (
-    <div className="werkwijze-step">
+    <Card className="werkwijze-step">
       <span className="werkwijze-step-number">{number}</span>
       <h3>{title}</h3>
       <p>{text}</p>
-    </div>
+    </Card>
   );
 }
 

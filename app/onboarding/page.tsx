@@ -44,7 +44,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   }
 
   return (
-    <main className="site-shell">
+    <main className="site-shell onboarding-product-shell">
       <div className="container"><SiteHeader current="aankoop" /></div>
       <div className="container onboarding-page">
         <OnboardingWizard suggestPasskey={params.setup === "passkey"} />

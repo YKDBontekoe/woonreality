@@ -6,7 +6,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const initialMessage = params.error === "invalid-link" ? "Deze inloglink is verlopen of niet geldig. Vraag een nieuwe link aan." : "";
   return (
-    <PageShell current="login">
+    <PageShell current="login" className="auth-shell">
       <div className="auth-page">
         <Link className="back-link" href="/">← Terug naar zoeken</Link>
         <div className="eyebrow"><span className="eyebrow-dot" /> account</div>

@@ -10,7 +10,7 @@ export const metadata = {
 export default async function HypotheekPage({ searchParams }: { searchParams: Promise<{ label?: string; price?: string; nhg?: string }> }) {
   const params = await searchParams;
   const price = params.price ? Number(params.price) : 0;
-  return <main className="site-shell">
+  return <main className="site-shell mortgage-shell">
     <div className="container"><SiteHeader current="hypotheek" /></div>
     <div className="container mortgage-page">
       <MortgagePageIntro />

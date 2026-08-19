@@ -104,8 +104,8 @@ export function ExtensionSetup() {
           : "Installeer eerst de extensie. Daarna kun je deze browser koppelen aan je account."}
       </p>
       {serviceAvailable === false && (
-        <p className="form-message" role="status">
-          Browserkoppeling is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld.
+        <p className="extension-setup-note" role="status">
+          Koppelen is in deze omgeving nog niet actief. Je kunt de extensie wel alvast installeren.
         </p>
       )}
       {serviceAvailable !== false && authed === false && (

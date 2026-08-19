@@ -71,7 +71,7 @@ export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning
           <Link href="/extensie" className={current === "extensie" ? "nav-current" : undefined} aria-current={current === "extensie" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Extensie</Link>
           <Link href="/mijn-aankoop" className={current === "aankoop" ? "nav-current" : undefined} aria-current={current === "aankoop" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Mijn aankoop</Link>
           <Link className="nav-cta" href="/#zoek-adres" onClick={() => setMenuOpen(false)}>
-            {current === "home" ? "Check een adres" : "Nieuw adres"}
+            Adres zoeken
           </Link>
         </div>
       </nav>

@@ -100,7 +100,7 @@ export function usePropertyWorkspace() {
 
   const toggleSaved = useCallback(async (property: Property, askingPrice?: number | null) => {
     const exists = workspace.saved.some((item) => item.bagVboId === property.bagVboId);
-    await mutate(exists
+    return mutate(exists
       ? { action: "unsave", bagVboId: property.bagVboId }
       : {
         action: "save",

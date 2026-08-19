@@ -72,6 +72,7 @@ export function PurchaseCockpit({
 
   const profileConfigured = workspaceReady && workspace.buyerProfileConfigured;
   const mortgageConfigured = workspaceReady && workspace.mortgageConfigured;
+  const actionableWorkspaceError = workspaceError.startsWith("Je vergelijking") ? workspaceError : "";
   const snapshot = workspace.mortgageSnapshot;
   const completion = profileConfigured ? profileCompletion(profile) : 0;
   const activeHomes = useMemo(() => savedHomes.filter((item) => workspace.propertyStages[item.bagVboId] !== "dropped"), [savedHomes, workspace.propertyStages]);
@@ -120,14 +121,14 @@ export function PurchaseCockpit({
     const focus = activeHomes.find((home) => home.bagVboId === activeCase?.bagVboId) ?? activeHomes[0];
     return nextPurchaseAction({
       profileConfigured,
-      workspaceError: workspaceError || undefined,
+      workspaceError: actionableWorkspaceError || undefined,
       savedCount: activeHomes.length,
       propertyStage: focus ? workspace.propertyStages[focus.bagVboId] : undefined,
       bagVboId: focus?.bagVboId ?? activeCase?.bagVboId ?? undefined,
       caseId: activeCase?.id,
       caseStage: activeCase ? normalizeCaseStage(activeCase.stage) : undefined,
     });
-  }, [activeCase, activeHomes, mortgageConfigured, profileConfigured, workspace.askingPrices, workspace.propertyStages, workspaceError, workspaceReady]);
+  }, [actionableWorkspaceError, activeCase, activeHomes, mortgageConfigured, profileConfigured, workspace.askingPrices, workspace.propertyStages, workspaceReady]);
 
   async function saveProfile() {
     const result = await setBuyerProfile(profile);
@@ -146,7 +147,7 @@ export function PurchaseCockpit({
     <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>{firstRun ? "Begin met een adres." : "Jouw aankoopdashboard."}</h1><p className="hero-copy">{firstRun ? "Zoek een woning, klik op Bewaar, en alles wat je nodig hebt komt hier terug." : "Koopkracht, bewaarde huizen en dossiers op één plek — alsof je een makelaar meeneemt, maar dan voor jezelf."}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link>}</div>
 
     {focusCase && <Notice><Check size={15} /> Je aankoopdossier is gestart. Vul eerst je woonprofiel aan.</Notice>}
-    {workspaceError && <Notice tone="warning" role="alert"><CircleAlert size={15} /> {workspaceError} {authStatus === "anonymous" && <Link href="/login">Inloggen</Link>}</Notice>}
+    {actionableWorkspaceError && <Notice tone="warning" role="alert"><CircleAlert size={15} /> {actionableWorkspaceError} {authStatus === "anonymous" && <Link href="/login">Inloggen</Link>}</Notice>}
 
     {firstRun ? (
       <section className="cockpit-first-run" aria-label="Eerste woning toevoegen">
@@ -156,7 +157,7 @@ export function PurchaseCockpit({
           text="Zoek een adres hieronder. Op de woningcheck klik je op Bewaar — daarna verschijnt het huis hier. Of open Funda-advertenties met de extensie."
           action={<span className="listing-history-empty-actions"><Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> Hypotheek berekenen</Link><Link className="secondary-button" href="/extensie"><Puzzle size={14} /> Funda-extensie</Link></span>}
         />
-        <AddressSearch submitLabel="Bekijk adres" />
+        <AddressSearch submitLabel="Check adres" />
       </section>
     ) : (
       <>

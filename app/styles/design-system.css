@@ -1,0 +1,177 @@
+/* Shared product primitives. New screens should compose these instead of adding page-wide rules. */
+:root {
+  --canvas: #f4f6f9;
+  --surface: #ffffff;
+  --surface-soft: #f7f9fc;
+  --surface-accent: #f1f6ff;
+  --border-subtle: #e6eaf0;
+  --shadow-xs: 0 3px 10px rgba(39, 52, 77, 0.05);
+  --shadow-sm: 0 10px 28px rgba(39, 52, 77, 0.08);
+  --shadow-md: 0 20px 48px rgba(39, 52, 77, 0.12);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --content-width: 1160px;
+}
+
+html, body { background: var(--canvas); }
+body { color: var(--ink); }
+.site-shell { background: linear-gradient(180deg, #fafbfc 0, var(--canvas) 58%, #fafbfc 100%); }
+.container { width: min(var(--content-width), calc(100% - 48px)); }
+
+.ui-card {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-card--soft { background: var(--surface-soft); }
+.ui-card--accent { background: var(--surface-accent); }
+
+.ui-button,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.nav-cta,
+.search-button {
+  min-height: 38px;
+  border-radius: 10px;
+  font-weight: 700;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.ui-button:hover,
+.primary-button:hover,
+.nav-cta:hover,
+.search-button:hover { transform: translateY(-1px); }
+
+.ui-button--primary,
+.primary-button,
+.nav-cta,
+.search-button {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 7px 16px rgba(10,132,255,.22);
+}
+
+.ui-button--primary:hover,
+.primary-button:hover,
+.nav-cta:hover,
+.search-button:hover { background: #0077ed; }
+
+.ui-button--secondary,
+.secondary-button {
+  border: 0;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.ui-button--secondary:hover,
+.secondary-button:hover { color: var(--accent-deep); box-shadow: var(--shadow-sm); }
+
+.ui-button--ghost,
+.ghost-button { color: var(--ink-soft); }
+.ui-button--ghost:hover,
+.ghost-button:hover { color: var(--accent-deep); background: var(--surface-accent); }
+
+.ui-field input,
+.ui-field select,
+.ui-field textarea,
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 rgba(32,44,75,.02);
+}
+
+.ui-field input:focus,
+.ui-field select:focus,
+.ui-field textarea:focus,
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent-focus);
+  outline: 3px solid rgba(10,132,255,.12);
+  outline-offset: 0;
+}
+
+.section-kicker,
+.eyebrow { color: var(--accent-deep); }
+
+@media (max-width: 700px) {
+  .container { width: min(var(--content-width), calc(100% - 32px)); }
+}
+
+/* Landing: turn the old decorative dark map into a crisp, layered product preview. */
+.hero { padding-top: 64px; }
+.hero h1 { max-width: 11ch; }
+.landing-shell .visual-card {
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+.landing-shell .visual-card::after { background: var(--accent); opacity: .06; }
+.landing-shell .visual-grid { opacity: .24; background-image: linear-gradient(rgba(10,132,255,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(10,132,255,.14) 1px, transparent 1px); }
+.landing-shell .visual-map { opacity: .28; background-image: linear-gradient(30deg, transparent 47%, rgba(10,132,255,.18) 48%, rgba(10,132,255,.18) 51%, transparent 52%), linear-gradient(118deg, transparent 47%, rgba(28,115,88,.16) 48%, rgba(28,115,88,.16) 51%, transparent 52%); }
+.landing-shell .visual-label { color: var(--accent-deep); }
+.landing-shell .visual-time { color: var(--muted); }
+.landing-shell .visual-building { border-color: #fff; background: #eaf2ff; box-shadow: 28px 24px 0 rgba(10,132,255,.12), 0 0 0 1px rgba(10,132,255,.1); }
+.landing-shell .visual-building::before { background: #7eb3ef; box-shadow: 54px 0 #7eb3ef, 0 39px #7eb3ef, 54px 39px #7eb3ef; }
+.landing-shell .visual-score { border: 0; background: rgba(255,255,255,.86); box-shadow: var(--shadow-sm); backdrop-filter: blur(16px); }
+.landing-shell .visual-score-label, .landing-shell .visual-score-number span, .landing-shell .visual-score-meta { color: var(--ink-soft); }
+.landing-shell .visual-score-number { color: var(--ink); }
+.landing-shell .visual-score-meta span { background: var(--ok); }
+.landing-shell .visual-source { border: 0; color: var(--accent-deep); background: rgba(255,255,255,.9); box-shadow: var(--shadow-xs); }
+.landing-shell .visual-source svg { color: var(--accent); }
+.landing-shell .floating-tag { border: 0; box-shadow: var(--shadow-sm); }
+.landing-shell .tag-icon { color: var(--accent-deep); background: var(--accent-soft); }
+.landing-shell .nav-cta, .landing-shell .search-button { background: var(--accent); box-shadow: 0 7px 16px rgba(10,132,255,.22); }
+.landing-shell .nav-cta:hover, .landing-shell .search-button:hover { background: #0077ed; }
+.proof-strip, .feature-card, .werkwijze-step { border: 0; background: var(--surface); box-shadow: var(--shadow-xs); }
+.proof-strip { border-radius: var(--radius-lg); }
+.feature-card:nth-child(2), .feature-card:nth-child(3) { background: var(--surface); }
+
+/* The recurring full-screen workspaces share one white-module language. */
+.dashboard-tabs,
+.dash-verdict-hero,
+.dash-decision-bar,
+.dash-insights-panel,
+.dash-collapsible-panel,
+.dash-signal-domain,
+.dash-map-nearby,
+.map-card,
+.comparison-card,
+.comparison-table-wrap,
+.cockpit-card,
+.case-card,
+.case-panel,
+.workflow-panel,
+.mortgage-form-card,
+.mortgage-result-card,
+.onboarding-panel,
+.auth-methods,
+.extension-setup-card {
+  border: 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-tabs { padding: 5px; border-radius: 14px; }
+.dashboard-tabs button.is-on { color: #fff; background: var(--accent); box-shadow: 0 5px 12px rgba(10,132,255,.2); }
+.dash-decision-action { border: 0; background: var(--surface-soft); }
+.dash-decision-action.is-primary { border: 0; background: var(--accent); box-shadow: 0 7px 16px rgba(10,132,255,.2); }
+.dash-verdict-fit, .dash-verdict-thing { border-color: transparent; box-shadow: none; }
+.dash-verdict-thing { background: var(--surface-soft); }
+.dash-verdict-thing.is-attention { background: #fff5ed; }.dash-verdict-thing.is-good { background: #eff8f1; }
+.map-card { box-shadow: var(--shadow-sm); }
+.comparison-card, .cockpit-card, .case-panel, .workflow-panel, .mortgage-form-card, .mortgage-result-card { border-radius: var(--radius-lg); }
+
+@media (max-width: 700px) {
+  .hero { padding-top: 36px; }
+  .proof-strip { box-shadow: none; }
+}

@@ -56,7 +56,7 @@ function storeDraft(
 
 export function AddressSearch({
   onSelect,
-  submitLabel = "Bekijk adres",
+  submitLabel = "Check adres",
   id = "zoek-adres",
 }: {
   onSelect?: (result: AddressSearchResult) => void;

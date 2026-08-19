@@ -29,7 +29,7 @@ type ButtonAsLink = CommonProps & {
 export function Button(props: ButtonAsButton | ButtonAsLink) {
   if ("href" in props && props.href) {
     const { variant = "primary", className = "", children, href } = props;
-    const classes = [variantClass[variant], className].filter(Boolean).join(" ");
+    const classes = ["ui-button", `ui-button--${variant === "navCta" ? "primary" : variant}`, variantClass[variant], className].filter(Boolean).join(" ");
     return (
       <Link className={classes} href={href as Route}>
         {children}
@@ -44,7 +44,7 @@ export function Button(props: ButtonAsButton | ButtonAsLink) {
     type = "button",
     ...rest
   } = props as ButtonAsButton;
-  const classes = [variantClass[variant], className].filter(Boolean).join(" ");
+  const classes = ["ui-button", `ui-button--${variant === "navCta" ? "primary" : variant}`, variantClass[variant], className].filter(Boolean).join(" ");
 
   return (
     <button className={classes} type={type} {...rest}>

@@ -19,6 +19,29 @@ const EMPTY_LISTING: ComparisonListingFacts = {
   vveContribution: null,
 };
 
+function ComparisonEmptyState({ error }: { error: string }) {
+  return (
+    <main className="site-shell comparison-shell">
+      <div className="container">
+        <SiteHeader current="vergelijken" />
+        <section className="comparison-empty" aria-labelledby="comparison-empty-title">
+          <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> Adres zoeken</Link>
+          <div className="eyebrow"><GitCompare size={13} /> vergelijken</div>
+          <h1 id="comparison-empty-title">Zie het verschil tussen woningen.</h1>
+          <p className="hero-copy">Vergelijk pas nadat je twee woningchecks hebt opgeslagen. Wij zetten score, feiten en jouw persoonlijke fit naast elkaar.</p>
+          {error ? <p className="compare-alert" role="alert">{error}</p> : null}
+          <ol className="comparison-empty-steps">
+            <li><span>1</span><div><strong>Check een adres</strong><small>Open een woningcheck die je wilt onthouden.</small></div></li>
+            <li><span>2</span><div><strong>Kies Vergelijk</strong><small>Voeg daarna nog één woning toe.</small></div></li>
+            <li><span>3</span><div><strong>Kom hier terug</strong><small>Dan zie je de verschillen op één plek.</small></div></li>
+          </ol>
+          <Link className="primary-button" href="/#zoek-adres">Check eerste adres</Link>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [listings, setListings] = useState<Record<string, ComparisonListing>>({});
@@ -89,7 +112,7 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
   }, [bagIds.length, selectedBagIdsKey, workspaceReady]);
 
   if (loading) return <main className="site-shell"><div className="container"><SiteHeader current="vergelijken" /><section className="comparison-loading" role="status" aria-live="polite"><span className="sr-only">Vergelijking laden…</span><div className="comparison-loading-heading" aria-hidden="true"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div><div className="comparison-loading-cards" aria-hidden="true"><div className="comparison-loading-card"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div><div className="comparison-loading-card"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div></div></section></div></main>;
-  if (analyses.length < 2) return <main className="site-shell"><div className="container"><SiteHeader current="vergelijken" /><div className="loading-shell"><Link className="back-link" href="/"><ArrowLeft size={14} /> Terug naar zoeken</Link><h1>{loadError ? "Vergelijking tijdelijk niet beschikbaar" : "Kies minstens twee woningen"}</h1><p className="hero-copy">{loadError || "Voeg woningen toe met “Vergelijk” op de woningcheck of vink ze aan onder Bekeken via Funda."}</p><Link className="primary-button" href="/">Zoek een adres</Link></div></div></main>;
+  if (analyses.length < 2) return <ComparisonEmptyState error={loadError} />;
 
   const domains = analyses[0].domains;
   const formatEuro = (value: number) => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);

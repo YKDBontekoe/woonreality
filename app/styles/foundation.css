@@ -1,0 +1,58 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
+
+/*
+  Design contract — one palette, one type scale, one control set.
+  Text: ink / ink-soft / muted
+  Surfaces: paper / card / line / shadow
+  Interactive: accent / accent-soft / accent-focus
+  Semantic only: ok / warn / attention (never for brand chrome)
+*/
+:root {
+  --ink: #1d1d1f;
+  --ink-soft: #6e6e73;
+  --muted: #86868b;
+  --paper: #fbfbfd;
+  --card: #ffffff;
+  --line: #e8e8ed;
+  --shadow: 0 18px 48px rgba(32, 44, 75, 0.10);
+  --accent: #0a84ff;
+  --accent-soft: #edf5ff;
+  --accent-focus: #8fc4ff;
+  --accent-deep: #2770ca;
+  --ok: #1c7358;
+  --ok-soft: #eaf4eb;
+  --ok-border: #c9dfcf;
+  --warn: #ffd60a;
+  --warn-soft: #fff6e4;
+  --attention: #ff9f0a;
+  --attention-deep: #9a573d;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-pill: 999px;
+  /* Compat aliases — prefer the names above in new CSS */
+  --moss: var(--ink);
+  --moss-bright: var(--accent);
+  --moss-focus: var(--accent-focus);
+  --mint: var(--accent-soft);
+  --mint-soft: #f4f8ff;
+  --mint-pale: #edf5ff;
+  --mint-border: #dbe8fa;
+  --coral: var(--attention);
+  --coral-deep: var(--attention-deep);
+  --yellow: var(--warn);
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--paper); }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "DM Sans", sans-serif;
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }

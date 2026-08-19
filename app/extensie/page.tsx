@@ -18,17 +18,21 @@ export default async function ExtensiePage() {
   const firefoxUrl = release?.firefoxDownloadUrl ?? "/extension/woonreality-funda-firefox.xpi";
 
   return (
-    <PageShell current="extensie">
-      <Link className="back-link" href="/mijn-aankoop">← Mijn aankoop</Link>
-      <div className="eyebrow"><Puzzle size={13} /> browser-extensie</div>
-      <h1>Funda-extensie</h1>
-      <p className="hero-copy">
-        WoonReality haalt Funda niet vanaf de server op (dat loopt vast op een mensen-check).
-        Installeer de extensie, open een advertentie in je eigen browser, en kenmerken landen in jouw dossier.
-        We slaan geen pagina-HTML op, alleen de kenmerken.
-      </p>
+    <PageShell current="extensie" className="extension-shell">
+      <div className="extension-page">
+        <header className="extension-intro">
+          <Link className="back-link" href="/mijn-aankoop">← Mijn aankoop</Link>
+          <div className="eyebrow"><Puzzle size={13} /> browser-extensie</div>
+          <h1>Bewaar Funda-feiten bij je woning.</h1>
+          <p className="hero-copy">
+            Installeer de extensie één keer. Open daarna een Funda-advertentie in je eigen browser en bewaar alleen de relevante kenmerken bij je woningcheck.
+          </p>
+        </header>
+
+        <div className="extension-content">
 
       <section className="listing-intake-card">
+        <div className="section-kicker">Stap 1</div>
         <h2>Chrome of Edge {release && <small>· versie {release.version}</small>}</h2>
         <ol className="extension-steps">
           <li>
@@ -45,6 +49,7 @@ export default async function ExtensiePage() {
       </section>
 
       <section className="listing-intake-card">
+        <div className="section-kicker">Stap 1</div>
         <h2>Firefox</h2>
         <ol className="extension-steps">
           <li>
@@ -58,14 +63,17 @@ export default async function ExtensiePage() {
         </ol>
       </section>
 
-      <section>
-        <h2>Koppelen</h2>
+      <section className="extension-connect-card">
+        <div className="section-kicker">Stap 2</div>
+        <h2>Koppel deze browser</h2>
         <ExtensionSetup />
       </section>
 
-      <section className="cockpit-section" id="funda-geschiedenis">
+      <section className="cockpit-section extension-history" id="funda-geschiedenis">
         <ListingHistoryFromWorkspace compact />
       </section>
+        </div>
+      </div>
     </PageShell>
   );
 }

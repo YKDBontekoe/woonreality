@@ -701,11 +701,14 @@ export function PropertyMap({
   if (!hasToken) {
     return (
       <div className={`map-card map-empty is-${variant}`}>
+        <div className="map-fallback-grid" aria-hidden="true" />
         <div className="map-badge"><MapPinned size={12} /> locatie</div>
         <div className="map-empty-copy">
-          <strong>3D-kaart niet beschikbaar</strong>
-          <p>De interactieve Mapbox-kaart vereist een publieke Mapbox-token.</p>
-          <span>{lat.toFixed(4)}, {lng.toFixed(4)}</span>
+          <div className="map-empty-pin" aria-hidden="true"><MapPinned size={18} /></div>
+          <span className="section-kicker">Woninglocatie</span>
+          <strong>{property.street} {houseNumber}</strong>
+          <p>{property.postcode} {property.city}</p>
+          <small>Kaartdetails zijn nu niet beschikbaar. De omgevingssignalen hieronder blijven wel volledig bruikbaar.</small>
         </div>
       </div>
     );

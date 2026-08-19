@@ -26,6 +26,7 @@ import { PropertyScoreCharts } from "@/components/property/score-charts";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PropertyActionDock } from "@/components/property/action-dock";
 import { RunningCostsPanel } from "@/components/property/running-costs-panel";
+import { AiDecisionBrief } from "@/components/property/ai-decision-brief";
 import { VerdictHero, type TopThing } from "@/components/property/verdict-hero";
 import { PageShell } from "@/components/ui/page-shell";
 import {
@@ -105,6 +106,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [shareFallback, setShareFallback] = useState(false);
+  const [actionNotice, setActionNotice] = useState("");
   const [showPreferences, setShowPreferences] = useState(false);
   const [listing, setListing] = useState<PropertyListing | null>(null);
   const [userListing, setUserListing] = useState<PropertyListing | null>(null);
@@ -116,7 +118,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set(["overzicht"]));
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
   const [mapFocusId, setMapFocusId] = useState<string | null>(null);
-  const { authStatus, workspace, workspaceError, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
+  const { authStatus, workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -550,7 +552,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   );
 
   async function saveProperty() {
-    await toggleSaved(property, marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId]);
+    setActionNotice("");
+    const result = await toggleSaved(property, marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId]);
+    if (!result.ok) {
+      setActionNotice("Bewaren lukt nu niet. Probeer het later opnieuw.");
+      window.setTimeout(() => setActionNotice(""), 4200);
+    }
   }
 
   function jumpToSignal(thing: TopThing) {
@@ -561,9 +568,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   return (
     <PageShell current="woning" className="property-dash-shell">
       <header className="dashboard-header">
-        <Link className="back-link" href="/">
-          <ArrowLeft size={14} /> Ander adres
-        </Link>
         <div className="dashboard-top">
           <div>
             <div className="eyebrow">
@@ -600,11 +604,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               {copied ? <Check size={14} /> : <Share2 size={14} />}
               {copied ? "Gekopieerd" : shareFallback ? "Kopieer link" : "Deel"}
             </button>
+            {actionNotice ? <span className="dashboard-action-note" role="status">{actionNotice}</span> : null}
           </div>
         </div>
       </header>
-
-      {workspaceError && <p className="dashboard-workspace-notice" role="status">{workspaceError}</p>}
 
       <VerdictHero
         analysis={analysis}
@@ -620,54 +623,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         onSavePreferences={() => { void savePreferences(); }}
         onJumpToSignal={jumpToSignal}
       />
-
-      <section className="dash-decision-bar" aria-label="Jouw volgende stap">
-        <div className="dash-decision-copy">
-          <div className="section-kicker">Van indruk naar besluit</div>
-          <h2>Wat wil je nu uitzoeken?</h2>
-          <p>Ga van deze eerste indruk naar een concrete volgende stap. Je kunt altijd terug naar het overzicht.</p>
-        </div>
-        <div className="dash-decision-actions">
-          <Link className="dash-decision-action is-primary" href={`/woning/${bagId}/bezichtiging`}>
-            <strong>Bezichtiging voorbereiden</strong>
-            <span>Checklist en notities voor onderweg</span>
-          </Link>
-          {workspace.mortgageConfigured ? (
-            <button className="dash-decision-action" type="button" onClick={() => selectTab("deal")}>
-              <strong>Check je betaalbaarheid</strong>
-              <span>Koopprijs, kosten en jouw buffer</span>
-            </button>
-          ) : (
-            <Link className="dash-decision-action" href={hypotheekHref}>
-              <strong>Bereken je koopkracht</strong>
-              <span>Vul inkomen en eigen geld één keer in</span>
-            </Link>
-          )}
-          {isCompared ? (
-            workspace.compare.length >= 2 ? (
-              <Link className="dash-decision-action" href={`/vergelijken?ids=${workspace.compare.join(",")}`}>
-                <strong>Open vergelijking</strong>
-                <span>{workspace.compare.length} woningen naast elkaar</span>
-              </Link>
-            ) : (
-              <Link className="dash-decision-action" href="/#zoek-adres">
-                <strong>Kies een tweede woning</strong>
-                <span>Dan zie je de verschillen naast elkaar</span>
-              </Link>
-            )
-          ) : (
-            <button
-              className="dash-decision-action"
-              type="button"
-              disabled={comparisonIsFull}
-              onClick={() => { void toggleCompare(property.bagVboId); }}
-            >
-              <strong>{comparisonIsFull ? "Vergelijking is vol" : "Zet in vergelijking"}</strong>
-              <span>{comparisonIsFull ? "Vergelijk maximaal vier woningen tegelijk" : "Zet dit huis naast andere favorieten"}</span>
-            </button>
-          )}
-        </div>
-      </section>
 
       <nav className="dashboard-tabs" role="tablist" aria-label="Dashboardsecties">
         {TABS.map((item, index) => (
@@ -733,6 +688,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               onExpand={() => selectTab("omgeving")}
             />
           </div>
+          <AiDecisionBrief
+            analysis={analysis}
+            listing={marketListing}
+            report={aiReport}
+            status={aiStatus}
+            onOpenSignals={() => selectTab("signalen")}
+            onOpenChecklist={() => selectTab("checklist")}
+          />
           {(analysis.everydayInsights ?? []).length > 0 && (
             <section className="dash-insights-panel">
               <div className="section-kicker">In het dagelijks leven</div>

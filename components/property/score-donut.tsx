@@ -13,11 +13,7 @@ export function ScoreDonut({
   const cx = view / 2;
   const circ = 2 * Math.PI * radius;
   const offset = circ * (1 - clamped / 10);
-  const stroke = {
-    good: "var(--ok)",
-    neutral: "var(--accent)",
-    attention: "var(--attention)",
-  }[scoreBand(score)];
+  const stroke = scoreBand(score) === "attention" ? "var(--attention)" : "var(--accent)";
 
   return (
     <svg className={`dash-donut is-${size}`} viewBox={`0 0 ${view} ${view}`} aria-hidden="true">
@@ -39,7 +35,7 @@ export function ScoreDonut({
         y={cx + (size === "lg" ? 8 : 6)}
         textAnchor="middle"
         fontSize={size === "lg" ? 28 : 18}
-        fontFamily="Space Grotesk, sans-serif"
+        fontFamily="DM Sans, sans-serif"
         fontWeight="600"
         fill="var(--ink)"
       >
