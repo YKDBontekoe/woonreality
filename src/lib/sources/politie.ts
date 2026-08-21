@@ -1,4 +1,4 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
 
 export const politieMisdrijvenUrl = "https://dataderden.cbs.nl/ODataApi/OData/47018NED";
 export const politieMisdrijvenTableUrl = "https://data.politie.nl/#/Politie/nl/dataset/47018NED/table";
@@ -81,6 +81,93 @@ function soortFilter() {
   return Object.values(CRIME_TYPES)
     .map((key) => cbsODataEq("SoortMisdrijf", `${key} `))
     .join(" or ");
+}
+
+export type CrimeLookupEntry = {
+  total?: number;
+  per1000?: number;
+  periodYear?: string;
+};
+
+const CRIME_LOOKUP_TTL_MS = 6 * 60 * 60 * 1000;
+const crimeLookupCache = new Map<string, { value: CrimeLookupEntry; expiresAt: number }>();
+const crimeLookupInflight = new Map<string, Promise<CrimeLookupEntry | undefined>>();
+
+function spatialScaleFromCode(code: string): CrimeContext["spatialScale"] {
+  if (code.startsWith("BU")) return "buurt";
+  if (code.startsWith("WK")) return "wijk";
+  return "gemeente";
+}
+
+async function fetchCrimeEntry(regionCode: string, inhabitants?: number): Promise<CrimeLookupEntry | undefined> {
+  const normalized = normalizeRegionCode(regionCode);
+  if (!normalized) return undefined;
+  const cacheKey = `${normalized}:${inhabitants ?? 0}`;
+  const cached = crimeLookupCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const inflight = crimeLookupInflight.get(cacheKey);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    for (const variant of cbsODataRegionVariants(normalized)) {
+      const rows = await fetchCrimeRows(variant);
+      const parsed = parseCrimeRows(rows, variant, spatialScaleFromCode(normalized), inhabitants);
+      if (parsed) {
+        const value: CrimeLookupEntry = {
+          total: parsed.total,
+          per1000: parsed.per1000,
+          periodYear: parsed.periodYear,
+        };
+        crimeLookupCache.set(cacheKey, { value, expiresAt: Date.now() + CRIME_LOOKUP_TTL_MS });
+        return value;
+      }
+    }
+    return undefined;
+  })().finally(() => { crimeLookupInflight.delete(cacheKey); });
+
+  crimeLookupInflight.set(cacheKey, promise);
+  return promise;
+}
+
+export async function preloadCrimeEntries(
+  entries: { regionCode: string; inhabitants?: number }[],
+  concurrency = 12,
+) {
+  const batchSize = assertPositiveInteger(concurrency, "concurrency");
+  const unique = [...new Map(entries.map((entry) => {
+    const code = normalizeRegionCode(entry.regionCode);
+    return [`${code}:${entry.inhabitants ?? 0}`, { regionCode: code ?? "", inhabitants: entry.inhabitants }];
+  })).values()].filter((entry) => entry.regionCode);
+  for (let index = 0; index < unique.length; index += batchSize) {
+    await Promise.all(unique.slice(index, index + batchSize).map((entry) => (
+      fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined)
+    )));
+  }
+}
+
+export function lookupCrimeEntry(lookup: Map<string, CrimeLookupEntry>, regionCode: string | undefined, inhabitants?: number) {
+  const normalized = normalizeRegionCode(regionCode);
+  if (!normalized) return undefined;
+  return lookup.get(`${normalized}:${inhabitants ?? 0}`)
+    ?? lookup.get(normalized)
+    ?? crimeLookupCache.get(`${normalized}:${inhabitants ?? 0}`)?.value
+    ?? crimeLookupCache.get(`${normalized}:0`)?.value;
+}
+
+export async function getCrimeLookupForEntries(entries: { regionCode: string; inhabitants?: number }[]) {
+  await preloadCrimeEntries(entries);
+  const lookup = new Map<string, CrimeLookupEntry>();
+  for (const entry of entries) {
+    const normalized = normalizeRegionCode(entry.regionCode);
+    if (!normalized) continue;
+    const cached = lookupCrimeEntry(new Map(), normalized, entry.inhabitants);
+    if (cached) {
+      lookup.set(`${normalized}:${entry.inhabitants ?? 0}`, cached);
+      lookup.set(normalized, cached);
+    }
+  }
+  const periodYear = [...lookup.values()].find((entry) => entry.periodYear)?.periodYear;
+  return { lookup, periodYear };
 }
 
 async function fetchCrimeRows(regionCode: string): Promise<CrimeRow[]> {

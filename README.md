@@ -79,6 +79,7 @@ GET /api/place/:kind/:code
 GET /api/property/:bagId
 GET /api/property/:bagId/map-layers
 GET /api/map/isochrone?lat=&lng=&profile=walking|driving&minutes=5..30
+GET /api/map/regions?bbox=west,south,east,north&layer=ses|education|crime|woz|schools|children|density&zoom=
 GET /api/map/rivm/:layer/:z/:x/:y
 GET /api/analysis/:bagId
 GET /api/ai-analysis/:bagId

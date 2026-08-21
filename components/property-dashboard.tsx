@@ -775,6 +775,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
       {tab === "omgeving" && (
         <div className="dash-tab-panel" role="tabpanel" id="panel-omgeving" aria-labelledby="tab-omgeving">
+          <div className="kaart-link-row">
+            <Link
+              className="secondary-button"
+              href={`/kaart?lat=${property.coordinates.lat}&lng=${property.coordinates.lng}&z=12&layer=ses`}
+            >
+              Bekijk op de Nederlandkaart
+            </Link>
+          </div>
           <div className="dash-map-studio" id="kaart">
             <PropertyMap
               property={property}
