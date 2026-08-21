@@ -494,3 +494,39 @@
 .comparison-empty-steps small { margin-top: 4px; color: var(--ink-soft); font-size: 11px; line-height: 1.4; }
 @media (max-width: 700px) { .comparison-empty { margin: 2rem 0 4rem; padding: 1.5rem; } .comparison-empty-steps { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .dashboard-action-note { text-align: left; } }
+
+/* National explorer (/kaart) */
+.kaart-shell .container { position: relative; z-index: 2; }
+.kaart-intro { max-width: 720px; padding: 8px 0 18px; }
+.kaart-intro h1 { margin: 10px 0 8px; font: 600 clamp(30px, 4vw, 46px)/1 "DM Sans", sans-serif; letter-spacing: -.06em; }
+.kaart-map-shell { position: relative; min-height: min(72vh, 760px); margin: 0 0 48px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #e7eef7; }
+.kaart-map-shell .map-canvas { position: absolute; inset: 0; }
+.kaart-map-shell.map-empty { display: grid; place-items: center; padding: 48px 24px; }
+.kaart-map-chrome { position: absolute; top: 16px; left: 16px; right: 16px; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; pointer-events: none; }
+.kaart-map-chrome > * { pointer-events: auto; }
+.kaart-map-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.kaart-map-tools button, .kaart-layer-panel label { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: rgba(255,255,255,.92); color: var(--ink-soft); font-size: 12px; backdrop-filter: blur(10px); }
+.kaart-map-tools button.selected { background: var(--accent-soft); border-color: #b9d4f0; color: var(--accent-deep); }
+.kaart-layer-panel { position: absolute; top: 68px; right: 16px; z-index: 3; width: min(280px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.95); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
+.kaart-layer-group { display: grid; gap: 8px; margin-bottom: 12px; }
+.kaart-layer-group:last-child { margin-bottom: 0; }
+.kaart-layer-panel label { width: 100%; justify-content: flex-start; cursor: pointer; }
+.kaart-legend { position: absolute; left: 16px; bottom: 16px; z-index: 2; width: min(280px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.94); box-shadow: var(--shadow-sm); backdrop-filter: blur(10px); font-size: 11px; color: var(--ink-soft); }
+.kaart-legend-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.kaart-legend-head strong { color: var(--ink); font-size: 13px; }
+.kaart-legend-bar { display: grid; grid-template-columns: repeat(3, 1fr); height: 8px; overflow: hidden; border-radius: 999px; }
+.kaart-legend-scale { display: flex; justify-content: space-between; margin-top: 6px; }
+.kaart-legend p { margin: 8px 0 0; line-height: 1.45; }
+.kaart-inspect { position: absolute; top: 16px; right: 16px; z-index: 3; width: min(320px, calc(100vw - 32px)); max-height: calc(100% - 120px); overflow: auto; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.96); box-shadow: var(--shadow-md); backdrop-filter: blur(12px); }
+.kaart-inspect h2 { margin: 6px 0 4px; font: 600 22px/1.1 "DM Sans", sans-serif; letter-spacing: -.04em; }
+.kaart-inspect-list { display: grid; gap: 8px; margin: 14px 0; }
+.kaart-inspect-list div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.kaart-inspect-list dt { color: var(--muted); }
+.kaart-inspect-list dd { margin: 0; color: var(--ink); text-align: right; }
+.kaart-inspect-address { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.kaart-link-row { margin: 0 0 12px; }
+@media (max-width: 760px) {
+  .kaart-map-chrome { flex-direction: column; align-items: stretch; }
+  .kaart-layer-panel { top: auto; right: 16px; left: 16px; bottom: 120px; }
+  .kaart-inspect { top: auto; right: 16px; left: 16px; bottom: 16px; width: auto; max-height: 42vh; }
+}

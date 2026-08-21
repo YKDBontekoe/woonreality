@@ -1,4 +1,4 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel } from "@/src/lib/sources/cbs-odata";
 
 export const sesStatLineUrl = "https://opendata.cbs.nl/ODataApi/OData/86296NED";
 export const sesStatLineTableUrl = "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED";
@@ -58,6 +58,91 @@ export function parseSesRows(rows: SesRow[], regionCode: string, spatialScale: S
     educationHighPct,
     fetchedAt,
   };
+}
+
+export type SesLookupEntry = {
+  sesScore?: number;
+  wealthScore?: number;
+  educationScore?: number;
+  workScore?: number;
+  educationLowPct?: number;
+  educationMidPct?: number;
+  educationHighPct?: number;
+  periodYear?: string;
+};
+
+const SES_LOOKUP_TTL_MS = 6 * 60 * 60 * 1000;
+const sesLookupCache = new Map<string, { value: SesLookupEntry; expiresAt: number }>();
+const sesLookupInflight = new Map<string, Promise<SesLookupEntry | undefined>>();
+
+function spatialScaleFromCode(code: string): SesContext["spatialScale"] {
+  if (code.startsWith("BU")) return "buurt";
+  if (code.startsWith("WK")) return "wijk";
+  return "gemeente";
+}
+
+function sesEntryFromContext(context: SesContext): SesLookupEntry {
+  return {
+    sesScore: context.sesScore,
+    wealthScore: context.wealthScore,
+    educationScore: context.educationScore,
+    workScore: context.workScore,
+    educationLowPct: context.educationLowPct,
+    educationMidPct: context.educationMidPct,
+    educationHighPct: context.educationHighPct,
+    periodYear: context.periodYear,
+  };
+}
+
+async function fetchSesEntry(regionCode: string): Promise<SesLookupEntry | undefined> {
+  const normalized = normalizeRegionCode(regionCode);
+  if (!normalized) return undefined;
+  const cached = sesLookupCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const inflight = sesLookupInflight.get(normalized);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    for (const variant of cbsODataRegionVariants(normalized)) {
+      const rows = await fetchSesRows(variant);
+      const parsed = parseSesRows(rows, variant, spatialScaleFromCode(normalized));
+      if (parsed) {
+        const value = sesEntryFromContext(parsed);
+        sesLookupCache.set(normalized, { value, expiresAt: Date.now() + SES_LOOKUP_TTL_MS });
+        return value;
+      }
+    }
+    return undefined;
+  })().finally(() => { sesLookupInflight.delete(normalized); });
+
+  sesLookupInflight.set(normalized, promise);
+  return promise;
+}
+
+export async function preloadSesEntries(regionCodes: string[], concurrency = 12) {
+  const unique = [...new Set(regionCodes.map((code) => normalizeRegionCode(code)).filter(Boolean))] as string[];
+  for (let index = 0; index < unique.length; index += concurrency) {
+    await Promise.all(unique.slice(index, index + concurrency).map((code) => fetchSesEntry(code)));
+  }
+}
+
+export function lookupSesEntry(lookup: Map<string, SesLookupEntry>, regionCode: string | undefined) {
+  const normalized = normalizeRegionCode(regionCode);
+  if (!normalized) return undefined;
+  return lookup.get(normalized) ?? sesLookupCache.get(normalized)?.value;
+}
+
+export async function getSesLookupForCodes(regionCodes: string[]) {
+  await preloadSesEntries(regionCodes);
+  const lookup = new Map<string, SesLookupEntry>();
+  for (const code of regionCodes) {
+    const normalized = normalizeRegionCode(code);
+    if (!normalized) continue;
+    const entry = sesLookupCache.get(normalized)?.value;
+    if (entry) lookup.set(normalized, entry);
+  }
+  const periodYear = [...lookup.values()].find((entry) => entry.periodYear)?.periodYear;
+  return { lookup, periodYear };
 }
 
 async function fetchSesRows(regionCode: string): Promise<SesRow[]> {

@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
 
-export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning" | "hypotheek" | "login" | "extensie" | "vergelijken" }) {
+export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning" | "hypotheek" | "login" | "extensie" | "vergelijken" | "kaart" }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuToggleRef = useRef<HTMLButtonElement>(null);
@@ -67,6 +67,7 @@ export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning
         <div id="site-nav-links" className="nav-links">
           <Link href="/#werkwijze" onClick={() => setMenuOpen(false)}>Werkwijze</Link>
           <Link href="/hypotheek" className={current === "hypotheek" ? "nav-current" : undefined} aria-current={current === "hypotheek" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Hypotheek</Link>
+          <Link href="/kaart" className={current === "kaart" ? "nav-current" : undefined} aria-current={current === "kaart" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Kaart</Link>
           <Link href="/vergelijken" className={current === "vergelijken" ? "nav-current" : undefined} aria-current={current === "vergelijken" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Vergelijken</Link>
           <Link href="/extensie" className={current === "extensie" ? "nav-current" : undefined} aria-current={current === "extensie" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Extensie</Link>
           <Link href="/mijn-aankoop" className={current === "aankoop" ? "nav-current" : undefined} aria-current={current === "aankoop" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Mijn aankoop</Link>

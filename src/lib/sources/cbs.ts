@@ -1,6 +1,30 @@
-import type { Coordinates } from "@/src/lib/types";
+import type { RegionScale } from "@/src/lib/map/national-layers";
+import type { Coordinates, GeoJsonFeature, GeoJsonFeatureCollection } from "@/src/lib/types";
 
-export const cbsBuurtenUrl = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections/buurten/items";
+export const cbsOgcBase = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections";
+export const cbsBuurtenUrl = `${cbsOgcBase}/buurten/items`;
+export const cbsWijkenUrl = `${cbsOgcBase}/wijken/items`;
+export const cbsGemeentenUrl = `${cbsOgcBase}/gemeenten/items`;
+
+export const CBS_REGION_LIMIT = 1000;
+
+export function cbsCollectionUrl(scale: RegionScale) {
+  if (scale === "gemeente") return cbsGemeentenUrl;
+  if (scale === "wijk") return cbsWijkenUrl;
+  return cbsBuurtenUrl;
+}
+
+export function regionNameFromProperties(properties: Record<string, unknown>, scale: RegionScale) {
+  if (scale === "gemeente") return readString(properties, "gemeentenaam", "naam_gemeente");
+  if (scale === "wijk") return readString(properties, "wijknaam", "naam_wijk");
+  return readString(properties, "buurtnaam", "naam_buurt");
+}
+
+export function regionCodeFromProperties(properties: Record<string, unknown>, scale: RegionScale) {
+  if (scale === "gemeente") return readString(properties, "gemeentecode");
+  if (scale === "wijk") return readString(properties, "wijkcode");
+  return readString(properties, "buurtcode");
+}
 
 /** CBS Wijk- en Buurtkaart uses large negative sentinels for suppressed / unknown cells. */
 const CBS_SENTINEL_MAX = -99990;
@@ -83,6 +107,51 @@ export function schoolScoreFromCbs(cbs: Pick<CbsContext, "primarySchoolDistanceK
   let score = Math.min(10, Math.max(0, 9 - distanceKm * 2));
   if ((cbs.primarySchoolsWithin1km ?? 0) >= 2) score = Math.min(10, score + 0.4);
   return Math.round(score * 10) / 10;
+}
+
+export async function fetchCbsRegionsInBbox(
+  bbox: [number, number, number, number],
+  scale: RegionScale,
+  limit = CBS_REGION_LIMIT,
+): Promise<GeoJsonFeatureCollection> {
+  const params = new URLSearchParams({
+    f: "json",
+    bbox: bbox.join(","),
+    limit: String(limit),
+  });
+  const response = await fetch(`${cbsCollectionUrl(scale)}?${params}`, { next: { revalidate: 86400 } });
+  if (!response.ok) throw new Error(`CBS ${scale} ${response.status}`);
+  const payload = await response.json() as GeoJsonFeatureCollection;
+  return {
+    type: "FeatureCollection",
+    features: payload.features ?? [],
+  };
+}
+
+export function slimCbsFeature(feature: GeoJsonFeature, scale: RegionScale): GeoJsonFeature {
+  const properties = feature.properties ?? {};
+  const parsed = parseCbsProperties(properties);
+  return {
+    type: "Feature",
+    geometry: feature.geometry,
+    properties: {
+      regionCode: regionCodeFromProperties(properties, scale),
+      regionName: regionNameFromProperties(properties, scale),
+      municipalityName: parsed.municipalityName,
+      scale,
+      inhabitants: parsed.inhabitants,
+      populationDensity: parsed.populationDensity,
+      averageWoz: parsed.averageWoz,
+      shareAge0to15Pct: parsed.shareAge0to15Pct,
+      shareHouseholdsWithChildrenPct: parsed.shareHouseholdsWithChildrenPct,
+      primarySchoolDistanceKm: parsed.primarySchoolDistanceKm,
+      primarySchoolsWithin1km: parsed.primarySchoolsWithin1km,
+      secondarySchoolDistanceKm: parsed.secondarySchoolDistanceKm,
+      buurtcode: parsed.buurtcode,
+      wijkcode: parsed.wijkcode,
+      gemeentecode: parsed.gemeentecode,
+    },
+  };
 }
 
 export async function getCbsContext(coordinates: Coordinates): Promise<CbsContext | null> {
