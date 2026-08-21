@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers3, Locate, MapPinned } from "lucide-react";
+import { Layers3, Locate, MapPinned, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -13,7 +13,6 @@ import {
   type NationalLayerId,
   type NationalRasterId,
   type NationalSceneId,
-  regionScaleFromZoom,
   type LayerLegend,
 } from "@/src/lib/map/national-layers";
 import type { RegionFeatureProperties } from "@/src/lib/map/regions";
@@ -125,6 +124,18 @@ function parseInitialLayer(value: string | undefined): NationalLayerId {
 function parseInitialNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function scaleLabel(scale: string | undefined) {
+  if (scale === "gemeente") return "Gemeente";
+  if (scale === "wijk") return "Wijk";
+  if (scale === "buurt") return "Buurt";
+  return "Gebied";
+}
+
+function activeSceneHint(scene: NationalSceneId | "custom", layer: NationalLayerId) {
+  if (scene !== "custom") return NATIONAL_SCENES.find((item) => item.id === scene)?.hint ?? "";
+  return NATIONAL_LAYERS[layer].hint;
 }
 
 export function NetherlandsMap({
@@ -355,20 +366,23 @@ export function NetherlandsMap({
 
   if (!hasToken) {
     return (
-      <div className="kaart-map-shell map-empty">
+      <div className="map-card map-empty kaart-map-shell">
         <div className="map-empty-copy">
-          <MapPinned size={18} />
+          <div className="map-empty-pin" aria-hidden="true"><MapPinned size={18} /></div>
+          <span className="section-kicker">Nederlandkaart</span>
           <strong>Kaart niet beschikbaar</strong>
-          <p>Stel <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> in om de Nederlandkaart te gebruiken.</p>
+          <p>Stel <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> in om de buurtverkenner te gebruiken.</p>
         </div>
       </div>
     );
   }
 
+  const sceneHint = activeSceneHint(scene, layer);
+
   return (
-    <div className="kaart-map-shell">
+    <div className="map-card interactive-map is-studio kaart-map-shell">
       <div ref={mapRef} className="map-canvas" />
-      <div className="kaart-map-chrome">
+      <div className="map-chrome kaart-map-chrome">
         <div className="map-scenes" role="group" aria-label="Thema&apos;s">
           {NATIONAL_SCENES.map((item) => (
             <button
@@ -376,13 +390,15 @@ export function NetherlandsMap({
               type="button"
               className={scene === item.id ? "selected" : undefined}
               aria-pressed={scene === item.id}
+              title={item.hint}
               onClick={() => applyScene(item.id)}
             >
               {item.label}
             </button>
           ))}
+          {scene === "custom" ? <span className="kaart-scene-custom">Aangepast</span> : null}
         </div>
-        <div className="kaart-map-tools">
+        <div className="map-tools kaart-map-tools">
           <button type="button" onClick={() => {
             const map = mapInstance.current;
             if (!map) return;
@@ -398,41 +414,50 @@ export function NetherlandsMap({
       </div>
 
       {layersOpen && (
-        <div className="kaart-layer-panel">
-          <div className="kaart-layer-group">
-            <span className="section-kicker">Buurtdata</span>
+        <div className="map-layers-panel kaart-layer-panel">
+          <div className="map-layers-group">
+            <small>Buurtdata</small>
             {(["ses", "education", "crime", "children", "density"] as NationalLayerId[]).map((id) => (
               <label key={id}>
                 <input type="radio" name="kaart-layer" checked={layer === id} onChange={() => toggleLayer(id)} />
-                {NATIONAL_LAYERS[id].label}
+                <span>{NATIONAL_LAYERS[id].label}</span>
+                <em>{NATIONAL_LAYERS[id].unit}</em>
               </label>
             ))}
           </div>
-          <div className="kaart-layer-group">
-            <span className="section-kicker">Scholen & wonen</span>
+          <div className="map-layers-group">
+            <small>Scholen & wonen</small>
             {(["schools", "woz"] as NationalLayerId[]).map((id) => (
               <label key={id}>
                 <input type="radio" name="kaart-layer" checked={layer === id} onChange={() => toggleLayer(id)} />
-                {NATIONAL_LAYERS[id].label}
+                <span>{NATIONAL_LAYERS[id].label}</span>
+                <em>{NATIONAL_LAYERS[id].unit}</em>
               </label>
             ))}
           </div>
-          <div className="kaart-layer-group">
-            <span className="section-kicker">Rasters</span>
+          <div className="map-layers-group">
+            <small>Rasters</small>
             {(Object.keys(NATIONAL_RASTERS) as NationalRasterId[]).map((id) => (
               <label key={id}>
                 <input type="checkbox" checked={rasters[id]} onChange={() => toggleRaster(id)} />
-                {NATIONAL_RASTERS[id].label}
+                <span>{NATIONAL_RASTERS[id].label}</span>
               </label>
             ))}
           </div>
         </div>
       )}
 
-      <div className="kaart-legend" aria-live="polite">
+      <div className={`kaart-legend${loading ? " is-loading" : ""}`} aria-live="polite">
         <div className="kaart-legend-head">
-          <strong>{legend.label}</strong>
-          <span>{meta.scale}{meta.periodYear ? ` · ${meta.periodYear}` : ""}{loading ? " · laden…" : ""}</span>
+          <div>
+            <strong>{legend.label}</strong>
+            <span>{sceneHint}</span>
+          </div>
+          <div className="kaart-legend-badges">
+            <span className="kaart-badge">{scaleLabel(meta.scale)}</span>
+            {meta.periodYear ? <span className="kaart-badge kaart-badge-muted">{meta.periodYear}</span> : null}
+            {loading ? <span className="kaart-badge kaart-badge-live">Laden…</span> : null}
+          </div>
         </div>
         <div className="kaart-legend-bar" aria-hidden="true">
           {legend.stops.map(([value, color]: [number, string]) => (
@@ -443,21 +468,31 @@ export function NetherlandsMap({
           <span>{legend.min.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}</span>
           <span>{legend.max.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} {legend.unit}</span>
         </div>
-        {legend.caveat ? <p>{legend.caveat}</p> : null}
-        {meta.truncated ? <p>Zoom verder in voor meer detail in deze viewport.</p> : null}
-        {error ? <p role="alert">{error}</p> : null}
+        {legend.caveat ? <p className="kaart-legend-note">{legend.caveat}</p> : null}
+        {meta.truncated ? <p className="kaart-legend-note">Zoom verder in voor meer buurten in dit venster.</p> : null}
+        {error ? <p className="kaart-legend-error" role="alert">{error}</p> : null}
       </div>
 
       {(selected || pendingAddress) && (
         <aside className="kaart-inspect">
           {selected ? (
             <>
-              <div className="section-kicker">{selected.scale ?? regionScaleFromZoom(mapInstance.current?.getZoom() ?? 7)}</div>
-              <h2>{selected.regionName ?? "Gebied"}</h2>
-              {selected.municipalityName ? <p>{selected.municipalityName}</p> : null}
+              <div className="kaart-inspect-header">
+                <div>
+                  <span className="kaart-badge">{scaleLabel(selected.scale)}</span>
+                  <h2>{selected.regionName ?? "Gebied"}</h2>
+                  {selected.municipalityName ? <p className="kaart-inspect-meta">{selected.municipalityName}</p> : null}
+                </div>
+                <button type="button" className="kaart-inspect-close" aria-label="Paneel sluiten" onClick={() => { selectRegion(null); setPendingAddress(null); }}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="kaart-inspect-highlight">
+                <span>{legend.label}</span>
+                <strong>{selected.valueLabel ?? "Geen data"}</strong>
+              </div>
               <dl className="kaart-inspect-list">
-                <div><dt>Laag</dt><dd>{selected.valueLabel ?? legend.label}</dd></div>
-                {inspectLines.map((line) => (
+                {inspectLines.filter((line) => line.label !== "Gebied").map((line) => (
                   <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>
                 ))}
               </dl>
@@ -466,13 +501,11 @@ export function NetherlandsMap({
           ) : null}
           {pendingAddress ? (
             <div className="kaart-inspect-address">
+              <span className="section-kicker">Gevonden adres</span>
               <strong>{pendingAddress.displayName}</strong>
               <a className="primary-button" href={`/woning/${encodeURIComponent(pendingAddress.bagVboId)}`}>Open woningcheck</a>
             </div>
           ) : null}
-          <button type="button" className="ghost-button" onClick={() => { selectRegion(null); setPendingAddress(null); }}>
-            Sluiten
-          </button>
         </aside>
       )}
     </div>
