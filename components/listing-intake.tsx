@@ -110,7 +110,7 @@ export function ListingIntake() {
             Plak de Funda-link van één woning voor het officiële adres. Vraagprijs en kenmerken komen uit de{" "}
             <Link href="/extensie">browser-extensie</Link> wanneer je de advertentie opent — we scrapen Funda niet vanaf de server.
           </p>
-          <AddressSearch id="advertentie-adres" submitLabel="Koppel adres" onSelect={setSelected} />
+          <AddressSearch id="advertentie-adres" submitLabel="Koppel adres" onSelect={setSelected} addressesOnly />
           {selected && <small className="listing-selected">Gekoppeld: {selected.displayName}</small>}
           <div className="listing-intake-grid">
             <label>Vraagprijs (optioneel)<input type="number" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>

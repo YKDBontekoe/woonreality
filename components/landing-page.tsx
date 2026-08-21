@@ -14,7 +14,7 @@ export function LandingPage() {
           <div className="eyebrow"><span className="eyebrow-dot" /> Gratis woningcheck</div>
           <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
           <p className="hero-copy">
-            Typ een Nederlands adres, of kies <strong>Funda-link</strong> in het zoekvak. Kenmerken komen via de browser-extensie. Een account is niet nodig voor je eerste woningcheck.
+            Typ een adres, buurt of plaats — of kies <strong>Funda-link</strong> in het zoekvak. Kenmerken komen via de browser-extensie. Een account is niet nodig voor je eerste woningcheck.
           </p>
           <AddressSearch />
           <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen score. Wel uitleg met bronnen die je zelf kunt checken.</div>
@@ -54,7 +54,7 @@ export function LandingPage() {
           <p>Eerst kijken of de plek klopt. Daarna beslis je: bezichtigen, bewaren of laten vallen. De rest komt pas als je het huis serieus neemt.</p>
         </div>
         <div className="werkwijze-steps">
-          <Step number="1" title="Typ een adres" text="Straat, huisnummer en plaats. Wij zoeken het officiële adres op." />
+          <Step number="1" title="Zoek een plek of adres" text="Plaats, buurt of straat + huisnummer. Wij zoeken het officiële gebied of adres op." />
           <Step number="2" title="Lees je eerste indruk" text="Gewone taal over straat, energie en je dagelijkse route — met bron erbij." />
           <Step number="3" title="Kies wat je doet" text="Bezichtigen, bewaren of laten vallen. Hypotheek en bod komen later." />
         </div>

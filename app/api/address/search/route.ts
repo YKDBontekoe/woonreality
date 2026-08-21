@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { redactError, toUserMessage } from "@/src/lib/errors";
-import { searchAddresses } from "@/src/lib/sources/pdok/location";
+import { filterSearchResults, searchLocations } from "@/src/lib/sources/pdok/location";
 import { requireSearchLogin } from "@/src/lib/search-auth";
 
 export const runtime = "nodejs";
@@ -12,8 +12,10 @@ export async function GET(request: Request) {
   const denied = await requireSearchLogin();
   if (denied) return denied;
 
+  const addressesOnly = ["1", "true"].includes(new URL(request.url).searchParams.get("addressesOnly")?.trim().toLowerCase() ?? "");
+
   try {
-    const results = await searchAddresses(query);
+    const results = filterSearchResults(await searchLocations(query), addressesOnly);
     return NextResponse.json({ results }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Address search failed", redactError(error));

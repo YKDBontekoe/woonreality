@@ -2,11 +2,11 @@
 
 > Weet waar je écht gaat wonen.
 
-WoonReality is a Next.js vertical slice for a transparent Dutch property reality check. A user searches an address, the app resolves the BAG identity, loads nearby BGT context, and returns explainable signals with source evidence.
+WoonReality is a Next.js vertical slice for a transparent Dutch property reality check. A user searches an address, buurt or woonplaats, the app resolves the official identity, loads neighbourhood context, and returns explainable signals with source evidence.
 
 ## Included in this MVP
 
-- PDOK Location API address autocomplete
+- PDOK Location API autocomplete for addresses, woonplaatsen, gemeenten and buurten
 - BAG-backed VBO/pand identity, geometry, building year, and surface area
 - BGT road, green-area, and water context within approximately 250 m
 - Mapbox Standard 3D map with sun/shadow lighting, RIVM noise/air overlays, BGT green/water layers, and a travel-time slider whose isochrones follow the street network for walking and driving (`NEXT_PUBLIC_MAPBOX_TOKEN` required; no OSM fallback)
@@ -16,7 +16,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - Deterministic, versioned score components
 - Optional AI woningonderzoek via Vercel AI Gateway with municipal and official web sources
 - Evidence and caveats on every signal
-- Shareable `/woning/[bagId]` property URLs
+- Shareable `/woning/[bagId]` property URLs and `/plek/[kind]/[code]` place pages
 - A Chrome/Chromium browser extension with an automated download page
 - Vercel-ready API routes and a protected source-health Cron route
 - Drizzle/Postgres schema for the next persistence step
@@ -37,7 +37,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), then try `Korenstraat 18, Epe`.
+Open [http://localhost:3000](http://localhost:3000), then try `Korenstraat 18, Epe`, `Amsterdam`, `Epe`, or `Jordaan`.
 
 ## Browser extension
 
@@ -75,6 +75,7 @@ Pull requests and pushes to `main` run the quality pipeline in `.github/workflow
 
 ```text
 GET /api/address/search?q=...
+GET /api/place/:kind/:code
 GET /api/property/:bagId
 GET /api/property/:bagId/map-layers
 GET /api/map/isochrone?lat=&lng=&profile=walking|driving&minutes=5..30

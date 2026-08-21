@@ -1,11 +1,11 @@
 "use client";
 
-import { Link2, MapPin, Search, Sparkles } from "lucide-react";
+import { Building2, Home, Link2, MapPin, Search, Sparkles } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
-import type { AddressSearchResult, PropertyListing } from "@/src/lib/types";
+import type { AddressSearchResult, LocationSearchResult, PropertyListing } from "@/src/lib/types";
 
 function addressSuggestionSubtitle(displayName: string) {
   const parts = displayName.split(",").map((part) => part.trim()).filter(Boolean);
@@ -13,7 +13,30 @@ function addressSuggestionSubtitle(displayName: string) {
   return "Nederland";
 }
 
-const quickAddresses = ["Korenstraat 18, Epe", "Witte de Withstraat 42, Rotterdam", "Biltstraat 65, Utrecht"];
+function locationKindLabel(kind: LocationSearchResult["kind"]) {
+  if (kind === "adres") return "Adres";
+  if (kind === "woonplaats") return "Woonplaats";
+  if (kind === "gemeente") return "Gemeente";
+  return "Buurt";
+}
+
+function suggestionSubtitle(result: LocationSearchResult) {
+  if (result.kind === "adres") return addressSuggestionSubtitle(result.displayName);
+  return result.subtitle ?? locationKindLabel(result.kind);
+}
+
+function suggestionIcon(result: LocationSearchResult) {
+  if (result.kind === "adres") return <MapPin size={15} />;
+  if (result.kind === "woonplaats") return <Home size={15} />;
+  if (result.kind === "gemeente") return <Building2 size={15} />;
+  return <MapPin size={15} />;
+}
+
+const quickExamples = [
+  { label: "Korenstraat 18, Epe", requireAddress: true },
+  { label: "Epe", requireAddress: false },
+  { label: "Amsterdam", requireAddress: false },
+];
 
 type SearchMode = "adres" | "funda";
 
@@ -58,10 +81,14 @@ export function AddressSearch({
   onSelect,
   submitLabel = "Check adres",
   id = "zoek-adres",
+  initialQuery = "",
+  addressesOnly = false,
 }: {
   onSelect?: (result: AddressSearchResult) => void;
   submitLabel?: string;
   id?: string;
+  initialQuery?: string;
+  addressesOnly?: boolean;
 }) {
   const router = useRouter();
   const listboxId = useId();
@@ -71,14 +98,17 @@ export function AddressSearch({
   const directAddressRef = useRef<string | null>(null);
   const dismissedRef = useRef(false);
   const [mode, setMode] = useState<SearchMode>("adres");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<AddressSearchResult[]>([]);
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<LocationSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searched, setSearched] = useState(false);
 
-  const fundaMode = mode === "funda" || isFundaListingUrl(query);
+  const addressesOnlyParam = addressesOnly ? "&addressesOnly=1" : "";
+
+  const fundaMode = !addressesOnly && (mode === "funda" || isFundaListingUrl(query));
+  const visibleResults = addressesOnly ? results.filter((result) => result.kind === "adres") : results;
 
   function selectMode(nextMode: SearchMode) {
     setQuery("");
@@ -95,8 +125,9 @@ export function AddressSearch({
   }
 
   useEffect(() => {
+    if (addressesOnly) return;
     if (isFundaListingUrl(query) && mode !== "funda") setMode("funda");
-  }, [mode, query]);
+  }, [addressesOnly, mode, query]);
 
   useEffect(() => {
     dismissedRef.current = false;
@@ -120,9 +151,9 @@ export function AddressSearch({
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}${addressesOnlyParam}`, { signal: controller.signal });
         if (response.status === 401) { window.location.href = "/login"; return; }
-        const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
+        const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
         if (requestId !== requestIdRef.current || dismissedRef.current) return;
         if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
         setResults(body.results ?? []);
@@ -144,29 +175,36 @@ export function AddressSearch({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [fundaMode, query]);
+  }, [addressesOnlyParam, fundaMode, query]);
 
-  function openResult(result: AddressSearchResult) {
+  function openResult(result: LocationSearchResult) {
+    if (result.kind !== "adres") {
+      if (addressesOnly) return;
+      router.push(`/plek/${result.kind}/${encodeURIComponent(result.code)}`);
+      return;
+    }
     if (onSelect) onSelect(result);
     else router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
   }
 
-  async function openQuickAddress(address: string) {
-    directAddressRef.current = address;
+  async function openQuickExample(example: string, requireAddress: boolean) {
+    directAddressRef.current = example;
     dismissedRef.current = false;
     setMode("adres");
-    setQuery(address);
+    setQuery(example);
     setResults([]);
     setError("");
     setSearched(false);
     setSearching(true);
     try {
-      const response = await fetch(`/api/address/search?q=${encodeURIComponent(address)}`);
+      const response = await fetch(`/api/address/search?q=${encodeURIComponent(example)}${addressesOnlyParam}`);
       if (response.status === 401) { window.location.href = "/login"; return; }
-      const body = await response.json() as { results?: AddressSearchResult[]; error?: string };
+      const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
-      const result = body.results?.[0];
-      if (!result) throw new Error("Dit voorbeeldadres is nu niet beschikbaar. Probeer het later opnieuw.");
+      const result = requireAddress || addressesOnly
+        ? body.results?.find((item) => item.kind === "adres")
+        : body.results?.[0];
+      if (!result) throw new Error("Dit voorbeeld is nu niet beschikbaar. Probeer het later opnieuw.");
       openResult(result);
     } catch (caught) {
       directAddressRef.current = null;
@@ -223,52 +261,56 @@ export function AddressSearch({
       return;
     }
 
-    if (!results.length || dismissedRef.current) return;
+    if (!visibleResults.length || dismissedRef.current) return;
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((index) => (index + 1) % results.length);
+      setActiveIndex((index) => (index + 1) % visibleResults.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1));
+      setActiveIndex((index) => (index <= 0 ? visibleResults.length - 1 : index - 1));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      if (dismissedRef.current || !results.length) return;
-      const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
+      if (dismissedRef.current || !visibleResults.length) return;
+      const pick = activeIndex >= 0 ? visibleResults[activeIndex] : visibleResults[0];
       if (pick) openResult(pick);
     }
   }
 
-  const showEmpty = !fundaMode && searched && !searching && !error && query.trim().length >= 3 && results.length === 0;
+  const showEmpty = !fundaMode && searched && !searching && !error && query.trim().length >= 3 && visibleResults.length === 0;
   const activeId = activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
 
   return (
     <div className="search-wrap" id={id}>
-      <div className="search-mode" role="radiogroup" aria-label="Zoekmodus">
-        <button
-          type="button"
-          role="radio"
-          className={mode === "adres" && !isFundaListingUrl(query) ? "search-mode-tab selected" : "search-mode-tab"}
-          aria-checked={mode === "adres" && !isFundaListingUrl(query)}
-          ref={(node) => { modeButtonRefs.current[0] = node; }}
-          onClick={() => selectMode("adres")}
-          onKeyDown={(event) => handleModeKeyDown(event, 0)}
-        >
-          <MapPin size={13} /> Adres
-        </button>
-        <button
-          type="button"
-          role="radio"
-          className={fundaMode ? "search-mode-tab selected" : "search-mode-tab"}
-          aria-checked={fundaMode}
-          ref={(node) => { modeButtonRefs.current[1] = node; }}
-          onClick={() => selectMode("funda")}
-          onKeyDown={(event) => handleModeKeyDown(event, 1)}
-        >
-          <Link2 size={13} /> Funda-link
-        </button>
-      </div>
-      <label className="search-field-label" htmlFor={`${id}-input`}>{fundaMode ? "Funda-advertentielink" : "Adres"}</label>
+      {!addressesOnly && (
+        <div className="search-mode" role="radiogroup" aria-label="Zoekmodus">
+          <button
+            type="button"
+            role="radio"
+            className={mode === "adres" && !isFundaListingUrl(query) ? "search-mode-tab selected" : "search-mode-tab"}
+            aria-checked={mode === "adres" && !isFundaListingUrl(query)}
+            ref={(node) => { modeButtonRefs.current[0] = node; }}
+            onClick={() => selectMode("adres")}
+            onKeyDown={(event) => handleModeKeyDown(event, 0)}
+          >
+            <MapPin size={13} /> Adres
+          </button>
+          <button
+            type="button"
+            role="radio"
+            className={fundaMode ? "search-mode-tab selected" : "search-mode-tab"}
+            aria-checked={fundaMode}
+            ref={(node) => { modeButtonRefs.current[1] = node; }}
+            onClick={() => selectMode("funda")}
+            onKeyDown={(event) => handleModeKeyDown(event, 1)}
+          >
+            <Link2 size={13} /> Funda-link
+          </button>
+        </div>
+      )}
+      <label className="search-field-label" htmlFor={`${id}-input`}>
+        {fundaMode ? "Funda-advertentielink" : addressesOnly ? "Adres in deze plek" : "Adres, buurt of plaats"}
+      </label>
       <form
         className="search-box"
         role="search"
@@ -280,13 +322,15 @@ export function AddressSearch({
             else setError("Plak de link van één Funda-woning, geen zoekresultaat.");
             return;
           }
-          if (dismissedRef.current || !results.length) {
+          if (dismissedRef.current || !visibleResults.length) {
             setError(query.trim().length < 3
-              ? "Vul straat, huisnummer en plaats in."
-              : "Kies een adres uit de lijst met gevonden adressen.");
+              ? "Vul minimaal drie tekens in."
+              : addressesOnly
+                ? "Kies een adres uit de lijst."
+                : "Kies een adres, buurt of plaats uit de lijst.");
             return;
           }
-          const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
+          const pick = activeIndex >= 0 ? visibleResults[activeIndex] : visibleResults[0];
           if (pick) openResult(pick);
         }}
       >
@@ -297,11 +341,11 @@ export function AddressSearch({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={fundaMode ? "https://www.funda.nl/detail/koop/…" : "Bijv. Korenstraat 18, Epe"}
-          aria-label={fundaMode ? "Plak een Funda-advertentielink" : "Zoek een Nederlands adres"}
+          placeholder={fundaMode ? "https://www.funda.nl/detail/koop/…" : "Bijv. Amsterdam, Jordaan of Korenstraat 18, Epe"}
+          aria-label={fundaMode ? "Plak een Funda-advertentielink" : "Zoek een adres, buurt of plaats"}
           aria-autocomplete={fundaMode ? "none" : "list"}
           aria-controls={fundaMode ? undefined : listboxId}
-          aria-expanded={!fundaMode && results.length > 0}
+          aria-expanded={!fundaMode && visibleResults.length > 0}
           aria-activedescendant={fundaMode ? undefined : activeId}
           role={fundaMode ? "searchbox" : "combobox"}
           autoComplete={fundaMode ? "url" : "street-address"}
@@ -311,31 +355,32 @@ export function AddressSearch({
           {searching ? (fundaMode ? "Inlezen…" : "Zoeken…") : (fundaMode ? "Haal woning op" : submitLabel)}
         </button>
       </form>
-      {!fundaMode && results.length > 0 && (
-        <div className="suggestions" role="listbox" id={listboxId} aria-label="Gevonden adressen">
-          {results.map((result, index) => (
+      {!fundaMode && visibleResults.length > 0 && (
+        <div className="suggestions" role="listbox" id={listboxId} aria-label="Gevonden locaties">
+          {visibleResults.map((result, index) => (
             <button
               type="button"
               className="suggestion"
               role="option"
               id={`${listboxId}-option-${index}`}
-              key={result.id}
+              key={`${result.kind}-${result.kind === "adres" ? result.bagVboId : result.code}`}
               aria-selected={index === activeIndex}
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => openResult(result)}
             >
-              <span className="suggestion-icon" aria-hidden="true"><MapPin size={15} /></span>
+              <span className="suggestion-icon" aria-hidden="true">{suggestionIcon(result)}</span>
               <span className="suggestion-text">
                 <span>{result.displayName}</span>
-                <small>{addressSuggestionSubtitle(result.displayName)}</small>
+                <small>{suggestionSubtitle(result)}</small>
               </span>
+              <span className="suggestion-kind">{locationKindLabel(result.kind)}</span>
             </button>
           ))}
         </div>
       )}
       {searching && !fundaMode && (
         <div className="search-loading" role="status" aria-live="polite">
-          <span className="sr-only">Adressen zoeken…</span>
+          <span className="sr-only">Locaties zoeken…</span>
           <span className="search-loading-icon" aria-hidden="true" />
           <span className="search-loading-copy" aria-hidden="true">
             <span className="search-skeleton-line search-skeleton-line-title" />
@@ -346,22 +391,30 @@ export function AddressSearch({
       {error && <div className="search-hint" role="alert">{error}</div>}
       {showEmpty && (
         <div className="search-empty" role="status">
-          Geen adres gevonden. Probeer straat + huisnummer + plaats, of plak een Funda-link.
+          {addressesOnly
+            ? "Geen adres gevonden. Probeer straat + huisnummer + plaats."
+            : "Geen resultaat gevonden. Probeer een plaats, buurt of straat + huisnummer + plaats."}
         </div>
       )}
-      <div className="search-hint">
-        <Sparkles size={13} aria-hidden="true" /> {fundaMode ? "We zoeken het officiële BAG-adres uit de link. Kenmerken komen uit de extensie." : (
-          <>
-            Probeer ook{" "}
-            <span>een echt Nederlands adres</span>
-            {quickAddresses.map((address) => (
-              <button type="button" className="quick-address" key={address} onClick={() => { void openQuickAddress(address); }}>
-                {address}
-              </button>
-            ))}
-          </>
-        )}
-      </div>
+      {!addressesOnly && (
+        <div className="search-hint">
+          <Sparkles size={13} aria-hidden="true" /> {fundaMode ? "We zoeken het officiële BAG-adres uit de link. Kenmerken komen uit de extensie." : (
+            <>
+              Probeer ook{" "}
+              {quickExamples.map((example) => (
+                <button
+                  type="button"
+                  className="quick-address"
+                  key={example.label}
+                  onClick={() => { void openQuickExample(example.label, example.requireAddress); }}
+                >
+                  {example.label}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

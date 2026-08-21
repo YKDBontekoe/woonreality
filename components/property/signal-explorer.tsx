@@ -38,11 +38,13 @@ function signalValue(signal: Signal) {
 export function SignalExplorer({
   analysis,
   focusSignalKey,
+  initialFilter = "focus",
 }: {
   analysis: Analysis;
   focusSignalKey?: string | null;
+  initialFilter?: FilterId;
 }) {
-  const [filter, setFilter] = useState<FilterId>("focus");
+  const [filter, setFilter] = useState<FilterId>(initialFilter);
   const [expandedKey, setExpandedKey] = useState<string | null>(focusSignalKey ?? null);
 
   const triaged = useMemo(() => triageSignals(analysis.signals), [analysis.signals]);

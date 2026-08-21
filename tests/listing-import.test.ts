@@ -293,6 +293,7 @@ test("from-url route resolves the BAG address from the Funda slug without fetchi
           id: "adres-1",
           geometry: { coordinates: [5.98, 52.35] },
           properties: {
+            collection_id: "adres",
             display_name: "Korenstraat 18, 8161 HP Epe",
             href: ["https://api.pdok.nl/kadaster/bag/ogc/v2/collections/adres/items/adres-1"],
             score: 1,
