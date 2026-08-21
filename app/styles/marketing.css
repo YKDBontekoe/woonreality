@@ -48,8 +48,34 @@
 .suggestion:last-child { border: 0; }
 .suggestion:hover, .suggestion[aria-selected="true"] { background: var(--accent-soft); }
 .suggestion-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--accent-soft); color: var(--accent-deep); }
-.suggestion-text { display: grid; gap: 3px; font-size: 14px; }
+.suggestion-text { display: grid; gap: 3px; font-size: 14px; flex: 1; min-width: 0; }
 .suggestion-text small { color: var(--muted); font-size: 11px; }
+.suggestion-kind { flex: none; padding: 4px 8px; border-radius: 999px; background: #f4f6f8; color: var(--ink-soft); font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+
+.place-shell { padding-bottom: 72px; }
+.place-dashboard { padding: 18px 0 40px; display: grid; gap: 28px; }
+.place-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.place-loading, .place-error { padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.place-error { color: var(--danger, #b42318); }
+.place-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(180deg, #fff, #fafbfd); }
+.place-kind-badge { display: inline-flex; margin-bottom: 10px; padding: 5px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-deep); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.place-hero h1 { margin: 0 0 8px; font: 600 clamp(32px, 4vw, 48px)/1.02 "DM Sans", sans-serif; letter-spacing: -.06em; }
+.place-hero-copy p { margin: 0; color: var(--ink-soft); line-height: 1.6; }
+.place-hero-note { margin-top: 12px !important; font-size: 13px; }
+.place-kpis { display: grid; gap: 12px; align-content: start; }
+.place-kpi { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.place-kpi small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.place-kpi strong { font-size: 18px; letter-spacing: -.03em; }
+.place-section { display: grid; gap: 18px; }
+.place-buurt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.place-buurt-card { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .16s ease, transform .16s ease; }
+.place-buurt-card:hover { border-color: var(--accent-focus); transform: translateY(-1px); }
+.place-buurt-card strong { font-size: 15px; }
+.place-buurt-card span { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 900px) {
+  .place-hero { grid-template-columns: 1fr; }
+}
 .search-loading { position: absolute; z-index: 10; top: calc(100% + 8px); left: 0; right: 0; display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); }
 .search-loading-icon { width: 30px; height: 30px; flex: none; border-radius: 9px; background: var(--accent-soft); }
 .search-loading-copy { display: grid; gap: 7px; width: min(240px, 64%); }

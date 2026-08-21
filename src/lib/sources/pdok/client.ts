@@ -17,11 +17,19 @@ async function pdokFetch<T>(url: string, revalidate = 604_800): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function pdokLocationSearchUrl(query: string, limit = 6) {
+const PDOK_LOCATION_COLLECTIONS = ["adres", "woonplaats", "gemeentegebied", "plaats"] as const;
+
+export function pdokLocationSearchUrl(query: string, limit = 6, collections: readonly string[] = PDOK_LOCATION_COLLECTIONS) {
   const params = new URLSearchParams({ f: "json", q: query, limit: String(limit) });
-  params.set("adres[version]", "1");
-  params.set("adres[relevance]", "1");
+  for (const collection of collections) {
+    params.set(`${collection}[version]`, "1");
+    params.set(`${collection}[relevance]`, "1");
+  }
   return `${PDOK_LOCATION_BASE}/search?${params.toString()}`;
+}
+
+export function pdokAddressSearchUrl(query: string, limit = 6) {
+  return pdokLocationSearchUrl(query, limit, ["adres"]);
 }
 
 export function pdokBagAddressUrl(id: string) {

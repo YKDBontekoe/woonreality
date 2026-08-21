@@ -1,4 +1,5 @@
 import type { Geometry } from "geojson";
+import type { CbsContext } from "@/src/lib/sources/cbs";
 
 export type Confidence = "high" | "medium" | "low";
 export type Severity = "good" | "neutral" | "attention";
@@ -321,12 +322,46 @@ export type ChecklistItem = {
 };
 
 export type AddressSearchResult = {
+  kind: "adres";
   id: string;
   bagVboId: string;
   displayName: string;
   coordinates: Coordinates;
   href: string;
   score: number;
+};
+
+export type PlaceSearchResult = {
+  kind: "woonplaats" | "gemeente" | "buurt";
+  id: string;
+  code: string;
+  displayName: string;
+  coordinates: Coordinates;
+  score: number;
+  subtitle?: string;
+};
+
+export type LocationSearchResult = AddressSearchResult | PlaceSearchResult;
+
+export type PlaceKind = PlaceSearchResult["kind"];
+
+export type PlaceBuurtSummary = {
+  code: string;
+  name: string;
+  inhabitants?: number;
+};
+
+export type PlaceAnalysis = {
+  kind: PlaceKind;
+  code: string;
+  name: string;
+  subtitle?: string;
+  coordinates: Coordinates;
+  cbs: CbsContext | null;
+  signals: Signal[];
+  buurten: PlaceBuurtSummary[];
+  sources: SourceStatus[];
+  generatedAt: string;
 };
 
 export type GeoJsonFeature = {

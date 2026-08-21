@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { redactError, toUserMessage } from "@/src/lib/errors";
-import { searchAddresses } from "@/src/lib/sources/pdok/location";
+import { searchLocations } from "@/src/lib/sources/pdok/location";
 import { requireSearchLogin } from "@/src/lib/search-auth";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   try {
-    const results = await searchAddresses(query);
+    const results = await searchLocations(query);
     return NextResponse.json({ results }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Address search failed", redactError(error));
