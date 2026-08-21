@@ -94,8 +94,9 @@ export function neighborhoodSignals(input: {
   cbsEvidence: Evidence;
   sesEvidence: Evidence;
   crimeEvidence: Evidence;
+  spatialScale?: string;
 }): Signal[] {
-  const { cbs, ses, crime, cbsEvidence, sesEvidence, crimeEvidence } = input;
+  const { cbs, ses, crime, cbsEvidence, sesEvidence, crimeEvidence, spatialScale = "buurt" } = input;
   const schoolScore = cbs ? schoolScoreFromCbs(cbs) : undefined;
   const schoolAvailable = Boolean(cbs && (cbs.primarySchoolDistanceKm != null || cbs.childcareDistanceKm != null || cbs.secondarySchoolDistanceKm != null));
   const childrenAvailable = Boolean(cbs && (cbs.shareAge0to15Pct != null || cbs.shareHouseholdsWithChildrenPct != null || cbs.primaryPupils != null));
@@ -150,7 +151,7 @@ export function neighborhoodSignals(input: {
       action: "Loop of fiets de schoolroute op een schooldag; vraag naar wachtlijsten en of de school van je voorkeur in het voedingsgebied ligt.",
       raw: cbs?.primarySchoolDistanceKm != null ? { value: cbs.primarySchoolDistanceKm, unit: "km", metric: "CBS gemiddelde afstand basisschool" } : undefined,
       confidence: "medium",
-      spatialScale: "buurt",
+      spatialScale,
       evidence: [cbsEvidence],
       availability: schoolAvailable ? "available" : "unavailable",
     },
@@ -166,7 +167,7 @@ export function neighborhoodSignals(input: {
       action: "Kijk zelf op een schooldag en in het weekend hoe de straat aanvoelt; cijfers zeggen niets over speelplekken of overlast.",
       raw: cbs?.shareAge0to15Pct != null ? { value: cbs.shareAge0to15Pct, unit: "%", metric: "CBS aandeel 0 tot 15 jaar" } : undefined,
       confidence: "medium",
-      spatialScale: "buurt",
+      spatialScale,
       evidence: [cbsEvidence],
       availability: childrenAvailable ? "available" : "unavailable",
     },
@@ -236,6 +237,6 @@ export function placeNeighborhoodSignals(input: {
   const spatialScale = input.spatialScale ?? "buurt";
   return [
     cbsContextSignal({ cbs: input.cbs, cbsEvidence: input.cbsEvidence, spatialScale }),
-    ...neighborhoodSignals(input),
+    ...neighborhoodSignals({ ...input, spatialScale }),
   ];
 }

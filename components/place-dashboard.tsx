@@ -6,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PageShell } from "@/components/ui/page-shell";
-import { placeKindLabels } from "@/src/lib/analysis/analyze-place";
+import { domainsFromSignals } from "@/src/lib/analysis/signal-domains";
+import { placeKindLabels } from "@/src/lib/place-labels";
 import type { Analysis, PlaceAnalysis, PlaceKind } from "@/src/lib/types";
 
 function formatInhabitants(value?: number) {
@@ -78,7 +79,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
       evidence: [],
       generatedAt: place.generatedAt,
       sources: place.sources.map((source) => source.source),
-      domains: [],
+      domains: domainsFromSignals(place.signals),
       everydayInsights: [],
       highlights: [],
       dataCoverage: { available: 0, total: 0, label: "" },
@@ -142,7 +143,10 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
                 <div className="section-heading">
                   <div className="section-kicker">Verder verkennen</div>
                   <h2>Buurten in {place.name}</h2>
-                  <p>Klik door naar een buurt voor meer detail, of zoek direct een adres.</p>
+                  <p>
+                    Klik door naar een buurt voor meer detail, of zoek direct een adres.
+                    {place.buurtenTruncated && " De lijst is ingekort; grote gemeenten tonen maximaal 200 buurten."}
+                  </p>
                 </div>
                 <div className="place-buurt-grid">
                   {place.buurten.map((buurt) => (

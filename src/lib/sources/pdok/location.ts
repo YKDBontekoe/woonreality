@@ -173,6 +173,11 @@ async function mapFeature(feature: SearchFeature): Promise<LocationSearchResult 
   return undefined;
 }
 
+export function filterSearchResults(results: LocationSearchResult[], addressesOnly: boolean) {
+  if (!addressesOnly) return results;
+  return results.filter((result) => result.kind === "adres");
+}
+
 export async function searchLocations(query: string, limit = 10): Promise<LocationSearchResult[]> {
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];

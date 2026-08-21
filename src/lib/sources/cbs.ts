@@ -8,6 +8,11 @@ export type CbsAreaLookup = {
   coordinates: Coordinates;
 };
 
+export type CbsBuurtList = {
+  items: CbsBuurtSummary[];
+  truncated: boolean;
+};
+
 export type CbsBuurtSummary = {
   code: string;
   name: string;
@@ -16,6 +21,7 @@ export type CbsBuurtSummary = {
 
 /** CBS Wijk- en Buurtkaart uses large negative sentinels for suppressed / unknown cells. */
 const CBS_SENTINEL_MAX = -99990;
+const CBS_FETCH_TIMEOUT_MS = 15_000;
 
 export type CbsContext = {
   buurtName?: string;
@@ -134,7 +140,7 @@ function coordinatesFromGeometry(geometry?: { type?: string; coordinates?: unkno
   return { lng, lat };
 }
 
-function coordinatesFromFeature(feature: { geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }) {
+export function coordinatesFromFeature(feature: { geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }) {
   if (Array.isArray(feature.bbox) && feature.bbox.length >= 4) {
     return { lng: (feature.bbox[0] + feature.bbox[2]) / 2, lat: (feature.bbox[1] + feature.bbox[3]) / 2 };
   }
@@ -142,7 +148,10 @@ function coordinatesFromFeature(feature: { geometry?: { type?: string; coordinat
 }
 
 async function fetchCbsFeature(url: string) {
-  const response = await fetch(url, { next: { revalidate: 86400 } });
+  const response = await fetch(url, {
+    next: { revalidate: 86400 },
+    signal: AbortSignal.timeout(CBS_FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`CBS request failed (${response.status})`);
   return response.json() as Promise<{ features?: { properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }[] }>;
 }
@@ -167,11 +176,12 @@ export async function getCbsByGemeenteCode(gemeentecode: string): Promise<CbsAre
   return { context: parseCbsProperties(feature.properties), coordinates };
 }
 
-export async function listBuurtenByGemeente(gemeentecode: string, limit = 200): Promise<CbsBuurtSummary[]> {
+export async function listBuurtenByGemeente(gemeentecode: string, limit = 200): Promise<CbsBuurtList> {
   const params = new URLSearchParams({ f: "json", gemeentecode, limit: String(limit) });
   const payload = await fetchCbsFeature(`${cbsBuurtenUrl}?${params}`);
+  const features = payload.features ?? [];
   const items: CbsBuurtSummary[] = [];
-  for (const feature of payload.features ?? []) {
+  for (const feature of features) {
     const properties = feature.properties ?? {};
     const code = readString(properties, "buurtcode");
     const name = readString(properties, "buurtnaam", "naam_buurt");
@@ -182,5 +192,8 @@ export async function listBuurtenByGemeente(gemeentecode: string, limit = 200): 
       inhabitants: readNumber(properties, "aantal_inwoners"),
     });
   }
-  return items.sort((left, right) => left.name.localeCompare(right.name, "nl"));
+  return {
+    items: items.sort((left, right) => left.name.localeCompare(right.name, "nl")),
+    truncated: features.length >= limit,
+  };
 }

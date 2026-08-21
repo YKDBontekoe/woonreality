@@ -3,6 +3,29 @@ import test from "node:test";
 import { pdokAddressSearchUrl, pdokLocationSearchUrl } from "@/src/lib/sources/pdok/client";
 import { searchAddresses, searchLocations } from "@/src/lib/sources/pdok/location";
 
+import { filterSearchResults } from "@/src/lib/sources/pdok/location";
+import type { LocationSearchResult } from "@/src/lib/types";
+
+test("filterSearchResults keeps place hits in default mode", () => {
+  const results: LocationSearchResult[] = [
+    { kind: "gemeente", id: "1", code: "GM0363", displayName: "Amsterdam", coordinates: { lat: 52.37, lng: 4.89 }, score: 1 },
+    { kind: "adres", id: "2", bagVboId: "1234567890123456", displayName: "Korenstraat 18, Epe", coordinates: { lat: 52.35, lng: 5.98 }, href: "https://example.test", score: 1 },
+  ];
+  assert.equal(filterSearchResults(results, false).length, 2);
+});
+
+test("filterSearchResults drops municipality and place hits in addressesOnly mode", () => {
+  const results: LocationSearchResult[] = [
+    { kind: "woonplaats", id: "1", code: "1344", displayName: "Epe", coordinates: { lat: 52.35, lng: 5.95 }, score: 1 },
+    { kind: "gemeente", id: "2", code: "GM0363", displayName: "Amsterdam", coordinates: { lat: 52.37, lng: 4.89 }, score: 1 },
+    { kind: "buurt", id: "3", code: "BU0363AA01", displayName: "Jordaan", coordinates: { lat: 52.37, lng: 4.88 }, score: 1 },
+    { kind: "adres", id: "4", bagVboId: "1234567890123456", displayName: "Korenstraat 18, Epe", coordinates: { lat: 52.35, lng: 5.98 }, href: "https://example.test", score: 1 },
+  ];
+  const filtered = filterSearchResults(results, true);
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0]?.kind, "adres");
+});
+
 test("pdokLocationSearchUrl enables adres, woonplaats, gemeente and plaats collections", () => {
   const url = pdokLocationSearchUrl("Amsterdam", 10);
   assert.match(url, /adres%5Bversion%5D=1/);

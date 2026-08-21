@@ -8,6 +8,7 @@ import {
 import {
   cbsBuurtenUrl,
   cbsGemeentenUrl,
+  coordinatesFromFeature,
   getCbsByBuurtCode,
   getCbsByGemeenteCode,
   listBuurtenByGemeente,
@@ -36,20 +37,6 @@ function gemeenteCodeFromBronhouder(code: string) {
   return `GM${digits}`;
 }
 
-function coordinatesFromWoonplaats(feature: WoonplaatsFeature): Coordinates | undefined {
-  if (Array.isArray(feature.bbox) && feature.bbox.length >= 4) {
-    return { lng: (feature.bbox[0] + feature.bbox[2]) / 2, lat: (feature.bbox[1] + feature.bbox[3]) / 2 };
-  }
-  const coords = feature.geometry?.coordinates;
-  if (Array.isArray(coords) && Array.isArray(coords[0]?.[0]?.[0])) {
-    const ring = coords[0][0] as number[][];
-    const lng = ring.reduce((sum, point) => sum + point[0], 0) / ring.length;
-    const lat = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
-    return { lng, lat };
-  }
-  return undefined;
-}
-
 async function getWoonplaatsByCode(code: string) {
   const params = new URLSearchParams({ f: "json", identificatie: code, limit: "1" });
   const payload = await getJson<{ features?: WoonplaatsFeature[] }>(
@@ -58,7 +45,7 @@ async function getWoonplaatsByCode(code: string) {
   );
   const feature = payload.features?.[0];
   if (!feature?.properties?.woonplaats) return null;
-  const coordinates = coordinatesFromWoonplaats(feature);
+  const coordinates = coordinatesFromFeature(feature);
   if (!coordinates) return null;
   const gemeentecode = feature.properties.bronhouder_identificatie
     ? gemeenteCodeFromBronhouder(feature.properties.bronhouder_identificatie)
@@ -88,6 +75,7 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
   let coordinates: Coordinates | null = null;
   let cbs: CbsContext | null = null;
   let buurten: PlaceAnalysis["buurten"] = [];
+  let buurtenTruncated = false;
   let gemeentecode: string | undefined;
 
   if (kind === "buurt") {
@@ -104,7 +92,9 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
     coordinates = lookup.coordinates;
     gemeentecode = cbs.gemeentecode ?? code;
     name = placeNameFromCbs(kind, cbs, code);
-    buurten = await listBuurtenByGemeente(gemeentecode);
+    const buurtList = await listBuurtenByGemeente(gemeentecode);
+    buurten = buurtList.items;
+    buurtenTruncated = buurtList.truncated;
   } else {
     const woonplaats = await getWoonplaatsByCode(code);
     if (!woonplaats?.gemeentecode) return null;
@@ -115,7 +105,9 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
     gemeentecode = woonplaats.gemeentecode;
     name = woonplaats.name;
     subtitle = woonplaats.subtitle ?? cbs.municipalityName;
-    buurten = await listBuurtenByGemeente(gemeentecode);
+    const buurtList = await listBuurtenByGemeente(gemeentecode);
+    buurten = buurtList.items;
+    buurtenTruncated = buurtList.truncated;
   }
 
   if (!coordinates || !cbs) return null;
@@ -123,10 +115,14 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
   const spatialScale = spatialScaleForKind(kind);
   const cbsSourceUrl = kind === "gemeente" || kind === "woonplaats" ? cbsGemeentenUrl : cbsBuurtenUrl;
 
-  const [ses, crime] = await Promise.all([
+  const [sesResult, crimeResult] = await Promise.allSettled([
     getSesContext(cbs),
     getCrimeContext(cbs),
   ]);
+  const ses = sesResult.status === "fulfilled" ? sesResult.value : null;
+  const crime = crimeResult.status === "fulfilled" ? crimeResult.value : null;
+  if (sesResult.status === "rejected") console.warn("CBS SES-WOA unavailable", sesResult.reason);
+  if (crimeResult.status === "rejected") console.warn("Politie misdrijven unavailable", crimeResult.reason);
 
   const signals = placeNeighborhoodSignals({
     cbs,
@@ -147,6 +143,7 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
     cbs,
     signals,
     buurten,
+    buurtenTruncated,
     sources: [
       {
         source: "CBS Wijk- en Buurtkaart",
@@ -167,9 +164,3 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
     generatedAt: new Date().toISOString(),
   };
 }
-
-export const placeKindLabels: Record<PlaceKind, string> = {
-  woonplaats: "Woonplaats",
-  gemeente: "Gemeente",
-  buurt: "Buurt",
-};

@@ -105,6 +105,8 @@ export function AddressSearch({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searched, setSearched] = useState(false);
 
+  const addressesOnlyParam = addressesOnly ? "&addressesOnly=1" : "";
+
   const fundaMode = !addressesOnly && (mode === "funda" || isFundaListingUrl(query));
   const visibleResults = addressesOnly ? results.filter((result) => result.kind === "adres") : results;
 
@@ -149,7 +151,7 @@ export function AddressSearch({
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}${addressesOnlyParam}`, { signal: controller.signal });
         if (response.status === 401) { window.location.href = "/login"; return; }
         const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
         if (requestId !== requestIdRef.current || dismissedRef.current) return;
@@ -173,15 +175,16 @@ export function AddressSearch({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [fundaMode, query]);
+  }, [addressesOnlyParam, fundaMode, query]);
 
   function openResult(result: LocationSearchResult) {
-    if (result.kind === "adres") {
-      if (onSelect) onSelect(result);
-      else router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
+    if (result.kind !== "adres") {
+      if (addressesOnly) return;
+      router.push(`/plek/${result.kind}/${encodeURIComponent(result.code)}`);
       return;
     }
-    router.push(`/plek/${result.kind}/${encodeURIComponent(result.code)}`);
+    if (onSelect) onSelect(result);
+    else router.push(`/woning/${encodeURIComponent(result.bagVboId)}`);
   }
 
   async function openQuickExample(example: string, requireAddress: boolean) {
@@ -194,11 +197,11 @@ export function AddressSearch({
     setSearched(false);
     setSearching(true);
     try {
-      const response = await fetch(`/api/address/search?q=${encodeURIComponent(example)}`);
+      const response = await fetch(`/api/address/search?q=${encodeURIComponent(example)}${addressesOnlyParam}`);
       if (response.status === 401) { window.location.href = "/login"; return; }
       const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
-      const result = requireAddress
+      const result = requireAddress || addressesOnly
         ? body.results?.find((item) => item.kind === "adres")
         : body.results?.[0];
       if (!result) throw new Error("Dit voorbeeld is nu niet beschikbaar. Probeer het later opnieuw.");

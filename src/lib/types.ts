@@ -360,6 +360,7 @@ export type PlaceAnalysis = {
   cbs: CbsContext | null;
   signals: Signal[];
   buurten: PlaceBuurtSummary[];
+  buurtenTruncated?: boolean;
   sources: SourceStatus[];
   generatedAt: string;
 };
