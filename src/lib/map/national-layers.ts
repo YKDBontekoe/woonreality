@@ -133,11 +133,11 @@ export type LayerLegend = {
 };
 
 export function parseNationalLayer(value: string | null | undefined): NationalLayerId | null {
-  return value && value in NATIONAL_LAYERS ? value as NationalLayerId : null;
+  return value && Object.hasOwn(NATIONAL_LAYERS, value) ? value as NationalLayerId : null;
 }
 
 export function parseNationalRaster(value: string | null | undefined): NationalRasterId | null {
-  return value && value in NATIONAL_RASTERS ? value as NationalRasterId : null;
+  return value && Object.hasOwn(NATIONAL_RASTERS, value) ? value as NationalRasterId : null;
 }
 
 export function regionScaleFromZoom(zoom: number): RegionScale {

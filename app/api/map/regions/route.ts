@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { redactError, toUserMessage } from "@/src/lib/errors";
 import { parseNationalLayer } from "@/src/lib/map/national-layers";
+import { clientKeyFromRequest, isRegionsRateLimited } from "@/src/lib/map/regions-rate-limit";
 import { buildRegionsPayload, parseRegionBBox, parseRegionZoom, regionScaleForRequest } from "@/src/lib/map/regions";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
+  const clientKey = clientKeyFromRequest(request);
+  if (isRegionsRateLimited(clientKey)) {
+    return NextResponse.json({ error: "Te veel kaartverzoeken. Probeer het over een minuut opnieuw." }, { status: 429 });
+  }
+
   const url = new URL(request.url);
   const bbox = parseRegionBBox(url.searchParams.get("bbox"));
   const layer = parseNationalLayer(url.searchParams.get("layer")) ?? "ses";

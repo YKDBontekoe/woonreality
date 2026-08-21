@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GET as getRegions } from "@/app/api/map/regions/route";
+import { parseNationalLayer } from "@/src/lib/map/national-layers";
 import { regionScaleFromZoom } from "@/src/lib/map/national-layers";
 import {
   choroplethValue,
@@ -8,7 +9,8 @@ import {
   parseRegionZoom,
   regionScaleForRequest,
 } from "@/src/lib/map/regions";
-import { normalizeRegionCode } from "@/src/lib/sources/cbs-odata";
+import { isRegionsRateLimited } from "@/src/lib/map/regions-rate-limit";
+import { assertPositiveInteger, normalizeRegionCode } from "@/src/lib/sources/cbs-odata";
 import { lookupCrimeEntry, crimeRatePer1000 } from "@/src/lib/sources/politie";
 import { lookupSesEntry } from "@/src/lib/sources/ses";
 
@@ -24,7 +26,28 @@ test("region scale follows zoom thresholds", () => {
   assert.equal(regionScaleFromZoom(9), "wijk");
   assert.equal(regionScaleFromZoom(12), "buurt");
   assert.equal(regionScaleForRequest(12, null), "buurt");
-  assert.equal(regionScaleForRequest(null, "wijk"), "wijk");
+  assert.equal(regionScaleForRequest(7, "buurt"), "gemeente");
+  assert.equal(regionScaleForRequest(12, "gemeente"), "gemeente");
+  assert.equal(regionScaleForRequest(null, "wijk"), "gemeente");
+});
+
+test("parseNationalLayer rejects inherited keys", () => {
+  assert.equal(parseNationalLayer("ses"), "ses");
+  assert.equal(parseNationalLayer("constructor"), null);
+});
+
+test("assertPositiveInteger rejects invalid pagination inputs", () => {
+  assert.equal(assertPositiveInteger(12, "concurrency"), 12);
+  assert.throws(() => assertPositiveInteger(0, "pageSize"), /positive integer/i);
+  assert.throws(() => assertPositiveInteger(1.5, "concurrency"), /positive integer/i);
+});
+
+test("regions route rate limits excessive requests", async () => {
+  const key = `test-${Date.now()}`;
+  for (let index = 0; index < 60; index += 1) {
+    assert.equal(isRegionsRateLimited(key), false);
+  }
+  assert.equal(isRegionsRateLimited(key), true);
 });
 
 test("parseRegionZoom clamps to supported map zoom", () => {

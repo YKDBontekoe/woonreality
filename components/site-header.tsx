@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
+import type { HeaderCurrent } from "@/components/ui/page-shell";
 
-export function SiteHeader({ current }: { current?: "home" | "aankoop" | "woning" | "hypotheek" | "login" | "extensie" | "vergelijken" | "kaart" }) {
+export function SiteHeader({ current }: { current?: HeaderCurrent }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuToggleRef = useRef<HTMLButtonElement>(null);

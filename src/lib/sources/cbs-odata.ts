@@ -27,17 +27,25 @@ export function periodYearLabel(period: string) {
   return /^\d{4}$/.test(year) ? year : period.trim();
 }
 
+export function assertPositiveInteger(value: number, label: string) {
+  if (!Number.isFinite(value) || value <= 0 || !Number.isInteger(value)) {
+    throw new RangeError(`${label} must be a positive integer`);
+  }
+  return value;
+}
+
 export async function pageCbsOData<T>(
   datasetUrl: string,
   filter: string,
   pageSize = 300,
 ): Promise<T[]> {
+  const limit = assertPositiveInteger(pageSize, "pageSize");
   const rows: T[] = [];
   let skip = 0;
   while (true) {
     const params = new URLSearchParams({
       $filter: filter,
-      $top: String(pageSize),
+      $top: String(limit),
       $skip: String(skip),
       $format: "json",
     });
@@ -46,8 +54,8 @@ export async function pageCbsOData<T>(
     const payload = await response.json() as { value?: T[] };
     const batch = payload.value ?? [];
     rows.push(...batch);
-    if (batch.length < pageSize) break;
-    skip += pageSize;
+    if (batch.length < limit) break;
+    skip += limit;
   }
   return rows;
 }

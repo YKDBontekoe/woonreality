@@ -1,4 +1,4 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
 
 export const politieMisdrijvenUrl = "https://dataderden.cbs.nl/ODataApi/OData/47018NED";
 export const politieMisdrijvenTableUrl = "https://data.politie.nl/#/Politie/nl/dataset/47018NED/table";
@@ -133,12 +133,15 @@ export async function preloadCrimeEntries(
   entries: { regionCode: string; inhabitants?: number }[],
   concurrency = 12,
 ) {
+  const batchSize = assertPositiveInteger(concurrency, "concurrency");
   const unique = [...new Map(entries.map((entry) => {
     const code = normalizeRegionCode(entry.regionCode);
     return [`${code}:${entry.inhabitants ?? 0}`, { regionCode: code ?? "", inhabitants: entry.inhabitants }];
   })).values()].filter((entry) => entry.regionCode);
-  for (let index = 0; index < unique.length; index += concurrency) {
-    await Promise.all(unique.slice(index, index + concurrency).map((entry) => fetchCrimeEntry(entry.regionCode, entry.inhabitants)));
+  for (let index = 0; index < unique.length; index += batchSize) {
+    await Promise.all(unique.slice(index, index + batchSize).map((entry) => (
+      fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined)
+    )));
   }
 }
 

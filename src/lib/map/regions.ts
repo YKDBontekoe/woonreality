@@ -57,6 +57,11 @@ const CHOROPLETH_COLORS = {
   muted: "#d8dee8",
 } as const;
 
+const SCALE_RANK: Record<RegionScale, number> = { gemeente: 0, wijk: 1, buurt: 2 };
+
+/** Max SES/crime OData lookups per map regions request. */
+export const MAP_LOOKUP_BUDGET = 150;
+
 export function parseRegionBBox(raw: string | null | undefined): RegionBBox | null {
   if (!raw?.trim()) return null;
   const parts = raw.split(",").map((part) => Number(part.trim()));
@@ -76,8 +81,11 @@ export function parseRegionZoom(raw: string | null | undefined) {
 }
 
 export function regionScaleForRequest(zoom: number | null, scaleParam: string | null | undefined): RegionScale {
-  if (scaleParam === "gemeente" || scaleParam === "wijk" || scaleParam === "buurt") return scaleParam;
-  return regionScaleFromZoom(zoom ?? 7);
+  const zoomScale = regionScaleFromZoom(zoom ?? 7);
+  if (scaleParam === "gemeente" || scaleParam === "wijk" || scaleParam === "buurt") {
+    return SCALE_RANK[scaleParam] > SCALE_RANK[zoomScale] ? zoomScale : scaleParam;
+  }
+  return zoomScale;
 }
 
 function formatNumber(value: number, precision = 1) {
@@ -209,6 +217,7 @@ export async function buildRegionsPayload(
   bbox: RegionBBox,
   layer: NationalLayerId,
   scale: RegionScale,
+  lookupBudget = MAP_LOOKUP_BUDGET,
 ): Promise<RegionsPayload> {
   const rawRegions = await fetchCbsRegionsInBbox(bbox, scale);
   const regionCodes = rawRegions.features
@@ -223,9 +232,13 @@ export async function buildRegionsPayload(
     return { regionCode: regionCode ?? "", inhabitants };
   }).filter((entry) => entry.regionCode);
 
+  const budget = Math.max(1, Math.min(lookupBudget, MAP_LOOKUP_BUDGET));
+  const lookupCodes = regionCodes.slice(0, budget);
+  const lookupCrimeEntries = crimeEntries.slice(0, budget);
+
   const [sesBundle, crimeBundle] = await Promise.all([
-    getSesLookupForCodes(regionCodes),
-    getCrimeLookupForEntries(crimeEntries),
+    getSesLookupForCodes(lookupCodes),
+    getCrimeLookupForEntries(lookupCrimeEntries),
   ]);
 
   const values: number[] = [];

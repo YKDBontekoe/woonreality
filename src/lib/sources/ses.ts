@@ -1,4 +1,4 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
 
 export const sesStatLineUrl = "https://opendata.cbs.nl/ODataApi/OData/86296NED";
 export const sesStatLineTableUrl = "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED";
@@ -120,9 +120,10 @@ async function fetchSesEntry(regionCode: string): Promise<SesLookupEntry | undef
 }
 
 export async function preloadSesEntries(regionCodes: string[], concurrency = 12) {
+  const batchSize = assertPositiveInteger(concurrency, "concurrency");
   const unique = [...new Set(regionCodes.map((code) => normalizeRegionCode(code)).filter(Boolean))] as string[];
-  for (let index = 0; index < unique.length; index += concurrency) {
-    await Promise.all(unique.slice(index, index + concurrency).map((code) => fetchSesEntry(code)));
+  for (let index = 0; index < unique.length; index += batchSize) {
+    await Promise.all(unique.slice(index, index + batchSize).map((code) => fetchSesEntry(code).catch(() => undefined)));
   }
 }
 

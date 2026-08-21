@@ -98,6 +98,7 @@ function choroplethPaint(legend: LayerLegend): mapboxgl.FillPaint {
 }
 
 function ensureRivmLayer(map: mapboxgl.Map, overlay: NationalRasterId) {
+  if (!map.isStyleLoaded()) return;
   const sourceId = `rivm-${overlay}`;
   addSourceIfMissing(map, sourceId, {
     type: "raster",
@@ -118,10 +119,11 @@ function ensureRivmLayer(map: mapboxgl.Map, overlay: NationalRasterId) {
 }
 
 function parseInitialLayer(value: string | undefined): NationalLayerId {
-  return value && value in NATIONAL_LAYERS ? value as NationalLayerId : "ses";
+  return value && Object.hasOwn(NATIONAL_LAYERS, value) ? value as NationalLayerId : "ses";
 }
 
 function parseInitialNumber(value: string | undefined, fallback: number) {
+  if (value == null || value.trim() === "") return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -170,8 +172,10 @@ export function NetherlandsMap({
   const [pendingAddress, setPendingAddress] = useState<AddressSearchResult | null>(null);
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 
-  layerRef.current = layer;
-  rastersRef.current = rasters;
+  useEffect(() => {
+    layerRef.current = layer;
+    rastersRef.current = rasters;
+  }, [layer, rasters]);
 
   const inspectLines = useMemo(() => (selected ? regionInspectSummary(selected) : []), [selected]);
 
@@ -196,8 +200,10 @@ export function NetherlandsMap({
       const source = map.getSource("regions") as mapboxgl.GeoJSONSource | undefined;
       source?.setData(body);
       const legendMeta = body.meta?.legend ?? EMPTY_REGIONS.meta.legend;
-      map.setPaintProperty("regions-fill", "fill-color", choroplethFillColor(legendMeta) as never);
-      if (selectedCodeRef.current) {
+      if (map.getLayer("regions-fill")) {
+        map.setPaintProperty("regions-fill", "fill-color", choroplethFillColor(legendMeta) as never);
+      }
+      if (selectedCodeRef.current && map.getLayer("regions-outline-selected")) {
         map.setFilter("regions-outline-selected", ["==", ["get", "regionCode"], selectedCodeRef.current]);
       }
       setLegend(legendMeta);
@@ -222,6 +228,7 @@ export function NetherlandsMap({
   }, [refreshRegions]);
 
   const applyRasters = useCallback((map: mapboxgl.Map, next: RasterState) => {
+    if (!map.isStyleLoaded()) return;
     (Object.keys(next) as NationalRasterId[]).forEach((id) => {
       if (next[id]) ensureRivmLayer(map, id);
       setVisible(map, `rivm-${id}`, next[id]);
@@ -339,7 +346,12 @@ export function NetherlandsMap({
   useEffect(() => {
     const map = mapInstance.current;
     if (!map) return;
-    applyRasters(map, rasters);
+    const run = () => applyRasters(map, rasters);
+    if (map.isStyleLoaded()) {
+      run();
+      return;
+    }
+    map.once("load", run);
   }, [applyRasters, rasters]);
 
   function applyScene(nextScene: NationalSceneId) {

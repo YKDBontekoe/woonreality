@@ -1,17 +1,18 @@
 import { KaartPageContent } from "@/components/kaart-page-content";
 
-export default async function KaartPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ layer?: string; lat?: string; lng?: string; z?: string }>;
-}) {
+function queryParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+export default async function KaartPage({ searchParams }: PageProps<"/kaart">) {
   const params = await searchParams;
   return (
     <KaartPageContent
-      initialLayer={params.layer}
-      initialLat={params.lat}
-      initialLng={params.lng}
-      initialZoom={params.z}
+      initialLayer={queryParam(params.layer)}
+      initialLat={queryParam(params.lat)}
+      initialLng={queryParam(params.lng)}
+      initialZoom={queryParam(params.z)}
     />
   );
 }
