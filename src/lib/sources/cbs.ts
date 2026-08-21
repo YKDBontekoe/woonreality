@@ -1,9 +1,27 @@
 import type { Coordinates } from "@/src/lib/types";
 
 export const cbsBuurtenUrl = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections/buurten/items";
+export const cbsGemeentenUrl = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections/gemeenten/items";
+
+export type CbsAreaLookup = {
+  context: CbsContext;
+  coordinates: Coordinates;
+};
+
+export type CbsBuurtList = {
+  items: CbsBuurtSummary[];
+  truncated: boolean;
+};
+
+export type CbsBuurtSummary = {
+  code: string;
+  name: string;
+  inhabitants?: number;
+};
 
 /** CBS Wijk- en Buurtkaart uses large negative sentinels for suppressed / unknown cells. */
 const CBS_SENTINEL_MAX = -99990;
+const CBS_FETCH_TIMEOUT_MS = 15_000;
 
 export type CbsContext = {
   buurtName?: string;
@@ -94,8 +112,88 @@ export async function getCbsContext(coordinates: Coordinates): Promise<CbsContex
   });
   const response = await fetch(`${cbsBuurtenUrl}?${params}`, { next: { revalidate: 86400 } });
   if (!response.ok) throw new Error(`CBS buurten ${response.status}`);
-  const payload = await response.json() as { features?: { properties?: Record<string, unknown> }[] };
-  const properties = payload.features?.[0]?.properties;
-  if (!properties) return null;
-  return parseCbsProperties(properties);
+  const payload = await response.json() as { features?: { properties?: Record<string, unknown>; geometry?: { coordinates?: unknown } }[] };
+  const feature = payload.features?.[0];
+  if (!feature?.properties) return null;
+  return parseCbsProperties(feature.properties);
+}
+
+function coordinatesFromGeometry(geometry?: { type?: string; coordinates?: unknown }) {
+  if (!geometry?.coordinates) return undefined;
+  if (geometry.type === "Point" && Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+    const [lng, lat] = geometry.coordinates as number[];
+    if (typeof lng === "number" && typeof lat === "number") return { lng, lat };
+  }
+  const points: number[][] = [];
+  const walk = (value: unknown) => {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") {
+      points.push(value as number[]);
+      return;
+    }
+    for (const item of value) walk(item);
+  };
+  walk(geometry.coordinates);
+  if (!points.length) return undefined;
+  const lng = points.reduce((sum, point) => sum + point[0], 0) / points.length;
+  const lat = points.reduce((sum, point) => sum + point[1], 0) / points.length;
+  return { lng, lat };
+}
+
+export function coordinatesFromFeature(feature: { geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }) {
+  if (Array.isArray(feature.bbox) && feature.bbox.length >= 4) {
+    return { lng: (feature.bbox[0] + feature.bbox[2]) / 2, lat: (feature.bbox[1] + feature.bbox[3]) / 2 };
+  }
+  return coordinatesFromGeometry(feature.geometry);
+}
+
+async function fetchCbsFeature(url: string) {
+  const response = await fetch(url, {
+    next: { revalidate: 86400 },
+    signal: AbortSignal.timeout(CBS_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`CBS request failed (${response.status})`);
+  return response.json() as Promise<{ features?: { properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }[] }>;
+}
+
+export async function getCbsByBuurtCode(buurtcode: string): Promise<CbsAreaLookup | null> {
+  const params = new URLSearchParams({ f: "json", buurtcode, limit: "1" });
+  const payload = await fetchCbsFeature(`${cbsBuurtenUrl}?${params}`);
+  const feature = payload.features?.[0];
+  if (!feature?.properties) return null;
+  const coordinates = coordinatesFromFeature(feature);
+  if (!coordinates) return null;
+  return { context: parseCbsProperties(feature.properties), coordinates };
+}
+
+export async function getCbsByGemeenteCode(gemeentecode: string): Promise<CbsAreaLookup | null> {
+  const params = new URLSearchParams({ f: "json", gemeentecode, limit: "1" });
+  const payload = await fetchCbsFeature(`${cbsGemeentenUrl}?${params}`);
+  const feature = payload.features?.[0];
+  if (!feature?.properties) return null;
+  const coordinates = coordinatesFromFeature(feature);
+  if (!coordinates) return null;
+  return { context: parseCbsProperties(feature.properties), coordinates };
+}
+
+export async function listBuurtenByGemeente(gemeentecode: string, limit = 200): Promise<CbsBuurtList> {
+  const params = new URLSearchParams({ f: "json", gemeentecode, limit: String(limit) });
+  const payload = await fetchCbsFeature(`${cbsBuurtenUrl}?${params}`);
+  const features = payload.features ?? [];
+  const items: CbsBuurtSummary[] = [];
+  for (const feature of features) {
+    const properties = feature.properties ?? {};
+    const code = readString(properties, "buurtcode");
+    const name = readString(properties, "buurtnaam", "naam_buurt");
+    if (!code || !name) continue;
+    items.push({
+      code,
+      name,
+      inhabitants: readNumber(properties, "aantal_inwoners"),
+    });
+  }
+  return {
+    items: items.sort((left, right) => left.name.localeCompare(right.name, "nl")),
+    truncated: features.length >= limit,
+  };
 }
