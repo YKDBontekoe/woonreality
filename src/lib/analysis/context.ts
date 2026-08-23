@@ -83,13 +83,16 @@ export async function fetchAnalysisContexts(property: Property): Promise<Analysi
   reportRejection("CBS WOZ wijk", wozWijkResult);
   reportRejection("CBS WOZ gemeente", wozGemeenteResult);
 
+  const wijkAverage = fulfilled(wozWijkResult, null as number | null | undefined);
+  const gemeenteAverage = fulfilled(wozGemeenteResult, null as number | null | undefined);
+
   const wozBenchmark: WozBenchmark | null = cbs
     ? {
       buurtName: cbs.buurtName,
       // CBS reports gemiddelde_woningwaarde in thousands of euros (x 1 000).
       buurtAverage: cbs.averageWoz != null ? cbs.averageWoz * 1000 : undefined,
-      wijkAverage: fulfilled(wozWijkResult, undefined as number | undefined) * 1000,
-      gemeenteAverage: fulfilled(wozGemeenteResult, undefined as number | undefined) * 1000,
+      wijkAverage: wijkAverage != null ? wijkAverage * 1000 : undefined,
+      gemeenteAverage: gemeenteAverage != null ? gemeenteAverage * 1000 : undefined,
       fetchedAt: new Date().toISOString(),
     }
     : null;
