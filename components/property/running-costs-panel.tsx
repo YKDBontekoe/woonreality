@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { formatEuro } from "@/src/lib/purchase";
 import type { RunningCostEstimate } from "@/src/lib/running-costs";
 
@@ -17,6 +18,7 @@ export function RunningCostsPanel({
 }) {
   const [estimate, setEstimate] = useState<RunningCostEstimate | null>(null);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,9 +51,18 @@ export function RunningCostsPanel({
       cancelled = true;
       controller.abort();
     };
-  }, [bagId, vveContribution, gasConnection, housingType]);
+  }, [bagId, vveContribution, gasConnection, housingType, retryCount]);
 
-  if (error) return null;
+  if (error) return (
+    <details className="dash-collapsible-panel">
+      <summary>Geschatte woonlasten</summary>
+      <p className="dash-deal-empty">Woonlasten konden nu niet worden berekend.{" "}
+        <button className="text-link" type="button" onClick={() => { setError(false); setRetryCount((count) => count + 1); }}>
+          <RotateCcw size={12} /> Opnieuw proberen
+        </button>
+      </p>
+    </details>
+  );
 
   return (
     <details className="dash-collapsible-panel">

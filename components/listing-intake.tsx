@@ -113,7 +113,7 @@ export function ListingIntake() {
           <AddressSearch id="advertentie-adres" submitLabel="Koppel adres" onSelect={setSelected} addressesOnly />
           {selected && <small className="listing-selected">Gekoppeld: {selected.displayName}</small>}
           <div className="listing-intake-grid">
-            <label>Vraagprijs (optioneel)<input type="number" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>
+            <label>Vraagprijs (optioneel)<input type="number" inputMode="numeric" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>
             <label>Funda-link<input type="url" inputMode="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://www.funda.nl/detail/koop/…" /></label>
           </div>
           {message && <p className="form-message" role="status">{message}</p>}

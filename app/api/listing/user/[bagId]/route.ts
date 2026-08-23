@@ -3,7 +3,7 @@ import { isHttpUrl } from "@/src/lib/listing-intake";
 import { extractImportedListingPaste } from "@/src/lib/listing-extract-html";
 import { factsFromUnknown, mergeListingFacts } from "@/src/lib/listing-import";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
-import { userListingBodySchema } from "@/src/lib/validation/workspace";
+import { userListingBodySchema, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -15,7 +15,7 @@ async function currentUser() {
 
 export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
   const { bagId } = await context.params;
-  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
   try {
     const { supabase, user } = await currentUser();
     if (!user) return NextResponse.json({ listing: null }, { status: 401 });
@@ -29,7 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
 
 export async function PUT(request: Request, context: { params: Promise<{ bagId: string }> }) {
   const { bagId } = await context.params;
-  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
   try {
     const { supabase, user } = await currentUser();
     if (!user) return NextResponse.json({ error: "Log in om advertentiegegevens te bewaren." }, { status: 401 });
@@ -73,7 +73,7 @@ export async function PUT(request: Request, context: { params: Promise<{ bagId: 
 
 export async function DELETE(_request: Request, context: { params: Promise<{ bagId: string }> }) {
   const { bagId } = await context.params;
-  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
   try {
     const { supabase, user } = await currentUser();
     if (!user) return NextResponse.json({ error: "Log in om advertentiegegevens te verwijderen." }, { status: 401 });

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type { AddressSearchResult, LocationSearchResult, PropertyListing } from "@/src/lib/types";
+import { loginHref } from "@/src/lib/login-href";
 
 function addressSuggestionSubtitle(displayName: string) {
   const parts = displayName.split(",").map((part) => part.trim()).filter(Boolean);
@@ -67,7 +68,6 @@ function storeDraft(
     bagVboId: bagId,
     askingPrice: listing?.askingPrice ?? facts?.askingPrice ?? existing?.askingPrice,
     sourceUrl,
-    pastedText: existing?.pastedText,
     facts: facts ?? existing?.facts,
     blocked: blocked ?? existing?.blocked,
     notice: notice ?? existing?.notice,
@@ -152,7 +152,7 @@ export function AddressSearch({
       setSearching(true);
       try {
         const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}${addressesOnlyParam}`, { signal: controller.signal });
-        if (response.status === 401) { window.location.href = "/login"; return; }
+        if (response.status === 401) { window.location.href = loginHref(); return; }
         const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
         if (requestId !== requestIdRef.current || dismissedRef.current) return;
         if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
@@ -198,7 +198,7 @@ export function AddressSearch({
     setSearching(true);
     try {
       const response = await fetch(`/api/address/search?q=${encodeURIComponent(example)}${addressesOnlyParam}`);
-      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (response.status === 401) { window.location.href = loginHref(); return; }
       const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "Zoeken lukt nu niet");
       const result = requireAddress || addressesOnly
@@ -224,7 +224,7 @@ export function AddressSearch({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sourceUrl }),
       });
-      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (response.status === 401) { window.location.href = loginHref(); return; }
       const body = await response.json() as FromUrlResponse;
       if (!response.ok || !body.address) {
         setError(body.error ?? "Deze Funda-link kon niet worden ingelezen.");

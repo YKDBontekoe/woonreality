@@ -90,6 +90,11 @@ export const mortgageStateSchema = z.object({
 const BAG_ID_PATTERN = /^\d{16}$/;
 export const bagIdSchema = z.string().regex(BAG_ID_PATTERN);
 
+/** Shared BAG VBO id check so route-level validation never drifts from the schema. */
+export function isValidBagId(value: string): boolean {
+  return BAG_ID_PATTERN.test(value);
+}
+
 /**
  * One schema member per workspace action, so every required field pair is
  * validated where it belongs instead of via scattered checks in the route.

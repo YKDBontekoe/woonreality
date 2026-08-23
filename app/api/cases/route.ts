@@ -4,6 +4,8 @@ import { normalizeCaseStage, propertyStageFromCase } from "@/src/lib/journey";
 import { buyerProfileIsConfigured, normalizeBuyerProfile } from "@/src/lib/purchase";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { suggestCaseTasks } from "@/src/lib/tasks";
+import { getPropertyById } from "@/src/lib/sources/pdok/bag";
+import { isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -45,12 +47,39 @@ export async function POST(request: Request) {
     const { supabase, user } = await currentUser();
     if (!user) return NextResponse.json({ error: "Log in om een aankoopdossier te bewaren." }, { status: 401 });
     const body = await request.json() as { bagVboId?: string; title?: string };
-    if (!body.bagVboId || !/^\d{16}$/.test(body.bagVboId)) return NextResponse.json({ error: "Kies eerst een geldig woningadres." }, { status: 400 });
+    if (!body.bagVboId || !body.bagVboId || !isValidBagId(body.bagVboId)) return NextResponse.json({ error: "Kies eerst een geldig woningadres." }, { status: 400 });
 
     const admin = createSupabaseAdminClient();
     if (!admin) return NextResponse.json({ error: "Het aankoopdossier kan nog niet worden opgeslagen: Supabase is nog niet gekoppeld." }, { status: 503 });
-    const { data: property, error: propertyError } = await admin.from("properties").select("id,address_label,postcode,city,area_m2,build_year").eq("bag_vbo_id", body.bagVboId).maybeSingle();
-    if (propertyError || !property) return NextResponse.json({ error: "Open eerst de woninganalyse voordat je een dossier start." }, { status: 404 });
+    let property: { id: string; address_label: string; postcode: string; city: string; area_m2: number | null; build_year: number | null } | null = null;
+    const { data: existingProperty, error: propertyError } = await admin.from("properties").select("id,address_label,postcode,city,area_m2,build_year").eq("bag_vbo_id", body.bagVboId).maybeSingle();
+    if (propertyError) return NextResponse.json({ error: "Open eerst de woninganalyse voordat je een dossier start." }, { status: 404 });
+    property = existingProperty;
+    if (!property) {
+      // The visitor may start a case straight from search without ever having
+      // opened the woningcheck. Resolve the BAG identity and create the
+      // property row here instead of requiring a prior analysis run.
+      try {
+        const bagProperty = await getPropertyById(body.bagVboId);
+        const { data: created, error: createError } = await admin.from("properties").upsert({
+          bag_vbo_id: bagProperty.bagVboId,
+          address_label: bagProperty.addressLabel,
+          postcode: bagProperty.postcode,
+          house_number: String(bagProperty.houseNumber),
+          house_number_addition: [bagProperty.houseLetter, bagProperty.addition].filter(Boolean).join(" ") || null,
+          city: bagProperty.city,
+          lat: bagProperty.coordinates.lat,
+          lng: bagProperty.coordinates.lng,
+          area_m2: bagProperty.areaM2 ?? null,
+          build_year: bagProperty.buildingYear ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "bag_vbo_id" }).select("id,address_label,postcode,city,area_m2,build_year").single();
+        if (createError || !created) throw createError ?? new Error("Woning kon niet worden geregistreerd.");
+        property = created;
+      } catch {
+        return NextResponse.json({ error: "Dit adres kon niet worden gevonden. Open eerst de woninganalyse." }, { status: 404 });
+      }
+    }
 
     const { data: existingCase } = await supabase.from("purchase_cases").select("*").eq("user_id", user.id).eq("property_id", property.id).eq("status", "active").maybeSingle();
     if (existingCase) return NextResponse.json({ case: { ...existingCase, stage: normalizeCaseStage(existingCase.stage), bagVboId: body.bagVboId } });

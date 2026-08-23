@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Puzzle, RefreshCw, Unplug } from "lucide-react";
+import { formatRelativeTime } from "@/src/lib/format-relative";
 
 type TokenRow = { id: string; label: string; created_at: string; last_used_at: string | null };
 
@@ -130,7 +131,7 @@ export function ExtensionSetup() {
                 <li key={token.id}>
                   <span>
                     <strong>{token.label || "Browser-extensie"}</strong>
-                    <small> sinds {new Date(token.created_at).toLocaleString("nl-NL")}{token.last_used_at ? ` · laatst ${new Date(token.last_used_at).toLocaleString("nl-NL")}` : ""}</small>
+                    <small title={new Date(token.created_at).toLocaleString("nl-NL")}> sinds {formatRelativeTime(token.created_at)}{token.last_used_at ? ` · laatst ${formatRelativeTime(token.last_used_at)}` : ""}</small>
                   </span>
                   <button className="text-link" type="button" disabled={busy} aria-label={`Koppeling met ${token.label || "deze browser"} intrekken`} onClick={() => { if (window.confirm(`Trek de koppeling met ${token.label || "deze browser"} in?`)) void revoke(token.id); }}>
                     <Unplug size={14} /> Intrekken

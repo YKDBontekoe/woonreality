@@ -8,6 +8,7 @@ import {
   MapPinned,
   Printer,
   RefreshCw,
+  RotateCcw,
   Share2,
 } from "lucide-react";
 import Link from "next/link";
@@ -158,16 +159,20 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     };
   }, [selectTab]);
 
+  const [analysisRetry, setAnalysisRetry] = useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/analysis/${encodeURIComponent(bagId)}`, {
+    fetch(`/api/analysis/${encodeURIComponent(bagId)}?retry=${analysisRetry}`, {
       signal: controller.signal,
+      cache: "no-store",
     })
       .then(async (response) => {
         const body = (await response.json()) as Analysis & { error?: string };
         if (!response.ok)
           throw new Error(body.error ?? "De analyse kon niet worden geladen");
         setAnalysis(body);
+        setError("");
       })
       .catch((caught) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError"))
@@ -176,7 +181,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           );
       });
     return () => controller.abort();
-  }, [bagId]);
+  }, [bagId, analysisRetry]);
 
   useEffect(() => {
     if (!analysis || !visitedTabs.has("overzicht")) return;
@@ -520,9 +525,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           </Link>
           <h1>Dit adres lukt nu niet.</h1>
           <p className="hero-copy" role="alert">{error}</p>
-          <Link className="primary-button" href="/">
-            Nieuw adres zoeken
-          </Link>
+          <div className="loading-actions">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => { setError(""); setAnalysisRetry((count) => count + 1); }}
+            >
+              <RotateCcw size={14} /> Probeer opnieuw
+            </button>
+            <Link className="ghost-button" href="/">
+              Nieuw adres zoeken
+            </Link>
+          </div>
         </div>
       </PageShell>
     );
@@ -564,6 +578,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   function jumpToSignal(thing: TopThing) {
     setFocusSignalKey(thing.signalKeys[0] ?? null);
     selectTab("signalen");
+    // Keyboard and screen-reader users need to land where the content changed.
+    window.requestAnimationFrame(() => {
+      document.getElementById("panel-signalen")?.focus({ preventScroll: false });
+    });
   }
 
   return (
@@ -677,7 +695,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "overzicht" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-overzicht" aria-labelledby="tab-overzicht">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-overzicht" aria-labelledby="tab-overzicht">
           <div className="dash-hero" id="kaart">
             <PropertyScoreCharts analysis={analysis} />
             <PropertyMap
@@ -731,7 +749,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "deal" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-deal" aria-labelledby="tab-deal">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-deal" aria-labelledby="tab-deal">
           <PropertyKpiStrip analysis={analysis} listing={marketListing} variant="full" />
           <WozBenchmarkCard analysis={analysis} listing={marketListing} />
           <PropertyDealPanel
@@ -753,7 +771,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "advertentie" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-advertentie" aria-labelledby="tab-advertentie">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-advertentie" aria-labelledby="tab-advertentie">
           {hasListingExtractText(marketListing) && (
             <ListingInsightsPanel insights={listingInsights} status={insightsStatus} />
           )}
@@ -770,13 +788,13 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "signalen" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-signalen" aria-labelledby="tab-signalen">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-signalen" aria-labelledby="tab-signalen">
           <SignalExplorer analysis={analysis} focusSignalKey={focusSignalKey} />
         </div>
       )}
 
       {tab === "omgeving" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-omgeving" aria-labelledby="tab-omgeving">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-omgeving" aria-labelledby="tab-omgeving">
           <div className="kaart-link-row">
             <Link
               className="secondary-button"
@@ -820,7 +838,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "checklist" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-checklist" aria-labelledby="tab-checklist">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-checklist" aria-labelledby="tab-checklist">
           <section className="checklist-section" id="checklist">
             <div className="section-inline-heading">
               <div>
@@ -893,7 +911,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       )}
 
       {tab === "bronnen" && (
-        <div className="dash-tab-panel" role="tabpanel" id="panel-bronnen" aria-labelledby="tab-bronnen">
+        <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-bronnen" aria-labelledby="tab-bronnen">
           <div className="purchase-guardrail-grid dash-guardrails">
             <article>
               <strong>Juridisch</strong>

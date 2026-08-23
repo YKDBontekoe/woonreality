@@ -8,7 +8,12 @@ import { CASE_STAGE_LABELS, CASE_STAGES, nextPurchaseAction, normalizeCaseStage,
 import { JOURNEY_CHECKLIST, journeyStageStatus } from "@/src/lib/journey-checklist";
 import { PROFESSIONAL_GUIDES } from "@/src/lib/professionals";
 import { hrefForTask } from "@/src/lib/tasks";
+import { getSharedAnalysis } from "@/src/lib/analysis/service";
+import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import type { CaseEventRow } from "@/src/lib/supabase/database.types";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Aankoopdossier" };
 
 export default async function PurchaseCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   if (!isSupabaseConfigured()) redirect("/login");
@@ -31,6 +36,11 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ c
   const openFindings = (findings ?? []).filter((item) => item.status === "open").length;
   const fallbackAction = nextPurchaseAction({ profileConfigured: true, savedCount: 1, caseId, caseStage: stage, bagVboId: bagVboId ?? undefined, openFindings });
   const nextHref = nextTask ? hrefForTask(nextTask, { caseId, bagVboId }) : fallbackAction.href;
+  // Serve the workflow panel from the shared analysis cache instead of a
+  // client-side refetch of /api/analysis.
+  const analysis = bagVboId
+    ? await getPropertyById(bagVboId).then(getSharedAnalysis).catch(() => null)
+    : null;
 
   return <main className="site-shell"><div className="container"><SiteHeader current="aankoop" /></div><div className="container purchase-page">
     <Link className="back-link" href="/mijn-aankoop">← Mijn aankoop</Link>
@@ -40,7 +50,7 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ c
     <CaseTimeline events={(events ?? []) as CaseEventRow[]} />
     <JourneyChecklist stage={stage} />
     <CaseTools caseId={caseId} initialDocuments={documents ?? []} initialTasks={tasks ?? []} initialFindings={findings ?? []} />
-    <PurchaseWorkflow caseId={caseId} initialStage={stage} bagVboId={bagVboId} />
+    <PurchaseWorkflow caseId={caseId} initialStage={stage} bagVboId={bagVboId} analysis={analysis} />
     <ProfessionalGuidancePanel />
     <p className="dashboard-disclaimer">WoonReality helpt je voorbereiden. Een notaris, taxateur of bouwkundig inspecteur blijft nodig voor specialistische en formele controles.</p>
   </div></main>;

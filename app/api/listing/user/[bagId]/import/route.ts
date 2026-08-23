@@ -9,7 +9,7 @@ import {
   normalizeFundaListingUrl,
 } from "@/src/lib/listing-import";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
-import { userListingImportBodySchema } from "@/src/lib/validation/workspace";
+import { userListingImportBodySchema, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,7 @@ async function currentUser() {
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
   const { bagId } = await context.params;
-  if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
   let raw: unknown;
   try {
     raw = await request.json();

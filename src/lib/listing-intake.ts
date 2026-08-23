@@ -86,7 +86,6 @@ export type UserListingDraft = {
   bagVboId: string;
   askingPrice?: number;
   sourceUrl?: string;
-  pastedText?: string;
   facts?: ExtractedListingFacts;
   blocked?: boolean;
   notice?: string;

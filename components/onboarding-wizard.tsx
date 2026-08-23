@@ -23,6 +23,7 @@ import {
   type SoughtPropertyType,
 } from "@/src/lib/purchase";
 import type { PersonalPreferences } from "@/src/lib/types";
+import { loginHref } from "@/src/lib/login-href";
 
 const PREFERENCE_KEYS = Object.keys(DEFAULT_PREFERENCES) as (keyof PersonalPreferences)[];
 
@@ -64,7 +65,7 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
   }, [formSyncedFor, step, stepReady, workspace, workspaceReady]);
 
   useEffect(() => {
-    if (workspaceReady && authStatus === "anonymous") window.location.assign("/login");
+    if (workspaceReady && authStatus === "anonymous") window.location.assign(loginHref());
   }, [authStatus, workspaceReady]);
 
   async function goLater() {
@@ -226,9 +227,9 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
           <div className="profile-form onboarding-profile-form">
             <div className="form-grid">
               <label>Zoekgebied<input value={profile.searchArea} onChange={(event) => setProfile((current) => ({ ...current, searchArea: event.target.value }))} placeholder="Utrecht + 20 km" /></label>
-              <label>Min. slaapkamers<input type="number" min="1" max="20" value={profile.bedrooms || ""} onChange={(event) => updateNumber("bedrooms", event.target.value)} /></label>
-              <label>Max. reistijd (min)<input type="number" min="0" max="240" value={profile.maxCommuteMinutes || ""} onChange={(event) => updateNumber("maxCommuteMinutes", event.target.value)} /></label>
-              <label>Leeftijd koper<input type="number" min="0" max="120" value={profile.buyerAge || ""} onChange={(event) => updateNumber("buyerAge", event.target.value)} /></label>
+              <label>Min. slaapkamers<input type="number" inputMode="numeric" min="1" max="20" value={profile.bedrooms || ""} onChange={(event) => updateNumber("bedrooms", event.target.value)} /></label>
+              <label>Max. reistijd (min)<input type="number" inputMode="numeric" min="0" max="240" value={profile.maxCommuteMinutes || ""} onChange={(event) => updateNumber("maxCommuteMinutes", event.target.value)} /></label>
+              <label>Leeftijd koper<input type="number" inputMode="numeric" min="0" max="120" value={profile.buyerAge || ""} onChange={(event) => updateNumber("buyerAge", event.target.value)} /></label>
               <label>Huishouden<select value={profile.household} onChange={(event) => setProfile((current) => ({ ...current, household: event.target.value as HouseholdType, householdSpecified: true }))}>{Object.entries(HOUSEHOLD_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
               <label>Woningtype<select value={profile.propertyType} onChange={(event) => setProfile((current) => ({ ...current, propertyType: event.target.value as SoughtPropertyType }))}>{Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
             </div>

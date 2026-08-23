@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { analyzeProperty } from "@/src/lib/analysis/analyze";
 import { logError, logWarn } from "@/src/lib/logger";
 import { toUserMessage } from "@/src/lib/errors";
 import { aiInputFingerprint, aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
-import { getPropertyById } from "@/src/lib/sources/pdok/bag";
-import { getListingForProperty } from "@/src/lib/sources/listings";
-import { listingFromUserRecord } from "@/src/lib/listing-import";
-import { mergeListings } from "@/src/lib/listing-merge";
-import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
-import { claimAiReportGeneration, getAiReport, persistAiReport, persistAiReportFailure, persistAnalysis, releaseAiReportClaim, resolveReadyReport } from "@/src/lib/db/repository";
+import { isSupabaseConfigured } from "@/src/lib/supabase/server";
+import { allowAnonymousLlmGeneration, loadAiContext } from "@/src/lib/analysis/llm-context";
+import { claimAiReportGeneration, getAiReport, persistAiReport, persistAiReportFailure, releaseAiReportClaim, resolveReadyReport } from "@/src/lib/db/repository";
 import type { Analysis } from "@/src/lib/types";
-import type { PropertyListing } from "@/src/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,35 +16,6 @@ export const maxDuration = 60;
  * takes priority over a licensed feed for AI research. Fields the user's
  * listing doesn't have fall back to the licensed feed, if one is configured.
  */
-async function loadUserListing(bagId: string): Promise<{ listing: PropertyListing | null; userId: string | null }> {
-  if (!isSupabaseConfigured()) return { listing: null, userId: null };
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-    if (!user) return { listing: null, userId: null };
-    const { data } = await supabase.from("user_listings").select("source_url, asking_price, extracted_json, updated_at").eq("user_id", user.id).eq("bag_vbo_id", bagId).maybeSingle();
-    return { listing: data ? listingFromUserRecord(data) : null, userId: user.id };
-  } catch {
-    return { listing: null, userId: null };
-  }
-}
-
-function cacheUserId(userListing: PropertyListing | null, userId: string | null) {
-  return userListing && userId ? userId : null;
-}
-
-async function loadContext(bagId: string) {
-  const property = await getPropertyById(decodeURIComponent(bagId));
-  const [analysis, licensedListing, user] = await Promise.all([
-    analyzeProperty(property),
-    getListingForProperty(property).catch(() => null),
-    loadUserListing(property.bagVboId).catch(() => ({ listing: null, userId: null })),
-  ]);
-  const listing = mergeListings(user.listing, licensedListing);
-  return { property, analysis, listing, userId: cacheUserId(user.listing, user.userId) };
-}
-
 const STATUS_LOAD_FAILED = "AI-status kon niet worden geladen.";
 const GENERATION_FAILED = "De AI-analyse kon nu niet worden gemaakt. Probeer het later opnieuw.";
 
@@ -57,7 +23,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
   if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
   try {
-    const { analysis, listing, userId } = await loadContext(bagId);
+    const { analysis, listing, userId } = await loadAiContext(bagId);
     const fingerprint = aiInputFingerprint(analysis, listing);
     const row = await getAiReport(analysis.property.bagVboId, aiReportVersions.report, userId);
     const resolved = resolveReadyReport(row, fingerprint);
@@ -68,14 +34,16 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
   }
 }
 
-export async function POST(_request: Request, context: { params: Promise<{ bagId: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
   if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
   let claimedBagVboId: string | null = null;
   let claimUserId: string | null = null;
   try {
-    const { analysis, listing, userId } = await loadContext(bagId);
-    await persistAnalysis(analysis);
+    const { analysis, listing, userId } = await loadAiContext(bagId);
+    if (!userId && !allowAnonymousLlmGeneration(request, `report:${bagId}`, false)) {
+      return NextResponse.json({ status: "failed", message: "Te veel verzoeken. Probeer het later opnieuw of log in." }, { status: 429 });
+    }
     const inputFingerprint = aiInputFingerprint(analysis, listing);
     const existing = await getAiReport(analysis.property.bagVboId, aiReportVersions.report, userId);
     const resolved = resolveReadyReport(existing, inputFingerprint);

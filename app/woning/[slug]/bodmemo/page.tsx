@@ -1,9 +1,11 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Route } from "next";
 import { PrintButton } from "@/components/print-button";
-import { analyzeProperty } from "@/src/lib/analysis/analyze";
+import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { buildBidStrategy, type BidScenarioKey } from "@/src/lib/bid-strategy";
+import { isValidBagId } from "@/src/lib/validation/workspace";
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { buildOfferMemo, offerMemoFilename } from "@/src/lib/offer-memo";
@@ -18,6 +20,7 @@ export default async function OfferMemoPage({
   searchParams: Promise<{ price?: string; scenario?: string; financing?: string; inspection?: string }>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
+  if (!isValidBagId(decodeURIComponent(slug))) notFound();
   let error = "";
   let memoContent: Awaited<ReturnType<typeof buildMemo>> | null = null;
   try {
@@ -106,7 +109,7 @@ export default async function OfferMemoPage({
 
 async function buildMemo(slug: string, query: { price?: string; scenario?: string; financing?: string; inspection?: string }) {
   const property = await getPropertyById(decodeURIComponent(slug));
-  const analysis = await analyzeProperty(property);
+  const analysis = await getSharedAnalysis(property);
   const askingPrice = Number(query.price) > 0 ? Number(query.price) : null;
   if (!askingPrice) throw new Error("Voeg eerst een vraagprijs toe via het bodconcept in de woningcheck.");
 

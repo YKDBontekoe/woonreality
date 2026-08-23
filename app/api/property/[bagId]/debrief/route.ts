@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { viewingDebriefStage } from "@/src/lib/journey";
+import { applyWorkflowUpdate } from "@/src/lib/cases/apply-workflow";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
-import { viewingDebriefSchema } from "@/src/lib/validation/workspace";
+import { viewingDebriefSchema, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
   try {
     const { bagId } = await context.params;
-    if (!/^\d{16}$/.test(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+    if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return NextResponse.json({ error: "Log in om je bezichtiging af te ronden." }, { status: 401 });
@@ -38,14 +39,15 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       }
     }
     if (caseId) {
-      const { data: ownedCase } = await supabase.from("purchase_cases").select("id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
+      const { data: ownedCase } = await supabase.from("purchase_cases").select("id,stage,property_id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
       if (ownedCase) {
-        await supabase.from("purchase_cases").update({ stage: result.caseStage, status: result.caseStatus ?? "active", updated_at: now }).eq("id", caseId).eq("user_id", auth.user.id);
-        await supabase.from("case_events").insert({
-          case_id: caseId,
-          user_id: auth.user.id,
-          event_type: "viewing_debrief",
-          payload: { decision: parsed.data.decision, propertyStage: result.propertyStage, caseStage: result.caseStage },
+        // Canonical workflow write: stage + event + task engine stay in sync.
+        await applyWorkflowUpdate(supabase, auth.user.id, ownedCase, { stage: result.caseStage }, {
+          status: result.caseStatus,
+          event: {
+            eventType: "viewing_debrief",
+            payload: { decision: parsed.data.decision, propertyStage: result.propertyStage, caseStage: result.caseStage },
+          },
         });
       } else {
         caseId = undefined;

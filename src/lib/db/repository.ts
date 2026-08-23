@@ -61,6 +61,51 @@ export async function getLatestPersistedAnalysis(bagVboId: string) {
   return data;
 }
 
+/**
+ * Shared cache for expensive multi-source computations (full property
+ * analyses, place analyses) so every consumer — API routes, server-rendered
+ * pages, AI pipelines — reuses one computation instead of refetching all
+ * upstream sources. Backed by the dormant `source_cache` table.
+ */
+export async function getSourceCache<T>(source: string, cacheKey: string, schemaVersion: string): Promise<T | null> {
+  const db = createSupabaseAdminClient();
+  if (!db) return null;
+  try {
+    const { data } = await db.from("source_cache")
+      .select("payload_json, expires_at")
+      .eq("source", source)
+      .eq("cache_key", cacheKey)
+      .eq("schema_version", schemaVersion)
+      .maybeSingle();
+    if (!data) return null;
+    if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now()) return null;
+    return data.payload_json as T;
+  } catch (error) {
+    logWarn("source_cache read failed", error);
+    return null;
+  }
+}
+
+export async function putSourceCache(source: string, cacheKey: string, payload: unknown, schemaVersion: string, ttlSeconds: number): Promise<void> {
+  const db = createSupabaseAdminClient();
+  if (!db) return;
+  try {
+    const now = new Date();
+    const row = {
+      source,
+      cache_key: cacheKey,
+      payload_json: asJson(payload),
+      schema_version: schemaVersion,
+      fetched_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + ttlSeconds * 1000).toISOString(),
+    };
+    const { error } = await db.from("source_cache").upsert(row, { onConflict: "source,cache_key" });
+    if (error) throw error;
+  } catch (error) {
+    logWarn("source_cache write failed", error);
+  }
+}
+
 async function propertyId(db: NonNullable<ReturnType<typeof createSupabaseAdminClient>>, bagVboId: string) {
   const { data } = await db.from("properties").select("id").eq("bag_vbo_id", bagVboId).maybeSingle();
   return data?.id ?? null;

@@ -10,14 +10,16 @@ import { estimateBuyerCosts } from "@/src/lib/costs";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { formatEuro } from "@/src/lib/purchase";
 import type { Analysis, PropertyListing } from "@/src/lib/types";
+import { formatScore } from "@/src/lib/math";
 
 export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId: string; analysis: Analysis; listing: PropertyListing | null; caseId?: string | null }) {
-  const { authStatus, workspace } = usePropertyWorkspace();
+  const { authStatus, workspace, refresh } = usePropertyWorkspace();
   const [askingPrice, setAskingPrice] = useState(listing?.askingPrice ?? 0);
   const [selected, setSelected] = useState<BidScenarioKey>("balanced");
   const [userEditedAskingPrice, setUserEditedAskingPrice] = useState(false);
   const userEditedAskingPriceRef = useRef(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
@@ -27,13 +29,13 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
     let cancelled = false;
     async function load() {
       try {
-        const [draftResponse, userListingResponse] = await Promise.all([
+        // Only the bid draft needs fetching here; the captured listing facts
+        // arrive via props so this panel doesn't refetch /api/listing/user.
+        const [draftResponse] = await Promise.all([
           fetch(`/api/property/${encodeURIComponent(bagId)}/bid-draft`, { cache: "no-store" }),
-          fetch(`/api/listing/user/${encodeURIComponent(bagId)}`, { cache: "no-store" }),
         ]);
         let draftAsking: number | null = null;
         let draftScenario: BidScenarioKey | undefined;
-        let listingAsking: number | null = null;
         let sessionAsking: number | undefined;
         if (draftResponse.status !== 401) {
           const body = await draftResponse.json() as { draft?: { asking_price: number | null; selected_scenario: BidScenarioKey }; error?: string };
@@ -41,10 +43,7 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
           if (body.draft?.asking_price != null) draftAsking = body.draft.asking_price;
           if (body.draft?.selected_scenario) draftScenario = body.draft.selected_scenario;
         }
-        if (userListingResponse.ok) {
-          const listingBody = await userListingResponse.json() as { listing?: { asking_price: number | null } | null };
-          if (listingBody.listing?.asking_price != null) listingAsking = listingBody.listing.asking_price;
-        } else if (!userEditedAskingPriceRef.current) {
+        if (!userEditedAskingPriceRef.current) {
           try {
             const raw = sessionStorage.getItem(listingStorageKey(bagId));
             const sessionDraft = raw ? JSON.parse(raw) as UserListingDraft : null;
@@ -52,7 +51,7 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
           } catch { /* ignore */ }
         }
         if (!cancelled) {
-          const resolved = draftAsking ?? listingAsking ?? sessionAsking;
+          const resolved = draftAsking ?? sessionAsking;
           if (resolved != null) setAskingPrice(resolved);
           if (draftScenario) setSelected(draftScenario);
         }
@@ -88,18 +87,24 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
   const overMaximum = workspace.buyerProfileConfigured && workspace.buyerProfile.budget > 0 && bid > workspace.buyerProfile.budget;
 
   async function saveDraft() {
+    if (saving) return;
+    setSaving(true);
     try {
+      // One write: the bid-draft API derives and syncs the dossier workflow
+      // server-side, so the two can never drift apart.
       const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/bid-draft`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ askingPrice, selected }) });
       const body = await response.json() as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Bodconcept kon niet worden opgeslagen.");
-      if (caseId) {
-        const workflowResponse = await fetch(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ askingPrice, offerAmount: bid, financingCondition: strategy?.scenarios[selected].financingCondition, inspectionCondition: strategy?.scenarios[selected].inspectionCondition, scenario: selected, reasons: strategy?.scenarios[selected].reasons ?? [], stage: "offer" }) });
-        const workflowBody = await workflowResponse.json() as { error?: string };
-        if (!workflowResponse.ok) throw new Error(workflowBody.error ?? "Dossier kon niet worden bijgewerkt.");
-      }
+      // The server derived the dossier workflow (and possibly a stage change);
+      // pull that into the shared workspace store so other panels follow.
+      await refresh();
       setSaveError(""); setSaved(true); window.setTimeout(() => setSaved(false), 1800);
-    } catch (error) { setSaveError(error instanceof Error ? error.message : "Bodconcept kon niet worden opgeslagen."); }
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Bodconcept kon niet worden opgeslagen.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  return <section className="valuation-section" id="bodconcept"><div className="section-inline-heading"><div><div className="eyebrow"><Calculator size={13} /> waarde & bod</div><h2>Van vraagprijs naar jouw grens</h2><p>Geen marktwaarde tot er Kadaster-referenties of een taxateur zijn. Wel een bodconcept gekoppeld aan risico’s, budget en voorwaarden.</p></div><span className="coverage-pill"><ShieldCheck size={12} /> geen taxatie</span></div><div className="valuation-grid"><div className="valuation-card"><div className="valuation-card-head"><span className="section-kicker">Wat we wél weten</span><Scale size={17} /></div><div className="valuation-range">{askingPrice ? formatEuro(askingPrice) : "Vul de vraagprijs in"}</div><p>{strategy?.valuationNote ?? "Zonder vraagprijs kunnen we geen kosten koper of bodscenario schetsen."}</p><div className="valuation-facts"><span>Open-data score <strong>{analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10</strong></span><span>Jouw profielmaximum <strong>{workspace.buyerProfileConfigured ? formatEuro(workspace.buyerProfile.budget) : "Stel je profiel in"}</strong></span>{costs && <span>Kosten koper (indicatie) <strong>{formatEuro(costs.total)}</strong></span>}{costs && <span>Eigen geld nodig (indicatie) <strong>{formatEuro(costs.ownFundsNeeded)}</strong></span>}<span>Risico <strong>{strategy?.riskSummary ?? "Onbekend"}</strong></span></div>{costs && costs.financingGap != null && costs.financingGap > 0 && <p className="warning-note"><AlertTriangle size={13} /> Op basis van je profiel kom je circa {formatEuro(costs.financingGap)} eigen geld tekort voor kosten koper en/of het deel van de prijs dat de hypotheek niet dekt.</p>}</div><div className="bid-card"><div className="section-kicker">Bod voorbereiden</div><label className="price-input-label">Vraagprijs<input type="number" min="0" step="500" value={askingPrice || ""} onChange={(event) => { userEditedAskingPriceRef.current = true; setUserEditedAskingPrice(true); setAskingPrice(Number(event.target.value) || 0); }} placeholder="€ 525.000" /></label>{strategy ? <div className="bid-options">{(["cautious", "balanced", "strong"] as const).map((key) => <button type="button" className={selected === key ? "bid-option selected" : "bid-option"} key={key} onClick={() => setSelected(key)}><span>{strategy.scenarios[key].label}{strategy.recommended === key ? " · advies" : ""}</span><strong>{formatEuro(strategy.scenarios[key].amount)}</strong><small>{strategy.scenarios[key].financingCondition && strategy.scenarios[key].inspectionCondition ? "beide voorbehouden" : strategy.scenarios[key].financingCondition ? "alleen financiering" : "weinig bescherming"}</small></button>)}</div> : <p className="muted-copy">Voer de vraagprijs in om scenario&apos;s te zien.</p>}{strategy && <ul className="bid-reasons">{strategy.scenarios[selected].reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}{strategy && <details className="negotiation-details"><summary>Als de verkoper tegenbiedt of er meerdere bieders zijn</summary><div className="negotiation-guidance"><ul>{negotiation.counterOfferSteps.map((step) => <li key={step}>{step}</li>)}</ul><div className="escalation-clause"><strong>{negotiation.escalationClause.title}</strong><p>{negotiation.escalationClause.summary}</p><p><em>Wanneer:</em> {negotiation.escalationClause.whenToUse}</p><p><em>Let op:</em> {negotiation.escalationClause.caution}</p></div><p className="workflow-muted">{negotiation.walkAwayReminder}</p></div></details>}{strategy && <div className={`bid-result ${overMaximum ? "warning" : ""}`}><div><span>Geselecteerd bod</span><strong>{formatEuro(bid)}</strong></div>{overMaximum ? <p><AlertTriangle size={14} /> Dit ligt boven je ingestelde maximum van {formatEuro(workspace.buyerProfile.budget)}.</p> : <p><LockKeyhole size={14} /> Jouw absolute grens blijft leidend.</p>}</div>}<button className="secondary-button bid-save" type="button" onClick={() => { void saveDraft(); }}>{saved ? <Check size={14} /> : <LockKeyhole size={14} />}{saved ? "Concept opgeslagen" : "Bewaar bodconcept"}</button>{strategy && bid > 0 && <Link className="ghost-button bid-memo-link" href={`/woning/${bagId}/bodmemo?price=${Math.round(bid)}&scenario=${selected}${strategy.scenarios[selected].financingCondition ? "" : "&financing=uit"}${strategy.scenarios[selected].inspectionCondition ? "" : "&inspection=uit"}` as Route}><FileText size={14} /> Bodmemo printen</Link>}{caseId && <p className="muted-copy">Dit concept wordt in je <Link href={`/mijn-aankoop/${caseId}#waarde-bod`}>aankoopdossier</Link> bijgewerkt.</p>}{saveError && <small className="form-message" role="alert">{saveError}{authStatus === "anonymous" && <> <a href="/login">Inloggen</a></>}</small>}</div></div></section>;
+  return <section className="valuation-section" id="bodconcept"><div className="section-inline-heading"><div><div className="eyebrow"><Calculator size={13} /> waarde & bod</div><h2>Van vraagprijs naar jouw grens</h2><p>Geen marktwaarde tot er Kadaster-referenties of een taxateur zijn. Wel een bodconcept gekoppeld aan risico’s, budget en voorwaarden.</p></div><span className="coverage-pill"><ShieldCheck size={12} /> geen taxatie</span></div><div className="valuation-grid"><div className="valuation-card"><div className="valuation-card-head"><span className="section-kicker">Wat we wél weten</span><Scale size={17} /></div><div className="valuation-range">{askingPrice ? formatEuro(askingPrice) : "Vul de vraagprijs in"}</div><p>{strategy?.valuationNote ?? "Zonder vraagprijs kunnen we geen kosten koper of bodscenario schetsen."}</p><div className="valuation-facts"><span>Open-data score <strong>{formatScore(analysis.overallScore)} / 10</strong></span><span>Jouw profielmaximum <strong>{workspace.buyerProfileConfigured ? formatEuro(workspace.buyerProfile.budget) : "Stel je profiel in"}</strong></span>{costs && <span>Kosten koper (indicatie) <strong>{formatEuro(costs.total)}</strong></span>}{costs && <span>Eigen geld nodig (indicatie) <strong>{formatEuro(costs.ownFundsNeeded)}</strong></span>}<span>Risico <strong>{strategy?.riskSummary ?? "Onbekend"}</strong></span></div>{costs && costs.financingGap != null && costs.financingGap > 0 && <p className="warning-note"><AlertTriangle size={13} /> Op basis van je profiel kom je circa {formatEuro(costs.financingGap)} eigen geld tekort voor kosten koper en/of het deel van de prijs dat de hypotheek niet dekt.</p>}</div><div className="bid-card"><div className="section-kicker">Bod voorbereiden</div><label className="price-input-label">Vraagprijs<input type="number" inputMode="numeric" min="0" step="500" value={askingPrice || ""} onChange={(event) => { userEditedAskingPriceRef.current = true; setUserEditedAskingPrice(true); setAskingPrice(Number(event.target.value) || 0); }} placeholder="€ 525.000" /></label>{strategy ? <div className="bid-options">{(["cautious", "balanced", "strong"] as const).map((key) => <button type="button" className={selected === key ? "bid-option selected" : "bid-option"} key={key} onClick={() => setSelected(key)}><span>{strategy.scenarios[key].label}{strategy.recommended === key ? " · advies" : ""}</span><strong>{formatEuro(strategy.scenarios[key].amount)}</strong><small>{strategy.scenarios[key].financingCondition && strategy.scenarios[key].inspectionCondition ? "beide voorbehouden" : strategy.scenarios[key].financingCondition ? "alleen financiering" : "weinig bescherming"}</small></button>)}</div> : <p className="muted-copy">Voer de vraagprijs in om scenario&apos;s te zien.</p>}{strategy && <ul className="bid-reasons">{strategy.scenarios[selected].reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}{strategy && <details className="negotiation-details"><summary>Als de verkoper tegenbiedt of er meerdere bieders zijn</summary><div className="negotiation-guidance"><ul>{negotiation.counterOfferSteps.map((step) => <li key={step}>{step}</li>)}</ul><div className="escalation-clause"><strong>{negotiation.escalationClause.title}</strong><p>{negotiation.escalationClause.summary}</p><p><em>Wanneer:</em> {negotiation.escalationClause.whenToUse}</p><p><em>Let op:</em> {negotiation.escalationClause.caution}</p></div><p className="workflow-muted">{negotiation.walkAwayReminder}</p></div></details>}{strategy && <div className={`bid-result ${overMaximum ? "warning" : ""}`}><div><span>Geselecteerd bod</span><strong>{formatEuro(bid)}</strong></div>{overMaximum ? <p><AlertTriangle size={14} /> Dit ligt boven je ingestelde maximum van {formatEuro(workspace.buyerProfile.budget)}.</p> : <p><LockKeyhole size={14} /> Jouw absolute grens blijft leidend.</p>}</div>}<button className="secondary-button bid-save" type="button" disabled={saving} onClick={() => { void saveDraft(); }}>{saving ? "Concept wordt bewaard…" : saved ? <><Check size={14} /> Concept opgeslagen</> : <><LockKeyhole size={14} /> Bewaar bodconcept</>}</button>{strategy && bid > 0 && <Link className="ghost-button bid-memo-link" href={`/woning/${bagId}/bodmemo?price=${Math.round(bid)}&scenario=${selected}${strategy.scenarios[selected].financingCondition ? "" : "&financing=uit"}${strategy.scenarios[selected].inspectionCondition ? "" : "&inspection=uit"}` as Route}><FileText size={14} /> Bodmemo printen</Link>}{caseId && <p className="muted-copy">Dit concept wordt in je <Link href={`/mijn-aankoop/${caseId}#waarde-bod`}>aankoopdossier</Link> bijgewerkt.</p>}{saveError && <small className="form-message" role="alert">{saveError}{authStatus === "anonymous" && <> <a href="/login">Inloggen</a></>}</small>}</div></div></section>;
 }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
+import { caseStageFromProperty, normalizeCaseStage } from "@/src/lib/journey";
+import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
+import { logWarn } from "@/src/lib/logger";
 import {
   buyerProfileFromMortgageCapacity,
   buildMortgageSnapshot,
@@ -15,7 +18,7 @@ import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, n
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { listingHistoryFromRows, type ListingHistoryRow } from "@/src/lib/listing-history";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
-import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
+import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -28,7 +31,7 @@ function isStage(value: unknown): value is PropertyStage {
 }
 
 function isBagId(value: unknown): value is string {
-  return typeof value === "string" && /^\d{16}$/.test(value);
+  return typeof value === "string" && isValidBagId(value);
 }
 
 async function currentUser() {
@@ -142,6 +145,24 @@ export async function POST(request: Request) {
     } else if (body.action === "stage") {
       const { error } = await result.supabase.from("saved_properties").update({ stage: body.stage, updated_at: now }).eq("user_id", result.user.id).eq("bag_vbo_id", body.bagVboId);
       if (error) throw error;
+      // Keep the dossier in step with the cockpit card: an active case for
+      // this address follows the property stage so both views agree.
+      try {
+        const { data: propertyRow } = await result.supabase.from("properties").select("id").eq("bag_vbo_id", body.bagVboId).maybeSingle();
+        if (propertyRow) {
+          const { data: purchaseCase } = await result.supabase.from("purchase_cases").select("id,stage").eq("user_id", result.user.id).eq("property_id", propertyRow.id).eq("status", "active").maybeSingle();
+          if (purchaseCase) {
+            const caseStage = caseStageFromProperty(body.stage);
+            if (caseStage !== normalizeCaseStage(purchaseCase.stage)) {
+              const { error: caseError } = await result.supabase.from("purchase_cases").update({ stage: caseStage, updated_at: now }).eq("id", purchaseCase.id);
+              if (caseError) throw caseError;
+              await syncEngineTasks(result.supabase, result.user.id, await loadTaskEngineInput(result.supabase, result.user.id, { caseId: purchaseCase.id, stage: caseStage, bagVboId: body.bagVboId }));
+            }
+          }
+        }
+      } catch (syncError) {
+        logWarn("Property stage saved but case stage sync failed", syncError);
+      }
     } else if (body.action === "compare") {
       const compare = body.compare.slice(0, 4);
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare, p_mortgage: null });

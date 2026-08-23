@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzePlace } from "@/src/lib/analysis/analyze-place";
+import { getSharedPlaceAnalysis } from "@/src/lib/analysis/service";
 import { redactError, toUserMessage } from "@/src/lib/errors";
 import { requireSearchLogin } from "@/src/lib/search-auth";
 import type { PlaceKind } from "@/src/lib/types";
@@ -18,11 +18,13 @@ export async function GET(_request: Request, context: { params: Promise<{ kind: 
   }
 
   try {
-    const place = await analyzePlace(kind as PlaceKind, decodeURIComponent(code));
+    const place = await getSharedPlaceAnalysis(kind as PlaceKind, decodeURIComponent(code));
     if (!place) {
       return NextResponse.json({ error: "Deze plek kon niet worden gevonden." }, { status: 404 });
     }
-    return NextResponse.json({ place }, { headers: { "Cache-Control": "private, no-store" } });
+    // Same public cache window as /api/analysis; the underlying CBS/PDOK
+    // data is slow-moving and the shared source_cache dedupes upstream calls.
+    return NextResponse.json({ place }, { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } });
   } catch (error) {
     console.error("Place analysis failed", redactError(error));
     return NextResponse.json(

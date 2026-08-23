@@ -4,6 +4,7 @@ import {
   normalizeFundaListingUrl,
   parseFundaListingAddress,
 } from "@/src/lib/listing-extract";
+import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 
 export const LISTING_HISTORY_LIMIT = 50;
 
@@ -103,6 +104,30 @@ export function comparisonListingFromUserRow(row: {
     energyLabel: facts.energyLabel ?? null,
     vveContribution: finiteOrNull(facts.vveContribution),
   };
+}
+
+/**
+ * Anonymous visitors keep Funda facts in a session draft (paste flow /
+ * extension fallback). The comparison should show the same price the
+ * property page shows, instead of "Onbekend".
+ */
+export function comparisonListingFromSessionDraft(bagVboId: string): ComparisonListingFacts | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(listingStorageKey(bagVboId));
+    const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
+    if (!draft?.askingPrice && !draft?.facts) return null;
+    return {
+      askingPrice: finiteOrNull(draft.askingPrice ?? draft.facts?.askingPrice),
+      livingAreaM2: finiteOrNull(draft.facts?.livingAreaM2),
+      roomCount: null,
+      bedroomCount: finiteOrNull(draft.facts?.bedroomCount),
+      energyLabel: draft.facts?.energyLabel ?? null,
+      vveContribution: finiteOrNull(draft.facts?.vveContribution),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function formatCapturedAt(iso: string, now = Date.now()) {

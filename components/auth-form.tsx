@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from "@/src/lib/supabase/browser";
 import { authErrorMessage } from "@/src/lib/supabase/auth-message";
 import { fetchPasskeyAvailability } from "@/src/lib/supabase/passkey-availability";
 
-export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
+export function AuthForm({ initialMessage = "", nextPath = "" }: { initialMessage?: string; nextPath?: string }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState(initialMessage);
   const [busy, setBusy] = useState(false);
@@ -33,7 +33,9 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding&setup=passkey`,
+          emailRedirectTo: nextPath
+            ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+            : `${window.location.origin}/auth/callback?next=/onboarding&setup=passkey`,
           shouldCreateUser: true,
         },
       });
@@ -62,7 +64,7 @@ export function AuthForm({ initialMessage = "" }: { initialMessage?: string }) {
       const { data, error } = await supabase.auth.signInWithPasskey();
       if (error) throw error;
       if (!data.session) throw new Error("Er kon geen sessie met je passkey worden gestart.");
-      window.location.assign("/onboarding");
+      window.location.assign(nextPath || "/onboarding");
     } catch (error) {
       setMessage(authErrorMessage(error, "Inloggen met passkey lukt nu niet. Probeer e-mail."));
     } finally {

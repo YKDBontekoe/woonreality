@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { WorkspaceProvider } from "@/components/workspace-provider";
 import "./globals.css";
 
 const description = "Koop een huis zonder makelaar ernaast: open-data woningcheck, documenten, bezichtiging en een bodconcept dat jij zelf verstuurt.";
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="nl">
-      <body>{children}</body>
+      <body><WorkspaceProvider>{children}</WorkspaceProvider></body>
     </html>
   );
 }

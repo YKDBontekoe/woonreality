@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { loginHref } from "@/src/lib/login-href";
 
 export function StartCaseButton({ bagVboId }: { bagVboId: string }) {
   const [busy, setBusy] = useState(false);
@@ -12,7 +13,7 @@ export function StartCaseButton({ bagVboId }: { bagVboId: string }) {
     try {
       const response = await fetch("/api/cases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bagVboId }) });
       const body = await response.json() as { case?: { id: string }; error?: string };
-      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (response.status === 401) { window.location.href = loginHref(); return; }
       if (!response.ok || !body.case) throw new Error(body.error ?? "Dossier kon niet worden gestart.");
       window.location.href = `/mijn-aankoop/${encodeURIComponent(body.case.id)}`;
     } catch (error) {

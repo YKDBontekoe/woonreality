@@ -335,7 +335,7 @@ export function MortgageCostInsight({
               <div className="form-grid mortgage-woz-row">
                 <label>WOZ-waarde
                   <input
-                    type="number"
+                    type="number" inputMode="numeric"
                     min="0"
                     step="1000"
                     value={wozValue || ""}

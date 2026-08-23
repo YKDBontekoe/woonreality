@@ -15,3 +15,8 @@ export function mean(values: number[]) {
 export function roundToStep(value: number, step: number) {
   return Math.round(value / step) * step;
 }
+
+/** One format for the 0–10 Reality Score everywhere it appears. */
+export function formatScore(value: number): string {
+  return value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}

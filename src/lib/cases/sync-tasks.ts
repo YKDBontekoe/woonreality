@@ -14,13 +14,25 @@ export async function loadTaskEngineInput(
   userId: string,
   input: { caseId: string; stage: string; bagVboId?: string | null },
 ): Promise<TaskEngineInput> {
-  const [{ data: documents, error: documentsError }, { data: findings, error: findingsError }, { data: profile, error: profileError }, { data: bid, error: bidError }, { data: valuation, error: valuationError }] = await Promise.all([
-    supabase.from("case_documents").select("document_type").eq("case_id", input.caseId),
-    supabase.from("document_findings").select("title,severity,action,status").eq("case_id", input.caseId).eq("status", "open"),
-    supabase.from("profiles").select("preferences_json").eq("id", userId).maybeSingle(),
-    supabase.from("bid_drafts").select("amount,conditions").eq("case_id", input.caseId).eq("user_id", userId).order("version", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("valuation_snapshots").select("midpoint_value,methodology").eq("case_id", input.caseId).eq("user_id", userId).order("version", { ascending: false }).limit(1).maybeSingle(),
+  const [context, { data: checklist }] = await Promise.all([
+    Promise.all([
+      supabase.from("case_documents").select("document_type").eq("case_id", input.caseId),
+      supabase.from("document_findings").select("title,severity,action,status").eq("case_id", input.caseId).eq("status", "open"),
+      supabase.from("profiles").select("preferences_json").eq("id", userId).maybeSingle(),
+      supabase.from("bid_drafts").select("amount,conditions").eq("case_id", input.caseId).eq("user_id", userId).order("version", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("valuation_snapshots").select("midpoint_value,methodology").eq("case_id", input.caseId).eq("user_id", userId).order("version", { ascending: false }).limit(1).maybeSingle(),
+    ]).then(([documents, findings, profile, bid, valuation]) => ({ documents, findings, profile, bid, valuation })),
+    // The per-address viewing checklist feeds the task engine so open
+    // bezichtiging-aandachtspunten become concrete case tasks.
+    input.bagVboId
+      ? supabase.from("property_checklists").select("items_json").eq("user_id", userId).eq("bag_vbo_id", input.bagVboId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const { data: documents, error: documentsError } = context.documents;
+  const { data: findings, error: findingsError } = context.findings;
+  const { data: profile, error: profileError } = context.profile;
+  const { data: bid, error: bidError } = context.bid;
+  const { data: valuation, error: valuationError } = context.valuation;
   if (documentsError) throw documentsError;
   if (findingsError) throw findingsError;
   if (profileError) throw profileError;
@@ -33,6 +45,14 @@ export async function loadTaskEngineInput(
   const contractReceivedAt = typeof conditions.contractReceivedAt === "string" ? conditions.contractReceivedAt : null;
   const financingWeeks = typeof conditions.financingWeeks === "number" ? conditions.financingWeeks : null;
   const inspectionWeeks = typeof conditions.inspectionWeeks === "number" ? conditions.inspectionWeeks : null;
+  const checklistItems = Array.isArray(checklist?.items_json)
+    ? (checklist.items_json as Array<{ id?: unknown; checked?: unknown; label?: unknown }>)
+    : [];
+  const knownChecklistItems = checklistItems.filter((item) => typeof item.id === "string" && typeof item.checked === "boolean");
+  const checklistComplete = knownChecklistItems.length > 0 && knownChecklistItems.every((item) => item.checked);
+  const attentionActions = knownChecklistItems
+    .filter((item) => !item.checked && typeof item.id === "string" && item.id.startsWith("signal-") && typeof item.label === "string")
+    .map((item) => String(item.label));
   return {
     profile: buyerProfile,
     profileConfigured: buyerProfileIsConfigured(buyerProfile, prefs.buyerProfile),
@@ -48,6 +68,8 @@ export async function loadTaskEngineInput(
     contractSignedAt,
     financingWeeks,
     inspectionWeeks,
+    checklistComplete,
+    attentionActions,
   };
 }
 

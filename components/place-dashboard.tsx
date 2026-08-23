@@ -11,6 +11,7 @@ import { domainsFromSignals } from "@/src/lib/analysis/signal-domains";
 import { saveStoredPlace } from "@/src/lib/place-compare";
 import { placeKindLabels } from "@/src/lib/place-labels";
 import type { Analysis, PlaceAnalysis, PlaceKind } from "@/src/lib/types";
+import { loginHref } from "@/src/lib/login-href";
 
 function formatInhabitants(value?: number) {
   if (value == null) return "—";
@@ -27,6 +28,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [retryCount, setRetryCount] = useState(0);
 
   function startPlaceComparison() {
     if (!place) return;
@@ -38,10 +40,10 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
     let cancelled = false;
     setLoading(true);
     setError("");
-    void fetch(`/api/place/${encodeURIComponent(kind)}/${encodeURIComponent(code)}`)
+    void fetch(`/api/place/${encodeURIComponent(kind)}/${encodeURIComponent(code)}?retry=${retryCount}`, { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
-          window.location.href = "/login";
+          window.location.href = loginHref();
           return null;
         }
         const body = await response.json() as { place?: PlaceAnalysis; error?: string };
@@ -64,7 +66,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
     return () => {
       cancelled = true;
     };
-  }, [kind, code]);
+  }, [kind, code, retryCount]);
 
   const analysisStub = useMemo<Analysis | null>(() => {
     if (!place) return null;
@@ -108,7 +110,14 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
         </Link>
 
         {loading && <div className="place-loading" role="status">Plek laden…</div>}
-        {error && !loading && <div className="place-error" role="alert">{error}</div>}
+        {error && !loading && (
+          <div className="place-error" role="alert">
+            {error}{" "}
+            {place === null && error !== "Deze plek kon niet worden gevonden." && (
+              <button className="text-link" type="button" onClick={() => setRetryCount((count) => count + 1)}>Opnieuw proberen</button>
+            )}
+          </div>
+        )}
 
         {place && analysisStub && (
           <>

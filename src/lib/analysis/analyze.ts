@@ -26,7 +26,7 @@ import { cbsBuurtenUrl } from "@/src/lib/sources/cbs";
 import { sesStatLineTableUrl } from "@/src/lib/sources/ses";
 import { politieMisdrijvenTableUrl } from "@/src/lib/sources/politie";
 
-const ANALYSIS_VERSION = "2026.08.v2";
+export const ANALYSIS_VERSION = "2026.08.v2";
 
 /**
  * Signal order is part of the product contract: the dashboard renders this

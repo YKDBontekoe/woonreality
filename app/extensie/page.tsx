@@ -21,7 +21,7 @@ export default async function ExtensiePage() {
     <PageShell current="extensie" className="extension-shell">
       <div className="extension-page">
         <header className="extension-intro">
-          <Link className="back-link" href="/mijn-aankoop">← Mijn aankoop</Link>
+          <Link className="back-link" href="/#zoek-adres">← Adres zoeken</Link>
           <div className="eyebrow"><Puzzle size={13} /> browser-extensie</div>
           <h1>Bewaar Funda-feiten bij je woning.</h1>
           <p className="hero-copy">

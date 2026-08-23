@@ -8,6 +8,7 @@ import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { checklistForAnalysis, mergeChecklistWithDefaults } from "@/src/lib/checklist";
 import { checklistSessionNotice, loadSessionChecklist, saveSessionChecklist, supportsSessionChecklistFallback } from "@/src/lib/checklist-storage";
 import type { Analysis, ChecklistItem } from "@/src/lib/types";
+import { loginHref } from "@/src/lib/login-href";
 
 export function ViewingCompanion({ bagId }: { bagId: string }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -16,7 +17,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
   const [checklistError, setChecklistError] = useState("");
   const [debrief, setDebrief] = useState("");
   const [busy, setBusy] = useState(false);
-  const { authStatus, toggleSaved, workspace } = usePropertyWorkspace();
+  const { authStatus, toggleSaved, workspace, refresh } = usePropertyWorkspace();
   const writeQueue = useRef(Promise.resolve());
   const noteTimers = useRef<Record<string, number>>({});
 
@@ -102,11 +103,13 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
       if (!saved && analysis) await toggleSaved(analysis.property);
       const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/debrief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
       const body = await response.json() as { caseId?: string | null; error?: string };
-      if (response.status === 401) { window.location.href = "/login"; return; }
+      if (response.status === 401) { window.location.href = loginHref(); return; }
       if (!response.ok) { setDebrief(body.error ?? "Debrief kon niet worden opgeslagen."); return; }
       if (decision === "continue" && body.caseId) { window.location.href = `/mijn-aankoop/${body.caseId}#waarde-bod`; return; }
       if (decision === "continue") { setDebrief("De bezichtiging is afgerond, maar er is nog geen dossier om het bod in te zetten. Start of open eerst een aankoopdossier."); return; }
       if (decision === "drop") { window.location.href = "/mijn-aankoop"; return; }
+      // The debrief changed the property stage server-side; sync the store.
+      await refresh();
       setDebrief("Twijfel is oké. Werk je notities bij en kom later terug.");
     } catch (caught) {
       setDebrief(caught instanceof Error ? caught.message : "Debrief kon niet worden opgeslagen.");

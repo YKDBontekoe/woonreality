@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
-import { checklistBodySchema, MAX_CHECKLIST_BODY_BYTES } from "@/src/lib/validation/workspace";
+import { checklistBodySchema, MAX_CHECKLIST_BODY_BYTES, isValidBagId } from "@/src/lib/validation/workspace";
+import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
+import { logWarn } from "@/src/lib/logger";
 
 export const runtime = "nodejs";
-
-function validBagId(value: string) { return /^\d{16}$/.test(value); }
 
 async function userForBag(bagId: string) {
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
-  return { supabase, user: auth.user, valid: validBagId(bagId) };
+  return { supabase, user: auth.user, valid: isValidBagId(bagId) };
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
@@ -43,6 +43,19 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     if (!parsed.success) return NextResponse.json({ error: "Ongeldige checklist." }, { status: 400 });
     const { data, error } = await supabase.from("property_checklists").upsert({ user_id: user.id, bag_vbo_id: decodedBagId, items_json: parsed.data.items, updated_at: new Date().toISOString() }, { onConflict: "user_id,bag_vbo_id" }).select("items_json").single();
     if (error) throw error;
+    // Keep the dossier task engine in sync: an active case for this address
+    // should reflect checklist progress (e.g. viewing completed) immediately.
+    try {
+      const { data: propertyRow } = await supabase.from("properties").select("id").eq("bag_vbo_id", decodedBagId).maybeSingle();
+      if (propertyRow) {
+        const { data: purchaseCase } = await supabase.from("purchase_cases").select("id,stage").eq("user_id", user.id).eq("property_id", propertyRow.id).eq("status", "active").maybeSingle();
+        if (purchaseCase) {
+          await syncEngineTasks(supabase, user.id, await loadTaskEngineInput(supabase, user.id, { caseId: purchaseCase.id, stage: purchaseCase.stage, bagVboId: decodedBagId }));
+        }
+      }
+    } catch (syncError) {
+      logWarn("Checklist saved but case task sync failed", syncError);
+    }
     return NextResponse.json({ items: data.items_json });
   } catch (error) {
     if (error instanceof URIError) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });

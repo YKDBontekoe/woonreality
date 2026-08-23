@@ -3,6 +3,7 @@ import { SignalInterpretationBlock } from "@/components/property/signal-interpre
 import { confidenceLabel } from "@/src/lib/analysis/evidence";
 import type { SignalInterpretation } from "@/src/lib/signal-interpretation";
 import type { Severity, Signal } from "@/src/lib/types";
+import { formatRelativeTime } from "@/src/lib/format-relative";
 
 const severityLabel: Record<Severity, string> = {
   good: "Positief",
@@ -90,7 +91,7 @@ export function SignalCard({
                 <span className="sr-only"> (opent in nieuw tabblad)</span>
               </a>
               <small>
-                Opgehaald {new Date(evidence.fetchedAt).toLocaleString("nl-NL")}
+                <span title={new Date(evidence.fetchedAt).toLocaleString("nl-NL")}>Opgehaald {formatRelativeTime(evidence.fetchedAt)}</span>
                 {evidence.sourceUpdatedAt ? ` · brondata ${evidenceDate(evidence.sourceUpdatedAt)}` : ""}
                 {evidence.sourceRecordId ? ` · record ${evidence.sourceRecordId}` : ""}
               </small>

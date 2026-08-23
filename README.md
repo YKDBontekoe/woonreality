@@ -19,7 +19,7 @@ WoonReality is a Next.js vertical slice for a transparent Dutch property reality
 - Shareable `/woning/[bagId]` property URLs and `/plek/[kind]/[code]` place pages
 - A Chrome/Chromium browser extension with an automated download page
 - Vercel-ready API routes and a protected source-health Cron route
-- Drizzle/Postgres schema for the next persistence step
+- Supabase persistence for properties, evidence, analyses, and the shared source cache
 
 When the Supabase URL, publishable key and server-only secret key are present, analysis requests upsert the property and append evidence plus the versioned analysis to Supabase Postgres. Without them, the same response remains available through Next.js cache headers and reports `cache-only` persistence.
 
@@ -159,11 +159,9 @@ The case page (`/mijn-aankoop/[caseId]`) also includes: an honest **oppervlaktew
 
 ## Next slices
 
-1. Persist `properties`, `source_cache`, `evidence`, and `analyses` through the Drizzle schema.
-2. Add official RIVM/Atlas raster sampling for additional greenery and climate layers.
-3. Add DSO/KOOP document detail links and timeline presentation.
-4. Add RDW parking, named DUO school locations, and route-based transit accessibility.
-5. Build the 3D/AHN Sun Time Machine after the basic chain has usage.
+1. Expand official RIVM/Atlas raster sampling for additional greenery and climate layers.
+2. Add DSO/KOOP document detail links and timeline presentation.
+3. Add RDW parking, named DUO school locations, and route-based transit accessibility.
 
 ## Product boundaries
 

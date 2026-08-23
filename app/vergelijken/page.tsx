@@ -1,6 +1,7 @@
 import { ComparisonDashboard } from "@/components/comparison-dashboard";
 import { PlaceComparisonDashboard } from "@/components/place-comparison-dashboard";
 import { parsePlaceParam } from "@/src/lib/place-compare";
+import { isValidBagId } from "@/src/lib/validation/workspace";
 
 export default async function ComparePage({ searchParams }: { searchParams: Promise<{ ids?: string; places?: string }> }) {
   const params = await searchParams;
@@ -10,6 +11,6 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   if (places.length >= 1) {
     return <PlaceComparisonDashboard initialRefs={places} />;
   }
-  const ids = (params.ids ?? "").split(",").filter((id) => /^\d{16}$/.test(id)).slice(0, 4);
+  const ids = (params.ids ?? "").split(",").filter((id) => isValidBagId(id)).slice(0, 4);
   return <ComparisonDashboard bagIds={ids} />;
 }
