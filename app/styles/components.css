@@ -346,3 +346,38 @@
   .dash-dock, .dashboard-tabs { display: none !important; }
   .dash-tab-panel { display: block !important; margin-bottom: 24px; break-inside: avoid; }
 }
+
+/* ---------------------------------------------------------------------------
+   Motion. Score donut draws its arc on mount (--donut-circ/--donut-offset
+   come inline from ScoreDonut); bars grow from zero; dashboard sections
+   settle top-down with a small stagger.
+--------------------------------------------------------------------------- */
+@keyframes donut-draw {
+  from { stroke-dashoffset: var(--donut-circ); }
+  to { stroke-dashoffset: var(--donut-offset, 0); }
+}
+.dash-donut-arc {
+  animation: donut-draw 1s var(--ease-out) 0.15s backwards;
+}
+.dash-donut-number {
+  animation: fade-in var(--dur-med) ease 0.55s backwards;
+}
+
+@keyframes bar-grow {
+  from { width: 0; }
+}
+.dash-signal-domain-track i,
+.woz-benchmark-bar i,
+.profile-track i {
+  animation: bar-grow 0.8s var(--ease-out) backwards;
+}
+
+/* Dashboard sections cascade in; delays keep the verdict hero first. */
+.property-dash-shell .dash-verdict-hero,
+.place-dashboard > * {
+  animation: fade-up var(--dur-slow) var(--ease-out) backwards;
+}
+.property-dash-shell .insight-grid,
+.property-dash-shell .decision-grid {
+  animation: fade-up var(--dur-slow) var(--ease-out) 0.12s backwards;
+}

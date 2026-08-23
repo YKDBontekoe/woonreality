@@ -104,14 +104,12 @@ async function fetchSesEntry(regionCode: string): Promise<SesLookupEntry | undef
   if (inflight) return inflight;
 
   const promise = (async () => {
-    for (const variant of cbsODataRegionVariants(normalized)) {
-      const rows = await fetchSesRows(variant);
-      const parsed = parseSesRows(rows, variant, spatialScaleFromCode(normalized));
-      if (parsed) {
-        const value = sesEntryFromContext(parsed);
-        sesLookupCache.set(normalized, { value, expiresAt: Date.now() + SES_LOOKUP_TTL_MS });
-        return value;
-      }
+    const rows = await fetchSesRows(normalized);
+    const parsed = parseSesRows(rows, normalized, spatialScaleFromCode(normalized));
+    if (parsed) {
+      const value = sesEntryFromContext(parsed);
+      sesLookupCache.set(normalized, { value, expiresAt: Date.now() + SES_LOOKUP_TTL_MS });
+      return value;
     }
     return undefined;
   })().finally(() => { sesLookupInflight.delete(normalized); });
@@ -121,11 +119,16 @@ async function fetchSesEntry(regionCode: string): Promise<SesLookupEntry | undef
 }
 
 export async function preloadSesEntries(regionCodes: string[], concurrency = 12) {
-  const batchSize = assertPositiveInteger(concurrency, "concurrency");
-  const unique = [...new Set(regionCodes.map((code) => normalizeRegionCode(code)).filter(Boolean))] as string[];
-  for (let index = 0; index < unique.length; index += batchSize) {
-    await Promise.all(unique.slice(index, index + batchSize).map((code) => fetchSesEntry(code).catch(() => undefined)));
-  }
+  assertPositiveInteger(concurrency, "concurrency");
+  const queue = [...new Set(regionCodes.map((code) => normalizeRegionCode(code)).filter(Boolean))] as string[];
+  // Sliding window: start the next lookup as soon as one finishes instead of
+  // waiting for whole batches, keeping upstream concurrency at `concurrency`.
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    for (let code = queue.shift(); code; code = queue.shift()) {
+      await fetchSesEntry(code).catch(() => undefined);
+    }
+  });
+  await Promise.all(workers);
 }
 
 export function lookupSesEntry(lookup: Map<string, SesLookupEntry>, regionCode: string | undefined) {
@@ -148,19 +151,17 @@ export async function getSesLookupForCodes(regionCodes: string[]) {
 }
 
 async function fetchSesRows(regionCode: string): Promise<SesRow[]> {
-  const rows: SesRow[] = [];
-  for (const variant of cbsODataRegionVariants(regionCode)) {
-    const params = new URLSearchParams({
-      $filter: cbsODataEq("WijkenEnBuurten", variant),
-      $format: "json",
-    });
-    const payload = await fetchJson<{ value?: SesRow[] }>(`${sesStatLineUrl}/TypedDataSet?${params}`, "CBS SES-WOA", { revalidate: 86400 });
-    if (payload.value?.length) {
-      rows.push(...payload.value);
-      break;
-    }
-  }
-  return rows;
+  // One request covers both the raw and right-padded key variants instead of
+  // probing them sequentially.
+  const variants = cbsODataRegionVariants(regionCode);
+  if (!variants.length) return [];
+  const filter = variants.map((variant) => cbsODataEq("WijkenEnBuurten", variant)).join(" or ");
+  const params = new URLSearchParams({
+    $filter: filter,
+    $format: "json",
+  });
+  const payload = await fetchJson<{ value?: SesRow[] }>(`${sesStatLineUrl}/TypedDataSet?${params}`, "CBS SES-WOA", { revalidate: 86400 });
+  return payload.value ?? [];
 }
 
 export async function getSesContext(codes: { buurtcode?: string; wijkcode?: string; gemeentecode?: string }): Promise<SesContext | null> {
@@ -170,10 +171,10 @@ export async function getSesContext(codes: { buurtcode?: string; wijkcode?: stri
     ...(codes.gemeentecode ? [{ code: codes.gemeentecode, spatialScale: "gemeente" as const }] : []),
   ];
   const fetchedAt = new Date().toISOString();
-  for (const candidate of candidates) {
-    const rows = await fetchSesRows(candidate.code);
-    const parsed = parseSesRows(rows, candidate.code, candidate.spatialScale, fetchedAt);
-    if (parsed) return parsed;
-  }
-  return null;
+  // Fetch all candidate scales in parallel, then prefer the finest scale with
+  // data instead of paying a serial round trip per fallback level.
+  const parsed = await Promise.all(candidates.map(async (candidate) => (
+    parseSesRows(await fetchSesRows(candidate.code), candidate.code, candidate.spatialScale, fetchedAt)
+  )));
+  return parsed.find((context) => context) ?? null;
 }

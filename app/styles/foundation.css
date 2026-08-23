@@ -44,6 +44,51 @@
   --yellow: var(--warn);
 }
 
+/* ---------------------------------------------------------------------------
+   Motion tokens. One rhythm for the whole product: fast micro-feedback
+   (.16s ease), medium state changes (.28s), slow entrances (.5s) that ease
+   out so they settle instead of stopping. Stagger via --rise-index.
+--------------------------------------------------------------------------- */
+:root {
+  --ease: ease;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 0.16s;
+  --dur-med: 0.28s;
+  --dur-slow: 0.5s;
+
+  /* Progressive enhancement: lets <details> animate to height:auto where
+     supported (Chromium 131+). Everywhere else disclosures open instantly,
+     exactly as before. */
+  interpolate-size: allow-keywords;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Entrance utility: elements rise and settle once on mount. Children of a
+   shared parent can set --rise-index (0,1,2…) to cascade the delay. */
+.anim-rise {
+  animation: fade-up var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--rise-index, 0) * 70ms);
+}
+
 * { box-sizing: border-box; }
 
 html { background: var(--paper); }
@@ -114,4 +159,26 @@ textarea:focus-visible {
   .ghost-button:hover {
     transform: none;
   }
+
+  /* Entrances settle instantly at their final, visible frame; the global
+     zero-duration rule above already finishes them, this just removes the
+     stagger delays so nothing appears to lag. */
+  * {
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Disclosure animation (progressive enhancement). ::details-content is
+   ignored by browsers without support, so <details> keeps native behaviour.
+--------------------------------------------------------------------------- */
+details::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition: block-size var(--dur-med) var(--ease-out), content-visibility var(--dur-med) allow-discrete;
+}
+
+details[open]::details-content {
+  block-size: auto;
 }

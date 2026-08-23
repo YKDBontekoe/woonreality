@@ -23,9 +23,11 @@ export function ScoreDonut({
       viewBox={`0 0 ${view} ${view}`}
       role="img"
       aria-label={`Score ${clamped.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} van 10`}
+      style={{ "--donut-circ": circ, "--donut-offset": offset } as React.CSSProperties}
     >
       <circle cx={cx} cy={cx} r={radius} fill="none" stroke="var(--line)" strokeWidth={size === "lg" ? 10 : 8} aria-hidden="true" />
       <circle
+        className="dash-donut-arc"
         cx={cx}
         cy={cx}
         r={radius}
@@ -39,6 +41,7 @@ export function ScoreDonut({
         aria-hidden="true"
       />
       <text
+        className="dash-donut-number"
         x={cx}
         y={cx + (size === "lg" ? 8 : 6)}
         textAnchor="middle"

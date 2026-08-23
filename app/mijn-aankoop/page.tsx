@@ -22,7 +22,7 @@ export default async function MyPurchasePage({ searchParams }: { searchParams: P
   if (clientConfigured) {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) redirect("/login");
+    if (!auth.user) redirect("/login?next=/mijn-aankoop");
     account = { email: auth.user.email ?? "Je e-mailadres", emailConfirmed: Boolean(auth.user.email_confirmed_at), suggestPasskey: params.setup === "passkey" };
     if (configured) {
       const [casesResult, profileResult] = await Promise.all([

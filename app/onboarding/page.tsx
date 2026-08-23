@@ -22,7 +22,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   if (clientConfigured) {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) redirect("/login");
+    if (!auth.user) redirect("/login?next=/onboarding");
 
     if (isSupabaseConfigured()) {
       const { data: profile, error: profileError } = await supabase.from("profiles").select("preferences_json").eq("id", auth.user.id).maybeSingle();
@@ -40,7 +40,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       }
     }
   } else {
-    redirect("/login");
+    redirect("/login?next=/onboarding");
   }
 
   return (

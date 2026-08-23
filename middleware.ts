@@ -6,5 +6,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Skip static assets, prefetch/data requests, and the public read-only API
+  // routes whose responses are CDN-cacheable — running the Supabase session
+  // refresh there would add a network hop and vary responses on cookies.
+  matcher: [
+    "/((?!_next/static|_next/image|_next/data|favicon.ico|api/(?:address|analysis|map|place|mortgage|health)/?|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

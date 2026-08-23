@@ -356,7 +356,7 @@ export function AddressSearch({
         </button>
       </form>
       {!fundaMode && visibleResults.length > 0 && (
-        <div className="suggestions" role="listbox" id={listboxId} aria-label="Gevonden locaties">
+        <div className="suggestions" role="listbox" id={listboxId} aria-label="Gevonden locaties" key={query}>
           {visibleResults.map((result, index) => (
             <button
               type="button"

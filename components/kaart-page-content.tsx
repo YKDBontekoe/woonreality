@@ -1,11 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Layers3, MapPinned, MousePointerClick, Search } from "lucide-react";
 import { useState } from "react";
 import { AddressSearch } from "@/components/address-search";
-import { NetherlandsMap } from "@/components/netherlands-map";
 import { SiteHeader } from "@/components/site-header";
+
+// mapbox-gl is the heaviest dependency in the app; keep it out of the
+// initial chunk so the page shell and search render first.
+const NetherlandsMap = dynamic(
+  () => import("@/components/netherlands-map").then((module) => module.NetherlandsMap),
+  {
+    ssr: false,
+    loading: () => <div className="property-map-loading" role="status">Kaart laden…</div>,
+  },
+);
 import { NATIONAL_LAYERS, NATIONAL_SCENES } from "@/src/lib/map/national-layers";
 import type { AddressSearchResult } from "@/src/lib/types";
 

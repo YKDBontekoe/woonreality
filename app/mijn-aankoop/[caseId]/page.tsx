@@ -16,11 +16,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Aankoopdossier" };
 
 export default async function PurchaseCasePage({ params }: { params: Promise<{ caseId: string }> }) {
-  if (!isSupabaseConfigured()) redirect("/login");
+  if (!isSupabaseConfigured()) redirect("/login?next=/mijn-aankoop");
   const { caseId } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) redirect("/login");
+  if (!auth.user) redirect(`/login?next=${encodeURIComponent(`/mijn-aankoop/${caseId}`)}`);
   const [{ data: purchaseCase }, { data: tasks }, { data: documents }, { data: findings }, { data: events }] = await Promise.all([
     supabase.from("purchase_cases").select("*, properties(bag_vbo_id, address_label)").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle(),
     supabase.from("case_tasks").select("*").eq("case_id", caseId).eq("user_id", auth.user.id).eq("status", "open").order("due_at", { ascending: true, nullsFirst: false }),

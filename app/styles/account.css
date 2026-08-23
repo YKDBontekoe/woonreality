@@ -62,7 +62,10 @@
 .passkey-login { width: 100%; }
 .auth-helper { margin: .85rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
 .auth-form button:disabled { opacity: .6; cursor: wait; }
-.form-message { display: block; color: var(--ink-muted, #65716c); margin-top: .5rem; }
+.form-message { display: flex; align-items: flex-start; gap: .45rem; margin-top: .5rem; color: var(--ink-muted, #65716c); font-size: .85rem; line-height: 1.5; }
+.form-message svg { flex-shrink: 0; margin-top: 2px; }
+.form-message--success { color: #1a7f4b; }
+.form-message--error { color: #b4231d; }
 .purchase-page-top, .case-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; margin-bottom: 2.5rem; }
 .empty-state, .case-card, .next-step-card, .case-panel { border: 1px solid var(--line, #d9dedb); border-radius: 20px; background: rgba(255,255,255,.86); box-shadow: 0 9px 24px rgba(22,55,41,.035); }
 .empty-state { padding: 2rem; text-align: center; }

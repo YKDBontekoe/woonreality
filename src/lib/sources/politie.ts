@@ -110,18 +110,16 @@ async function fetchCrimeEntry(regionCode: string, inhabitants?: number): Promis
   if (inflight) return inflight;
 
   const promise = (async () => {
-    for (const variant of cbsODataRegionVariants(normalized)) {
-      const rows = await fetchCrimeRows(variant);
-      const parsed = parseCrimeRows(rows, variant, spatialScaleFromCode(normalized), inhabitants);
-      if (parsed) {
-        const value: CrimeLookupEntry = {
-          total: parsed.total,
-          per1000: parsed.per1000,
-          periodYear: parsed.periodYear,
-        };
-        crimeLookupCache.set(cacheKey, { value, expiresAt: Date.now() + CRIME_LOOKUP_TTL_MS });
-        return value;
-      }
+    const rows = await fetchCrimeRows(normalized);
+    const parsed = parseCrimeRows(rows, normalized, spatialScaleFromCode(normalized), inhabitants);
+    if (parsed) {
+      const value: CrimeLookupEntry = {
+        total: parsed.total,
+        per1000: parsed.per1000,
+        periodYear: parsed.periodYear,
+      };
+      crimeLookupCache.set(cacheKey, { value, expiresAt: Date.now() + CRIME_LOOKUP_TTL_MS });
+      return value;
     }
     return undefined;
   })().finally(() => { crimeLookupInflight.delete(cacheKey); });
@@ -134,16 +132,19 @@ export async function preloadCrimeEntries(
   entries: { regionCode: string; inhabitants?: number }[],
   concurrency = 12,
 ) {
-  const batchSize = assertPositiveInteger(concurrency, "concurrency");
-  const unique = [...new Map(entries.map((entry) => {
+  assertPositiveInteger(concurrency, "concurrency");
+  const queue = [...new Map(entries.map((entry) => {
     const code = normalizeRegionCode(entry.regionCode);
     return [`${code}:${entry.inhabitants ?? 0}`, { regionCode: code ?? "", inhabitants: entry.inhabitants }];
   })).values()].filter((entry) => entry.regionCode);
-  for (let index = 0; index < unique.length; index += batchSize) {
-    await Promise.all(unique.slice(index, index + batchSize).map((entry) => (
-      fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined)
-    )));
-  }
+  // Sliding window: start the next lookup as soon as one finishes instead of
+  // waiting for whole batches, keeping upstream concurrency at `concurrency`.
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    for (let entry = queue.shift(); entry; entry = queue.shift()) {
+      await fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined);
+    }
+  });
+  await Promise.all(workers);
 }
 
 export function lookupCrimeEntry(lookup: Map<string, CrimeLookupEntry>, regionCode: string | undefined, inhabitants?: number) {
@@ -172,19 +173,17 @@ export async function getCrimeLookupForEntries(entries: { regionCode: string; in
 }
 
 async function fetchCrimeRows(regionCode: string): Promise<CrimeRow[]> {
-  const rows: CrimeRow[] = [];
-  for (const variant of cbsODataRegionVariants(regionCode)) {
-    const params = new URLSearchParams({
-      $filter: `${cbsODataEq("WijkenEnBuurten", variant)} and (${soortFilter()})`,
-      $format: "json",
-    });
-    const payload = await fetchJson<{ value?: CrimeRow[] }>(`${politieMisdrijvenUrl}/TypedDataSet?${params}`, "Politie misdrijven", { revalidate: 86400 });
-    if (payload.value?.length) {
-      rows.push(...payload.value);
-      break;
-    }
-  }
-  return rows;
+  // One request covers both the raw and right-padded key variants instead of
+  // probing them sequentially.
+  const variants = cbsODataRegionVariants(regionCode);
+  if (!variants.length) return [];
+  const filter = `${variants.map((variant) => cbsODataEq("WijkenEnBuurten", variant)).join(" or ")} and (${soortFilter()})`;
+  const params = new URLSearchParams({
+    $filter: filter,
+    $format: "json",
+  });
+  const payload = await fetchJson<{ value?: CrimeRow[] }>(`${politieMisdrijvenUrl}/TypedDataSet?${params}`, "Politie misdrijven", { revalidate: 86400 });
+  return payload.value ?? [];
 }
 
 export async function getCrimeContext(codes: {
@@ -199,10 +198,10 @@ export async function getCrimeContext(codes: {
     ...(codes.gemeentecode ? [{ code: codes.gemeentecode, spatialScale: "gemeente" as const }] : []),
   ];
   const fetchedAt = new Date().toISOString();
-  for (const candidate of candidates) {
-    const rows = await fetchCrimeRows(candidate.code);
-    const parsed = parseCrimeRows(rows, candidate.code, candidate.spatialScale, codes.inhabitants, fetchedAt);
-    if (parsed) return parsed;
-  }
-  return null;
+  // Fetch all candidate scales in parallel, then prefer the finest scale with
+  // data instead of paying a serial round trip per fallback level.
+  const parsed = await Promise.all(candidates.map(async (candidate) => (
+    parseCrimeRows(await fetchCrimeRows(candidate.code), candidate.code, candidate.spatialScale, codes.inhabitants, fetchedAt)
+  )));
+  return parsed.find((context) => context) ?? null;
 }
