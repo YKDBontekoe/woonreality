@@ -71,6 +71,24 @@ export type DataCoverage = {
 };
 
 /**
+ * CBS average WOZ at the three region levels around a property. Averages over
+ * all dwelling types in each area — never a value for the subject home.
+ */
+export type WozBenchmark = {
+  buurtName?: string;
+  buurtAverage?: number;
+  wijkAverage?: number;
+  gemeenteAverage?: number;
+  fetchedAt: string;
+};
+
+/** Asking price versus buurt WOZ-average, as a ratio (1 = gelijk aan buurtgemiddelde). */
+export function wozRatio(askingPrice: number, buurtAverage?: number) {
+  if (!buurtAverage || buurtAverage < 1 || askingPrice < 1) return null;
+  return Math.round((askingPrice / buurtAverage) * 100) / 100;
+}
+
+/**
  * A real risk category WoonReality deliberately does not model or score,
  * because no reliable open-data signal is wired in yet. Shown so buyers
  * know to check it themselves rather than assume "no signal" means "no risk".
@@ -295,6 +313,7 @@ export type Analysis = {
   sourceStatuses: SourceStatus[];
   knownGaps: KnownGap[];
   nearbyProperties: NearbyProperty[];
+  wozBenchmark?: WozBenchmark | null;
   persistence?: "database" | "cache-only";
 };
 

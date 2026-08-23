@@ -10,7 +10,9 @@
 :root {
   --ink: #1d1d1f;
   --ink-soft: #6e6e73;
-  --muted: #86868b;
+  /* #75757c keeps the light-gray hierarchy but passes WCAG AA (4.5:1) on white;
+     the old #86868b measured 3.6:1. */
+  --muted: #75757c;
   --paper: #fbfbfd;
   --card: #ffffff;
   --line: #e8e8ed;
@@ -56,3 +58,60 @@ body {
 button, input { font: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
+
+/* ---------------------------------------------------------------------------
+   Accessibility primitives. These are product-wide contracts:
+   - .sr-only is the single visually-hidden utility (was previously defined
+     only inside property.css but used on every page).
+   - :focus-visible gives every interactive element the same, clearly visible
+     ring without punishing mouse users with outlines.
+--------------------------------------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--accent-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion contract: honour prefers-reduced-motion globally. Decorative
+   movement (hover lifts, shimmer skeletons, spinners) stops; nothing hides.
+   property.css already disabled specific animations — this is the catch-all
+   so future effects are covered by default.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ui-button:hover,
+  .primary-button:hover,
+  .secondary-button:hover,
+  .nav-cta:hover,
+  .search-button:hover,
+  .ghost-button:hover {
+    transform: none;
+  }
+}

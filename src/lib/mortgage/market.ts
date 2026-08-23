@@ -6,6 +6,7 @@
  */
 import { AFM_TOETSRENTE_FLOOR, INDICATIVE_RATES, indicativeRate } from "@/src/lib/mortgage/norms-2026";
 import type { FixedPeriodYears, MortgageMarketHistorySeries, MortgageMarketRatePoint, MortgageMarketSnapshot } from "@/src/lib/mortgage/types";
+import { fetchJson, fetchText } from "@/src/lib/http/fetch-json";
 
 export const AFM_TOETSRENTE_URL = "https://www.afm.nl/nl-nl/sector/themas/dienstverlening-aan-consumenten/financiele-producten/hypothecair-krediet";
 export const ECB_MIR_URL = "https://data-api.ecb.europa.eu/service/data/MIR";
@@ -102,26 +103,25 @@ function fallbackSnapshot(): MortgageMarketSnapshot {
 }
 
 async function fetchAfmToetsrente() {
-  const response = await fetch(AFM_TOETSRENTE_URL, {
+  const body = await fetchText(AFM_TOETSRENTE_URL, "AFM toetsrente", {
+    revalidate: 21_600,
+    timeoutMs: FETCH_TIMEOUT_MS,
     headers: FETCH_HEADERS,
-    next: { revalidate: 21_600 },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error(`AFM HTTP ${response.status}`);
-  const parsed = parseAfmToetsrente(await response.text());
+  const parsed = parseAfmToetsrente(body);
   if (!parsed) throw new Error("AFM toetsrente kon niet worden gelezen");
   return parsed;
 }
 
 async function fetchEcbSeries(period: FixedPeriodYears) {
   const url = `${ECB_MIR_URL}/${ECB_SERIES[period]}?lastNObservations=${ECB_HISTORY_OBSERVATIONS}&format=jsondata`;
-  const response = await fetch(url, {
+  const payload = await fetchJson<unknown>(url, "ECB renteserie", {
+    revalidate: 86_400,
+    timeoutMs: FETCH_TIMEOUT_MS,
     headers: { ...FETCH_HEADERS, Accept: "application/json" },
-    next: { revalidate: 86_400 },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    accept: "application/json",
   });
-  if (!response.ok) throw new Error(`ECB HTTP ${response.status}`);
-  const points = parseEcbMirSeries(await response.json());
+  const points = parseEcbMirSeries(payload);
   if (!points || points.length === 0) throw new Error("ECB-rente kon niet worden gelezen");
   const last = points[points.length - 1];
   return { rate: last.rate, period: last.month, points };

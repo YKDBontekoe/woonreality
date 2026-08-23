@@ -66,6 +66,8 @@
 .place-kpi { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .place-kpi small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .place-kpi strong { font-size: 18px; letter-spacing: -.03em; }
+.place-kpi-action { display: grid; align-content: center; }
+.place-kpi-action .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; }
 .place-section { display: grid; gap: 18px; }
 .place-buurt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .place-buurt-card { display: grid; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .16s ease, transform .16s ease; }

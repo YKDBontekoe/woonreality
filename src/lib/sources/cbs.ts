@@ -1,5 +1,6 @@
 import type { RegionScale } from "@/src/lib/map/national-layers";
 import type { Coordinates, GeoJsonFeature, GeoJsonFeatureCollection } from "@/src/lib/types";
+import { fetchJson } from "@/src/lib/http/fetch-json";
 
 export const cbsOgcBase = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections";
 export const cbsBuurtenUrl = `${cbsOgcBase}/buurten/items`;
@@ -136,9 +137,7 @@ export async function fetchCbsRegionsInBbox(
     bbox: bbox.join(","),
     limit: String(limit),
   });
-  const response = await fetch(`${cbsCollectionUrl(scale)}?${params}`, { next: { revalidate: 86400 } });
-  if (!response.ok) throw new Error(`CBS ${scale} ${response.status}`);
-  const payload = await response.json() as GeoJsonFeatureCollection;
+  const payload = await fetchJson<GeoJsonFeatureCollection>(`${cbsCollectionUrl(scale)}?${params}`, `CBS ${scale}`, { revalidate: 86400 });
   return {
     type: "FeatureCollection",
     features: payload.features ?? [],
@@ -178,12 +177,38 @@ export async function getCbsContext(coordinates: Coordinates): Promise<CbsContex
     bbox: `${coordinates.lng - delta},${coordinates.lat - delta},${coordinates.lng + delta},${coordinates.lat + delta}`,
     limit: "1",
   });
-  const response = await fetch(`${cbsBuurtenUrl}?${params}`, { next: { revalidate: 86400 } });
-  if (!response.ok) throw new Error(`CBS buurten ${response.status}`);
-  const payload = await response.json() as { features?: { properties?: Record<string, unknown>; geometry?: { coordinates?: unknown } }[] };
+  const payload = await fetchJson<{ features?: { properties?: Record<string, unknown>; geometry?: { coordinates?: unknown } }[] }>(
+    `${cbsBuurtenUrl}?${params}`,
+    "CBS buurten",
+    { revalidate: 86400 },
+  );
   const feature = payload.features?.[0];
   if (!feature?.properties) return null;
   return parseCbsProperties(feature.properties);
+}
+
+/**
+ * Average WOZ of a single wijk/gemeente, for benchmarking a buurt average
+ * against its wider region. Geometry is not needed, so this is a slim variant
+ * of getCbsByGemeenteCode/getCbsByBuurtCode.
+ */
+async function averageWozByRegionCode(collectionUrl: string, codeKey: string, code: string): Promise<number | undefined> {
+  const params = new URLSearchParams({ f: "json", [codeKey]: code, limit: "1" });
+  const payload = await fetchJson<{ features?: { properties?: Record<string, unknown> }[] }>(
+    `${collectionUrl}?${params}`,
+    `CBS ${codeKey}`,
+    { revalidate: 86_400, timeoutMs: CBS_FETCH_TIMEOUT_MS },
+  );
+  const feature = payload.features?.[0];
+  return feature?.properties ? parseCbsProperties(feature.properties).averageWoz : undefined;
+}
+
+export async function getAverageWozByWijkCode(wijkcode: string): Promise<number | undefined> {
+  return averageWozByRegionCode(cbsWijkenUrl, "wijkcode", wijkcode);
+}
+
+export async function getAverageWozByGemeenteCode(gemeentecode: string): Promise<number | undefined> {
+  return averageWozByRegionCode(cbsGemeentenUrl, "gemeentecode", gemeentecode);
 }
 
 function coordinatesFromGeometry(geometry?: { type?: string; coordinates?: unknown }) {
@@ -215,13 +240,12 @@ export function coordinatesFromFeature(feature: { geometry?: { type?: string; co
   return coordinatesFromGeometry(feature.geometry);
 }
 
-async function fetchCbsFeature(url: string) {
-  const response = await fetch(url, {
-    next: { revalidate: 86400 },
-    signal: AbortSignal.timeout(CBS_FETCH_TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error(`CBS request failed (${response.status})`);
-  return response.json() as Promise<{ features?: { properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }[] }>;
+function fetchCbsFeature(url: string) {
+  return fetchJson<{ features?: { properties?: Record<string, unknown>; geometry?: { type?: string; coordinates?: unknown }; bbox?: number[] }[] }>(
+    url,
+    "CBS Wijk- en Buurtkaart",
+    { revalidate: 86400, timeoutMs: CBS_FETCH_TIMEOUT_MS },
+  );
 }
 
 export async function getCbsByBuurtCode(buurtcode: string): Promise<CbsAreaLookup | null> {

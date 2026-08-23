@@ -1,6 +1,7 @@
 import { gunzipSync } from "node:zlib";
 import type { Coordinates } from "@/src/lib/types";
 import { rdToWgs84 } from "@/src/lib/geo/rd";
+import { fetchBuffer, fetchText } from "@/src/lib/http/fetch-json";
 
 export const ndovHaltesUrl = "https://data.ndovloket.nl/haltes/";
 
@@ -26,6 +27,19 @@ export function latestNdovCatalogFile(index: string) {
     .map((match) => ({ file: match[1], date: match[2] }));
   return files.sort((a, b) => a.date.localeCompare(b.date)).at(-1);
 }
+
+/**
+ * The index is cached for a day while upstream removes yesterday's file when
+ * today's appears — so the newest entry in a stale cache can 404. Candidates
+ * are returned newest-first so callers can walk back to a file that exists.
+ */
+export function ndovCatalogFileCandidates(index: string) {
+  const files = [...index.matchAll(/href=["'](ExportCHB_(\d{4}-\d{2}-\d{2})\.xml\.gz)["']/gi)]
+    .map((match) => ({ file: match[1], date: match[2] }));
+  return files.sort((a, b) => b.date.localeCompare(a.date)).slice(0, NDOV_FILE_FALLBACKS);
+}
+
+const NDOV_FILE_FALLBACKS = 3;
 
 export function ndovStopCoordinates(xml: string): Coordinates[] {
   const stops: Coordinates[] = [];
@@ -65,19 +79,24 @@ function nearbyStopsFromCatalog(coordinates: Coordinates, stops: Coordinates[]):
 }
 
 async function fetchNdovStops(): Promise<NdovCatalog | null> {
-  const indexResponse = await fetch(ndovHaltesUrl, { next: { revalidate: 86400 } });
-  if (!indexResponse.ok) throw new Error(`NDOV index ${indexResponse.status}`);
-  const index = await indexResponse.text();
-  const latest = latestNdovCatalogFile(index);
-  if (!latest) return null;
-  // Keep the large response out of Next's data cache; the parsed version below
-  // is smaller and is retained by this module for the short, bounded TTL.
-  const fileResponse = await fetch(new URL(latest.file, ndovHaltesUrl), { cache: "no-store" });
-  if (!fileResponse.ok) throw new Error(`NDOV haltebestand ${fileResponse.status}`);
-  const xml = gunzipSync(Buffer.from(await fileResponse.arrayBuffer())).toString("utf8");
-  const stops = ndovStopCoordinates(xml);
-  if (!stops.length) throw new Error("NDOV haltebestand bevat geen leesbare haltecoördinaten");
-  return { stops, catalogDate: latest.date };
+  const index = await fetchText(ndovHaltesUrl, "NDOV halteindex", { revalidate: 86400 });
+  const candidates = ndovCatalogFileCandidates(index);
+  if (!candidates.length) return null;
+  let lastError: unknown = new Error("NDOV haltebestand niet gevonden");
+  for (const candidate of candidates) {
+    try {
+      // Keep the large response out of Next's data cache; the parsed version
+      // below is smaller and is retained by this module for its bounded TTL.
+      const xml = gunzipSync(await fetchBuffer(new URL(candidate.file, ndovHaltesUrl), "NDOV haltebestand", { timeoutMs: 30_000 }))
+        .toString("utf8");
+      const stops = ndovStopCoordinates(xml);
+      if (!stops.length) throw new Error("NDOV haltebestand bevat geen leesbare haltecoördinaten");
+      return { stops, catalogDate: candidate.date };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 async function loadNdovStops() {

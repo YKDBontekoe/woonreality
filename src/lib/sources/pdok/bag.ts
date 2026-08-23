@@ -70,7 +70,7 @@ function usagePurposesFromProps(props: VboFeature["properties"]) {
 }
 
 export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
-  const vboCollection = await getJson<{ features?: VboFeature[] }>(pdokBagVboSearchUrl(bagVboId), 604_800);
+  const vboCollection = await getJson<{ features?: VboFeature[] }>(pdokBagVboSearchUrl(bagVboId), "PDOK BAG verblijfsobject");
   const vbo = vboCollection.features?.[0];
   if (!vbo) throw new Error(`BAG verblijfsobject ${bagVboId} not found`);
 
@@ -83,7 +83,7 @@ export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
   const isResidential = usagePurposes.length === 0 || usagePurposes.includes("woonfunctie");
 
   const pandFeatures = await Promise.all(
-    pandIds.slice(0, 3).map((id) => getJson<PandFeature>(pdokBagFeatureUrl("pand", id), 604_800)),
+    pandIds.slice(0, 3).map((id) => getJson<PandFeature>(pdokBagFeatureUrl("pand", id), "PDOK BAG pand")),
   );
   const primaryPand = pandFeatures[0];
   const coordinates = pointFromGeometry(vbo.geometry) ?? { lat: 52.1326, lng: 5.2913 };
@@ -114,7 +114,7 @@ export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
 }
 
 export async function getPropertyFromAddressHref(href: string): Promise<Property> {
-  const address = await getJson<AddressFeature>(href, 604_800);
+  const address = await getJson<AddressFeature>(href, "PDOK BAG adres");
   const bagVboId = address.properties.adresseerbaar_object_identificatie;
   if (!bagVboId) throw new Error("PDOK address result did not contain a BAG VBO identifier");
   return getPropertyByBagId(bagVboId);
@@ -122,14 +122,14 @@ export async function getPropertyFromAddressHref(href: string): Promise<Property
 
 export async function getPropertyById(id: string): Promise<Property> {
   if (/^\d{16}$/.test(id)) return getPropertyByBagId(id);
-  const address = await getJson<AddressFeature>(pdokBagAddressUrl(id), 604_800);
+  const address = await getJson<AddressFeature>(pdokBagAddressUrl(id), "PDOK BAG adres");
   const bagVboId = address.properties.adresseerbaar_object_identificatie;
   if (!bagVboId) throw new Error(`PDOK address ${id} did not resolve to a BAG VBO`);
   return getPropertyByBagId(bagVboId);
 }
 
 export async function getNearbyProperties(property: Property, radiusM = 150): Promise<NearbyProperty[]> {
-  const collection = await getJson<GeoJsonFeatureCollection>(pdokBagNearbyVboUrl(property.coordinates, radiusM), 604_800);
+  const collection = await getJson<GeoJsonFeatureCollection>(pdokBagNearbyVboUrl(property.coordinates, radiusM), "PDOK BAG omgeving");
 
   return collection.features.flatMap((feature) => {
     const coordinates = pointFromGeometry(feature.geometry);

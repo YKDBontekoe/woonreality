@@ -256,6 +256,7 @@
 .property-loading-heading .property-loading-shimmer:nth-child(2) { width: min(460px, 100%); height: clamp(36px, 5vw, 52px); border-radius: 12px; }
 .property-loading-heading .property-loading-shimmer:last-child { width: 210px; height: 14px; }
 .property-loading-grid { display: grid; grid-template-columns: minmax(250px, .75fr) minmax(0, 1.25fr); gap: 16px; }
+.cockpit-loading-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; margin-top: 24px; }
 .property-loading-card { min-height: 310px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); }
 .property-loading-card .property-loading-shimmer { height: 15px; margin-bottom: 14px; }
 .property-loading-card .property-loading-shimmer:nth-child(1) { width: 36%; }

@@ -123,12 +123,11 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
 
     if (body.action === "save") {
-      if (!isBagId(body.bagVboId) || !body.addressLabel || !body.city || !body.postcode) return NextResponse.json({ error: "Onvolledige woninggegevens." }, { status: 400 });
       const savedPayload: { user_id: string; bag_vbo_id: string; address_label: string; city: string; postcode: string; stage?: PropertyStage; updated_at: string } = { user_id: result.user.id, bag_vbo_id: body.bagVboId, address_label: body.addressLabel, city: body.city, postcode: body.postcode, updated_at: now };
       if (body.stage !== undefined) savedPayload.stage = body.stage;
       const { error } = await result.supabase.from("saved_properties").upsert(savedPayload, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
-      if (body.askingPrice != null && body.askingPrice > 0) {
+      if (body.askingPrice != null) {
         const { error: listingError } = await result.supabase.from("user_listings").upsert({
           user_id: result.user.id,
           bag_vbo_id: body.bagVboId,
@@ -138,24 +137,20 @@ export async function POST(request: Request) {
         if (listingError) throw listingError;
       }
     } else if (body.action === "unsave") {
-      if (!isBagId(body.bagVboId)) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
       const { error } = await result.supabase.from("saved_properties").delete().eq("user_id", result.user.id).eq("bag_vbo_id", body.bagVboId);
       if (error) throw error;
     } else if (body.action === "stage") {
-      if (!isBagId(body.bagVboId) || !isStage(body.stage)) return NextResponse.json({ error: "Ongeldige woningstatus." }, { status: 400 });
       const { error } = await result.supabase.from("saved_properties").update({ stage: body.stage, updated_at: now }).eq("user_id", result.user.id).eq("bag_vbo_id", body.bagVboId);
       if (error) throw error;
     } else if (body.action === "compare") {
-      const compare = (body.compare ?? []).filter(isBagId).slice(0, 4);
+      const compare = body.compare.slice(0, 4);
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare, p_mortgage: null });
       if (error) throw error;
     } else if (body.action === "profile") {
-      if (!body.preferences && !body.buyerProfile) return NextResponse.json({ error: "Geef voorkeuren of een woonprofiel mee." }, { status: 400 });
       if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: body.preferences ?? null, p_buyer_profile: body.buyerProfile ?? null, p_compare_ids: null, p_mortgage: null });
       if (error) throw error;
     } else if (body.action === "mortgage") {
-      if (!body.mortgageState) return NextResponse.json({ error: "Geef hypotheekgegevens mee." }, { status: 400 });
       const state = restoreCalculatorState(body.mortgageState) as CalculatorState;
       const capacity = calculateMortgageCapacity(calculatorStateToFinance(state), {
         nhg: state.nhg,
@@ -178,8 +173,6 @@ export async function POST(request: Request) {
       });
       if (error) throw error;
     } else if (body.action === "listingPrice") {
-      if (!isBagId(body.bagVboId)) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
-      if (body.askingPrice == null || body.askingPrice < 0) return NextResponse.json({ error: "Ongeldige vraagprijs." }, { status: 400 });
       const { error } = await result.supabase.from("user_listings").upsert({
         user_id: result.user.id,
         bag_vbo_id: body.bagVboId,
@@ -188,7 +181,6 @@ export async function POST(request: Request) {
       }, { onConflict: "user_id,bag_vbo_id" });
       if (error) throw error;
     } else if (body.action === "onboarding") {
-      if (!body.dismissOnboarding) return NextResponse.json({ error: "Geef dismissOnboarding mee." }, { status: 400 });
       const onboardingPatch = { dismissedAt: now };
       if (!preferencesJsonWithinLimit({ onboarding: onboardingPatch })) {
         return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
@@ -202,6 +194,8 @@ export async function POST(request: Request) {
       });
       if (error) throw error;
     } else {
+      // Discriminated union makes this branch unreachable at the type level;
+      // kept as a runtime guard for unexpected payloads.
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });
     }
 

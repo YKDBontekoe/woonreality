@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
+import { logError } from "@/src/lib/logger";
 import {
   generateListingInsights,
   hasListingExtractText,
   listingExtractFingerprint,
   listingExtractVersions,
 } from "@/src/lib/analysis/listing-extract";
-import { persistAnalysis, persistAiReportFailure, persistStructuredAiReport, getAiReport, markAiReportGenerating, resolveReadyReport, aiReportStatus } from "@/src/lib/db/repository";
+import { claimAiReportGeneration, persistAnalysis, persistAiReportFailure, persistStructuredAiReport, getAiReport, resolveReadyReport, aiReportStatus } from "@/src/lib/db/repository";
 import { listingFromUserRecord } from "@/src/lib/listing-import";
 import { mergeListings } from "@/src/lib/listing-merge";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
@@ -136,7 +137,11 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       if (existing && aiReportStatus(existing) === "generating") {
         return NextResponse.json({ status: "generating" }, { status: 202 });
       }
-      await markAiReportGenerating(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, userId);
+      // Atomic claim so two concurrent POSTs cannot both start an LLM run.
+      const claim = await claimAiReportGeneration(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, userId);
+      if (claim === "in-flight") {
+        return NextResponse.json({ status: "generating" }, { status: 202 });
+      }
     }
     if (!signedIn && !allowAnonymousGeneration(request, bagId)) {
       return NextResponse.json({ status: "failed", message: "Te veel verzoeken. Probeer het later opnieuw of log in." }, { status: 429 });
@@ -158,7 +163,7 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     }, fingerprint, userId);
     return NextResponse.json({ status: "ready", report });
   } catch (error) {
-    console.error("WoonReality listing insights failed", error);
+    logError("WoonReality listing insights failed", error);
     if (analysis && fingerprint) {
       await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, "generate_failed", userId);
     }

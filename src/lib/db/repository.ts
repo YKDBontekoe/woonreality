@@ -1,6 +1,7 @@
 import type { AiPropertyReport, AiReportStatus, Analysis } from "@/src/lib/types";
 import type { AiReportRow } from "@/src/lib/supabase/database.types";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/server";
+import { logWarn } from "@/src/lib/logger";
 
 function asJson(value: unknown) {
   return value as never;
@@ -48,7 +49,7 @@ export async function persistAnalysis(analysis: Analysis): Promise<"database" | 
     if (analysisError) throw analysisError;
     return "database";
   } catch (error) {
-    console.warn("Supabase persistence unavailable; serving cache-only analysis", error);
+    logWarn("Supabase persistence unavailable; serving cache-only analysis", error);
     return "cache-only";
   }
 }
@@ -184,7 +185,7 @@ async function persistReadyReport(
     if (error) throw error;
     return "database";
   } catch (error) {
-    console.warn("Supabase AI report persistence unavailable", error);
+    logWarn("Supabase AI report persistence unavailable", error);
     return "cache-only";
   }
 }
@@ -212,8 +213,75 @@ async function updateAiReport(analysis: Analysis, values: Record<string, unknown
     if (error) throw error;
     return "database" as const;
   } catch (error) {
-    console.warn("Supabase AI report status persistence unavailable", error);
+    logWarn("Supabase AI report status persistence unavailable", error);
     return "cache-only" as const;
+  }
+}
+
+export type GenerationClaim = "claimed" | "in-flight" | "cache-only";
+
+/**
+ * Atomically transition this report row into "generating" so two concurrent
+ * POSTs never both pay for a full LLM run. Uses a conditional UPDATE
+ * (status must not already be "generating") and checks how many rows changed:
+ * zero means another request holds the claim. For a first-time row the unique
+ * index on (property_id, report_version[, user_id]) makes a duplicate insert
+ * fail, which is treated as "someone else just claimed it".
+ */
+export async function claimAiReportGeneration(analysis: Analysis, reportVersion: string, promptVersion: string, inputFingerprint: string, userId: string | null = null): Promise<GenerationClaim> {
+  const db = createSupabaseAdminClient();
+  if (!db) return "cache-only";
+  try {
+    const id = await propertyId(db, analysis.property.bagVboId);
+    if (!id) return "cache-only";
+    const payload = {
+      property_id: id,
+      user_id: userId,
+      report_version: reportVersion,
+      prompt_version: promptVersion,
+      input_fingerprint: inputFingerprint,
+      status: "generating",
+      error_code: null,
+      updated_at: new Date().toISOString(),
+    };
+    const existing = await getAiReport(analysis.property.bagVboId, reportVersion, userId);
+    if (existing?.id) {
+      const { data, error } = await db.from("ai_reports")
+        .update(payload)
+        .eq("id", existing.id)
+        .neq("status", "generating")
+        .select("id");
+      if (error) throw error;
+      return data && data.length > 0 ? "claimed" : "in-flight";
+    }
+    const { error } = await db.from("ai_reports").insert(payload);
+    if (error) {
+      // Unique-index violation: a concurrent request inserted first.
+      logWarn("AI report claim insert conflicted; treating as in-flight", error);
+      return "in-flight";
+    }
+    return "claimed";
+  } catch (error) {
+    logWarn("Supabase AI report claim unavailable; proceeding without lock", error);
+    return "cache-only";
+  }
+}
+
+/** Releases a stale "generating" flag after a crash between claim and persist. */
+export async function releaseAiReportClaim(bagVboId: string, reportVersion: string, userId: string | null = null) {
+  const db = createSupabaseAdminClient();
+  if (!db) return;
+  try {
+    const id = await propertyId(db, bagVboId);
+    if (!id) return;
+    const existing = await getAiReport(bagVboId, reportVersion, userId);
+    if (!existing?.id || existing.status !== "generating") return;
+    await db.from("ai_reports")
+      .update({ status: "failed", error_code: "claim_released", updated_at: new Date().toISOString() })
+      .eq("id", existing.id)
+      .eq("status", "generating");
+  } catch (error) {
+    logWarn("AI report claim release failed", error);
   }
 }
 

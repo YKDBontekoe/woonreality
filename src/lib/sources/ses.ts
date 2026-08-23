@@ -1,4 +1,5 @@
 import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
+import { fetchJson } from "@/src/lib/http/fetch-json";
 
 export const sesStatLineUrl = "https://opendata.cbs.nl/ODataApi/OData/86296NED";
 export const sesStatLineTableUrl = "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED";
@@ -153,9 +154,7 @@ async function fetchSesRows(regionCode: string): Promise<SesRow[]> {
       $filter: cbsODataEq("WijkenEnBuurten", variant),
       $format: "json",
     });
-    const response = await fetch(`${sesStatLineUrl}/TypedDataSet?${params}`, { next: { revalidate: 86400 } });
-    if (!response.ok) throw new Error(`CBS SES-WOA ${response.status}`);
-    const payload = await response.json() as { value?: SesRow[] };
+    const payload = await fetchJson<{ value?: SesRow[] }>(`${sesStatLineUrl}/TypedDataSet?${params}`, "CBS SES-WOA", { revalidate: 86400 });
     if (payload.value?.length) {
       rows.push(...payload.value);
       break;

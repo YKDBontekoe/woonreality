@@ -87,20 +87,59 @@ export const mortgageStateSchema = z.object({
   buyerAge: z.number().int().min(0).max(120),
 }).strict();
 
-export const workspaceBodySchema = z.object({
-  action: z.enum(["save", "unsave", "stage", "compare", "profile", "mortgage", "listingPrice", "onboarding"]),
-  bagVboId: z.string().regex(/^\d{16}$/).optional(),
-  addressLabel: z.string().min(1).max(240).optional(),
-  city: z.string().min(1).max(120).optional(),
-  postcode: z.string().min(1).max(12).optional(),
-  stage: propertyStageSchema.optional(),
-  preferences: preferencesSchema.optional(),
-  buyerProfile: buyerProfileSchema.optional(),
-  mortgageState: mortgageStateSchema.optional(),
-  askingPrice: z.number().finite().nonnegative().nullable().optional(),
-  compare: z.array(z.string().regex(/^\d{16}$/)).max(4).optional(),
-  dismissOnboarding: z.boolean().optional(),
-}).strict();
+const BAG_ID_PATTERN = /^\d{16}$/;
+export const bagIdSchema = z.string().regex(BAG_ID_PATTERN);
+
+/**
+ * One schema member per workspace action, so every required field pair is
+ * validated where it belongs instead of via scattered checks in the route.
+ * Unknown keys stay rejected through .strict() on each member.
+ */
+export const workspaceBodySchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("save"),
+    bagVboId: bagIdSchema,
+    addressLabel: z.string().min(1).max(240),
+    city: z.string().min(1).max(120),
+    postcode: z.string().min(1).max(12),
+    stage: propertyStageSchema.optional(),
+    askingPrice: z.number().finite().positive().optional(),
+  }).strict(),
+  z.object({
+    action: z.literal("unsave"),
+    bagVboId: bagIdSchema,
+  }).strict(),
+  z.object({
+    action: z.literal("stage"),
+    bagVboId: bagIdSchema,
+    stage: propertyStageSchema,
+  }).strict(),
+  z.object({
+    action: z.literal("compare"),
+    compare: z.array(bagIdSchema).max(4),
+  }).strict(),
+  z.object({
+    action: z.literal("profile"),
+    preferences: preferencesSchema.optional(),
+    buyerProfile: buyerProfileSchema.optional(),
+  }).strict().refine(
+    (body) => body.preferences != null || body.buyerProfile != null,
+    { message: "Geef voorkeuren of een woonprofiel mee." },
+  ),
+  z.object({
+    action: z.literal("mortgage"),
+    mortgageState: mortgageStateSchema,
+  }).strict(),
+  z.object({
+    action: z.literal("listingPrice"),
+    bagVboId: bagIdSchema,
+    askingPrice: z.number().finite().nonnegative(),
+  }).strict(),
+  z.object({
+    action: z.literal("onboarding"),
+    dismissOnboarding: z.literal(true),
+  }).strict(),
+]);
 
 export type WorkspaceRequest = z.infer<typeof workspaceBodySchema>;
 export const MAX_PREFERENCES_JSON_BYTES = 16_000;

@@ -49,8 +49,16 @@ export function PurchaseCockpit({
     if (!editingProfile) setProfile(workspace.buyerProfileConfigured ? workspace.buyerProfile : EMPTY_BUYER_PROFILE);
   }, [editingProfile, workspace.buyerProfile, workspace.buyerProfileConfigured]);
 
+  // Keep a stable identity for the saved list while only the id-set matters,
+  // so the analysis fetch effect below does not re-run after unrelated
+  // workspace updates (e.g. preference changes) that rebuild the array.
   const savedKey = workspace.saved.map((saved) => saved.bagVboId).join("|");
-  const savedHomes = useMemo(() => workspace.saved, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [savedHomes, setSavedHomes] = useState(workspace.saved);
+  useEffect(() => {
+    setSavedHomes((current) => (
+      current.map((item) => item.bagVboId).join("|") === savedKey ? current : workspace.saved
+    ));
+  }, [savedKey, workspace.saved]);
   useEffect(() => {
     if (!savedHomes.length) {
       setAnalyses({});

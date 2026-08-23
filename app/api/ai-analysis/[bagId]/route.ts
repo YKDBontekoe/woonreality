@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { analyzeProperty } from "@/src/lib/analysis/analyze";
+import { logError, logWarn } from "@/src/lib/logger";
+import { toUserMessage } from "@/src/lib/errors";
 import { aiInputFingerprint, aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingForProperty } from "@/src/lib/sources/listings";
 import { listingFromUserRecord } from "@/src/lib/listing-import";
 import { mergeListings } from "@/src/lib/listing-merge";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
-import { aiReportStatus, getAiReport, markAiReportGenerating, persistAiReport, persistAiReportFailure, persistAnalysis, resolveReadyReport } from "@/src/lib/db/repository";
+import { claimAiReportGeneration, getAiReport, persistAiReport, persistAiReportFailure, persistAnalysis, releaseAiReportClaim, resolveReadyReport } from "@/src/lib/db/repository";
+import type { Analysis } from "@/src/lib/types";
 import type { PropertyListing } from "@/src/lib/types";
 
 export const runtime = "nodejs";
@@ -47,6 +50,9 @@ async function loadContext(bagId: string) {
   return { property, analysis, listing, userId: cacheUserId(user.listing, user.userId) };
 }
 
+const STATUS_LOAD_FAILED = "AI-status kon niet worden geladen.";
+const GENERATION_FAILED = "De AI-analyse kon nu niet worden gemaakt. Probeer het later opnieuw.";
+
 export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
   if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
@@ -57,13 +63,16 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     const resolved = resolveReadyReport(row, fingerprint);
     return NextResponse.json(resolved);
   } catch (error) {
-    return NextResponse.json({ status: "failed", message: error instanceof Error ? error.message : "AI-status kon niet worden geladen" }, { status: 502 });
+    logError("WoonReality AI report status failed", error);
+    return NextResponse.json({ status: "failed", message: toUserMessage(error, STATUS_LOAD_FAILED) }, { status: 502 });
   }
 }
 
 export async function POST(_request: Request, context: { params: Promise<{ bagId: string }> }) {
   if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
   const { bagId } = await context.params;
+  let claimedBagVboId: string | null = null;
+  let claimUserId: string | null = null;
   try {
     const { analysis, listing, userId } = await loadContext(bagId);
     await persistAnalysis(analysis);
@@ -73,17 +82,43 @@ export async function POST(_request: Request, context: { params: Promise<{ bagId
     if (resolved.status === "ready" && resolved.report) {
       return NextResponse.json({ status: "ready", report: resolved.report });
     }
-    if (existing && aiReportStatus(existing) === "generating") return NextResponse.json({ status: "generating" }, { status: 202 });
-    await markAiReportGenerating(analysis, aiReportVersions.report, aiReportVersions.prompt, inputFingerprint, userId);
+    if (existing && existing.status === "generating") return NextResponse.json({ status: "generating" }, { status: 202 });
+
+    // Atomic claim: exactly one concurrent request may start an LLM run.
+    // "cache-only" means no Supabase lock exists; proceed unlocked rather
+    // than refusing generation.
+    const claim = await claimAiReportGeneration(
+      analysis,
+      aiReportVersions.report,
+      aiReportVersions.prompt,
+      inputFingerprint,
+      userId,
+    );
+    if (claim === "in-flight") return NextResponse.json({ status: "generating" }, { status: 202 });
+    if (claim === "claimed") {
+      claimedBagVboId = analysis.property.bagVboId;
+      claimUserId = userId;
+    }
+
     const report = await generateAiPropertyReport(analysis.property, analysis, listing);
     if (!report) {
-      await persistAiReportFailure(analysis, aiReportVersions.report, aiReportVersions.prompt, inputFingerprint, "empty_report", userId);
-      return NextResponse.json({ status: "failed", message: "AI-rapport kon niet worden samengesteld." }, { status: 502 });
+      await persistFailureSafely(analysis, inputFingerprint, userId, "empty_report");
+      return NextResponse.json({ status: "failed", message: GENERATION_FAILED }, { status: 502 });
     }
     await persistAiReport(analysis, report, inputFingerprint, userId);
+    claimedBagVboId = null;
     return NextResponse.json({ status: "ready", report });
   } catch (error) {
-    console.error("WoonReality AI report failed", error);
-    return NextResponse.json({ status: "failed", message: error instanceof Error ? error.message : "AI-rapport kon niet worden gemaakt" }, { status: 502 });
+    logError("WoonReality AI report failed", error);
+    if (claimedBagVboId) await releaseAiReportClaim(claimedBagVboId, aiReportVersions.report, claimUserId);
+    return NextResponse.json({ status: "failed", message: toUserMessage(error, GENERATION_FAILED) }, { status: 502 });
+  }
+}
+
+async function persistFailureSafely(analysis: Analysis, inputFingerprint: string, userId: string | null, errorCode: string) {
+  try {
+    await persistAiReportFailure(analysis, aiReportVersions.report, aiReportVersions.prompt, inputFingerprint, errorCode, userId);
+  } catch (error) {
+    logWarn("Could not persist AI failure state", error);
   }
 }

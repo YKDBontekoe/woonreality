@@ -5,6 +5,8 @@ export type BgtContext = {
   roads: GeoJsonFeature[];
   greenAreas: GeoJsonFeature[];
   water: GeoJsonFeature[];
+  /** Building footprints (BGT pand), including historical records; consumers filter on eind_registratie. */
+  buildings: GeoJsonFeature[];
   fetchedAt: string;
 };
 
@@ -14,8 +16,18 @@ export async function getBgtContext(coordinates: { lat: number; lng: number }): 
     getBgtFeatures("begroeidterreindeel", coordinates),
     getBgtFeatures("waterdeel", coordinates),
   ]);
+  // Building footprints feed the sun/light signal, which only looks ~60 m
+  // around the house. The pand collection also contains historical records,
+  // so a generous page limit keeps the subject's own building from being
+  // pushed off a truncated result page.
+  let buildings: GeoJsonFeature[] = [];
+  try {
+    buildings = await getBgtFeatures("pand", coordinates, 120, 1000);
+  } catch {
+    // Sun signal degrades gracefully without footprints.
+  }
 
-  return { roads, greenAreas, water, fetchedAt: new Date().toISOString() };
+  return { roads, greenAreas, water, buildings, fetchedAt: new Date().toISOString() };
 }
 
 export function bgtEvidenceId(collection: string, feature: GeoJsonFeature, index: number) {

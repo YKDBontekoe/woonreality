@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
+import { ComparisonSkeleton } from "@/components/ui/route-skeletons";
 import { comparisonListingFromUserRow, type ComparisonListingFacts } from "@/src/lib/listing-history";
 import { calculatePersonalFit } from "@/src/lib/personalization";
 import type { Analysis } from "@/src/lib/types";
@@ -111,7 +112,7 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
   }, [bagIds.length, selectedBagIdsKey, workspaceReady]);
 
-  if (loading) return <main className="site-shell"><div className="container"><SiteHeader current="vergelijken" /><section className="comparison-loading" role="status" aria-live="polite"><span className="sr-only">Vergelijking laden…</span><div className="comparison-loading-heading" aria-hidden="true"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div><div className="comparison-loading-cards" aria-hidden="true"><div className="comparison-loading-card"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div><div className="comparison-loading-card"><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /><span className="property-loading-shimmer" /></div></div></section></div></main>;
+  if (loading) return <ComparisonSkeleton />;
   if (analyses.length < 2) return <ComparisonEmptyState error={loadError} />;
 
   const domains = analyses[0].domains;

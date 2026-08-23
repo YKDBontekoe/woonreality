@@ -16,8 +16,15 @@ export function ScoreDonut({
   const stroke = scoreBand(score) === "attention" ? "var(--attention)" : "var(--accent)";
 
   return (
-    <svg className={`dash-donut is-${size}`} viewBox={`0 0 ${view} ${view}`} aria-hidden="true">
-      <circle cx={cx} cy={cx} r={radius} fill="none" stroke="var(--line)" strokeWidth={size === "lg" ? 10 : 8} />
+    // The number lives inside the SVG; expose it as one labelled image so
+    // screen-reader users hear the score instead of an empty graphic.
+    <svg
+      className={`dash-donut is-${size}`}
+      viewBox={`0 0 ${view} ${view}`}
+      role="img"
+      aria-label={`Score ${clamped.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} van 10`}
+    >
+      <circle cx={cx} cy={cx} r={radius} fill="none" stroke="var(--line)" strokeWidth={size === "lg" ? 10 : 8} aria-hidden="true" />
       <circle
         cx={cx}
         cy={cx}
@@ -29,6 +36,7 @@ export function ScoreDonut({
         strokeDashoffset={offset}
         strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cx})`}
+        aria-hidden="true"
       />
       <text
         x={cx}
@@ -38,6 +46,7 @@ export function ScoreDonut({
         fontFamily="DM Sans, sans-serif"
         fontWeight="600"
         fill="var(--ink)"
+        aria-hidden="true"
       >
         {clamped.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}
       </text>

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { generateText, Output, stepCountIs } from "ai";
 import { openai } from "@ai-sdk/openai";
-import * as cheerio from "cheerio";
+import { parseHTML } from "linkedom";
 import { extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
@@ -169,10 +169,12 @@ async function fetchDocument(source: ResearchSource, property: Property): Promis
       return { source, text: String(extracted.text).slice(0, SOURCE_MAX_DOC_CHARS) };
     }
     const html = new TextDecoder().decode(bytes);
-    const $ = cheerio.load(html);
-    $("script,style,noscript,svg,nav,footer").remove();
-    const mainText = $("main").text();
-    const text = mainText || $("body").text() || $.root().text();
+    // linkedom is already a dependency for listing extraction; reuse it here
+    // so the bundle ships a single DOM implementation.
+    const { document } = parseHTML(html);
+    document.querySelectorAll("script,style,noscript,svg,nav,footer").forEach((node) => node.remove());
+    const mainText = document.querySelector("main")?.textContent ?? "";
+    const text = mainText || document.body?.textContent || "";
     return { source, text: text.replace(/\s+/g, " ").trim().slice(0, SOURCE_MAX_DOC_CHARS) };
   } catch {
     return null;

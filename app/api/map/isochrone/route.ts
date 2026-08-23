@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   }
   try {
     const endpoint = mapboxIsochroneUrl({ token, lng, lat, profile, minutes });
-    const response = await fetch(endpoint, { next: { revalidate: 86400 } });
+    const response = await fetch(endpoint, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) {
       return NextResponse.json({ error: "Reistijd kon niet worden berekend." }, { status: 502 });
     }

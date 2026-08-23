@@ -1,12 +1,14 @@
 "use client";
 
-import { ArrowLeft, MapPinned, Users } from "lucide-react";
+import { ArrowLeft, GitCompare, MapPinned, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PageShell } from "@/components/ui/page-shell";
 import { domainsFromSignals } from "@/src/lib/analysis/signal-domains";
+import { saveStoredPlace } from "@/src/lib/place-compare";
 import { placeKindLabels } from "@/src/lib/place-labels";
 import type { Analysis, PlaceAnalysis, PlaceKind } from "@/src/lib/types";
 
@@ -24,6 +26,13 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
   const [place, setPlace] = useState<PlaceAnalysis | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  function startPlaceComparison() {
+    if (!place) return;
+    saveStoredPlace({ kind, code });
+    router.push(`/vergelijken?places=${kind}:${encodeURIComponent(code)}`);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +139,11 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
                       ? `${place.cbs.populationDensity.toLocaleString("nl-NL")} / km²`
                       : "—"}
                   </strong>
+                </div>
+                <div className="place-kpi place-kpi-action">
+                  <button className="secondary-button" type="button" onClick={startPlaceComparison}>
+                    <GitCompare size={13} /> Vergelijk
+                  </button>
                 </div>
               </div>
             </header>

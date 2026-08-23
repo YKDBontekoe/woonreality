@@ -1,6 +1,6 @@
 import type { ScoreComponent, Signal } from "@/src/lib/types";
 
-export const SCORING_VERSION = "2026.08.v1";
+export const SCORING_VERSION = "2026.08.v2";
 
 const weights: Record<string, number> = {
   noise: 0.25,
@@ -15,6 +15,8 @@ const weights: Record<string, number> = {
   crime: 0.12,
   transit: 0.15,
   future: 0.15,
+  flood: 0.15,
+  sun: 0.1,
 };
 
 export function componentFromSignal(signal: Signal, key: string, label: string, explanation: string): ScoreComponent {

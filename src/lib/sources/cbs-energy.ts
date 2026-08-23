@@ -7,6 +7,9 @@
  * Both datasets are CC-BY 4.0 from CBS / Statistics Netherlands.
  */
 
+import { fetchJson } from "@/src/lib/http/fetch-json";
+import { logWarn } from "@/src/lib/logger";
+
 const CBS_API = "https://opendata.cbs.nl/ODataApi/OData";
 
 // ---------------------------------------------------------------------------
@@ -72,23 +75,11 @@ export async function fetchLatestEnergyTariffs(): Promise<EnergyTariffs> {
   const filter = `VAT eq '${VAT_INCL}' and startswith(Periods,'${year}')`;
   const url = `${CBS_API}/${TARIFF_TABLE}/TypedDataSet?$filter=${filter}&$select=${select}&$format=json`;
 
-  let response: Response;
-  try {
-    response = await fetch(url, { next: { revalidate: 86400 } });
-  } catch {
-    console.warn("CBS tariff fetch failed (transport error), using fallback");
-    return FALLBACK_TARIFFS;
-  }
-  if (!response.ok) {
-    console.warn(`CBS tariff fetch failed (${response.status}), using fallback`);
-    return FALLBACK_TARIFFS;
-  }
-
   let payload: { value?: TariffRow[] };
   try {
-    payload = await response.json();
-  } catch {
-    console.warn("CBS tariff fetch failed (invalid JSON), using fallback");
+    payload = await fetchJson<{ value?: TariffRow[] }>(url, "CBS energietarieven", { revalidate: 86400 });
+  } catch (error) {
+    logWarn("CBS tariff fetch failed; using fallback", error);
     return FALLBACK_TARIFFS;
   }
   const rows = payload.value ?? [];
@@ -217,12 +208,13 @@ export async function fetchEnergyConsumption(
 
   const url = `${CBS_API}/${CONSUMPTION_TABLE}/TypedDataSet?$filter=${filters}&$select=${select}&$format=json`;
 
-  const response = await fetch(url, { next: { revalidate: 604800 } });
-  if (!response.ok) {
-    console.warn(`CBS consumption fetch failed (${response.status}), using fallback`);
+  let payload: { value?: ConsumptionRow[] };
+  try {
+    payload = await fetchJson<{ value?: ConsumptionRow[] }>(url, "CBS energie verbruik", { revalidate: 604800 });
+  } catch (error) {
+    logWarn("CBS consumption fetch failed; using fallback", error);
     return FALLBACK_CONSUMPTION;
   }
-  const payload = await response.json() as { value?: ConsumptionRow[] };
   const rows = payload.value ?? [];
   const row = rows.sort((a, b) => b.Perioden.localeCompare(a.Perioden))[0];
   if (!row) {

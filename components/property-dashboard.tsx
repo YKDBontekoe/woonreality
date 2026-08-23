@@ -26,6 +26,7 @@ import { PropertyScoreCharts } from "@/components/property/score-charts";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PropertyActionDock } from "@/components/property/action-dock";
 import { RunningCostsPanel } from "@/components/property/running-costs-panel";
+import { WozBenchmarkCard } from "@/components/property/woz-benchmark-card";
 import { AiDecisionBrief } from "@/components/property/ai-decision-brief";
 import { VerdictHero, type TopThing } from "@/components/property/verdict-hero";
 import { PageShell } from "@/components/ui/page-shell";
@@ -518,7 +519,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             <ArrowLeft size={14} /> Terug naar zoeken
           </Link>
           <h1>Dit adres lukt nu niet.</h1>
-          <p className="hero-copy">{error}</p>
+          <p className="hero-copy" role="alert">{error}</p>
           <Link className="primary-button" href="/">
             Nieuw adres zoeken
           </Link>
@@ -732,6 +733,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       {tab === "deal" && (
         <div className="dash-tab-panel" role="tabpanel" id="panel-deal" aria-labelledby="tab-deal">
           <PropertyKpiStrip analysis={analysis} listing={marketListing} variant="full" />
+          <WozBenchmarkCard analysis={analysis} listing={marketListing} />
           <PropertyDealPanel
             listing={marketListing}
             buyerProfile={workspace.buyerProfile}

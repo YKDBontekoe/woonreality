@@ -20,6 +20,7 @@ export async function GET(
   try {
     const response = await fetch(rivmGetMapUrl(overlay, xyzToMercatorBbox(z, x, y)), {
       next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
       return NextResponse.json({ error: "RIVM-kaartlaag is nu niet beschikbaar." }, { status: 502 });

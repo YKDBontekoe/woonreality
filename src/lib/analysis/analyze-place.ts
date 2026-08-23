@@ -41,7 +41,7 @@ async function getWoonplaatsByCode(code: string) {
   const params = new URLSearchParams({ f: "json", identificatie: code, limit: "1" });
   const payload = await getJson<{ features?: WoonplaatsFeature[] }>(
     `${PDOK_BAG_BASE}/collections/woonplaats/items?${params}`,
-    604_800,
+    "PDOK BAG woonplaats",
   );
   const feature = payload.features?.[0];
   if (!feature?.properties?.woonplaats) return null;

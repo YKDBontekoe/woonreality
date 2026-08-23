@@ -177,6 +177,7 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
               type="button"
               disabled={!reachable}
               className={`onboarding-step-pill${active ? " is-active" : ""}${done ? " is-done" : ""}`}
+              aria-current={active ? "step" : undefined}
               onClick={() => {
                 if (!reachable) return;
                 setFormSyncedFor(null);
@@ -185,6 +186,7 @@ export function OnboardingWizard({ suggestPasskey = false }: { suggestPasskey?: 
             >
               <span>{ONBOARDING_STEP_META[id].number}</span>
               {ONBOARDING_STEP_META[id].title}
+              {done && !active && <span className="sr-only"> (afgerond)</span>}
             </button>
           );
         })}

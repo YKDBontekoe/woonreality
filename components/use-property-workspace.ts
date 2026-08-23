@@ -6,17 +6,22 @@ import type { PersonalPreferences, Property } from "@/src/lib/types";
 import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
 import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
 import type { CalculatorState } from "@/src/lib/mortgage/calculator-state";
+import { bagIdSchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
 
 export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
 export type WorkspaceAuthStatus = "unknown" | "authenticated" | "anonymous";
 
 const SESSION_COMPARE_KEY = "woonreality.compare";
 
+function isBagId(value: unknown): value is string {
+  return bagIdSchema.safeParse(value).success;
+}
+
 function sessionCompare(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const value: unknown = JSON.parse(window.sessionStorage.getItem(SESSION_COMPARE_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && /^\d{16}$/.test(id)).slice(0, 4) : [];
+    return Array.isArray(value) ? value.filter(isBagId).slice(0, 4) : [];
   } catch {
     return [];
   }
@@ -67,15 +72,13 @@ export function usePropertyWorkspace() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const mutate = useCallback(async (payload: Record<string, unknown>): Promise<WorkspaceMutationResult> => {
+  const mutate = useCallback(async (payload: WorkspaceRequest): Promise<WorkspaceMutationResult> => {
     try {
       const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json() as { workspace?: WorkspaceData; error?: string };
       if ((response.status === 401 || response.status === 502 || response.status === 503) && payload.action === "compare" && authStatus !== "authenticated") {
         if (response.status === 401) setAuthStatus("anonymous");
-        const compare = Array.isArray(payload.compare)
-          ? payload.compare.filter((id): id is string => typeof id === "string" && /^\d{16}$/.test(id)).slice(0, 4)
-          : [];
+        const compare = payload.compare.filter(isBagId).slice(0, 4);
         saveSessionCompare(compare);
         setWorkspace((current) => ({ ...current, compare }));
         setWorkspaceError("Je vergelijking blijft in deze browsersessie bewaard. Log in om die aan je aankoopomgeving te koppelen.");

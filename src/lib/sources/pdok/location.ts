@@ -80,7 +80,7 @@ async function mapAddressFeature(feature: SearchFeature): Promise<AddressSearchR
 
   let bagVboId = feature.id;
   try {
-    const address = await getJson<AddressFeature>(href, 604_800);
+    const address = await getJson<AddressFeature>(href, "PDOK BAG adres");
     bagVboId = address.properties?.adresseerbaar_object_identificatie ?? bagVboId;
   } catch {
     // Keep the location feature ID as a fallback. The property route can still resolve it later.
@@ -104,7 +104,7 @@ async function mapWoonplaatsFeature(feature: SearchFeature): Promise<PlaceSearch
   if (!feature.id || !href || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
 
   try {
-    const woonplaats = await getJson<WoonplaatsFeature>(href, 604_800);
+    const woonplaats = await getJson<WoonplaatsFeature>(href, "PDOK BAG woonplaats");
     const code = woonplaats.properties?.identificatie?.trim();
     if (!code) return undefined;
     return {
@@ -128,7 +128,7 @@ async function mapGemeenteFeature(feature: SearchFeature): Promise<PlaceSearchRe
   if (!feature.id || !href || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
 
   try {
-    const gemeente = await getJson<GemeenteFeature>(href, 604_800);
+    const gemeente = await getJson<GemeenteFeature>(href, "PDOK BAG gemeente");
     const code = gemeente.properties?.identificatie?.trim();
     if (!code) return undefined;
     return {
@@ -184,7 +184,7 @@ export async function searchLocations(query: string, limit = 10): Promise<Locati
 
   const collection = await getJson<LocationSearchResponse>(
     pdokLocationSearchUrl(trimmed, limit),
-    604_800,
+    "PDOK Location zoekopdracht",
   );
 
   const mapped = (await Promise.all((collection.features ?? []).map((feature) => mapFeature(feature))))
@@ -205,7 +205,7 @@ export async function searchAddresses(query: string, limit = 6): Promise<Address
 
   const collection = await getJson<LocationSearchResponse>(
     pdokAddressSearchUrl(trimmed, limit),
-    604_800,
+    "PDOK adreszoekopdracht",
   );
 
   return (await Promise.all((collection.features ?? []).map(async (feature) => {

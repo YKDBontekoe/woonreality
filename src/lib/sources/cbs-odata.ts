@@ -1,3 +1,5 @@
+import { fetchJson } from "@/src/lib/http/fetch-json";
+
 /** CBS StatLine / Politie OData region keys are often right-padded to 10 characters. */
 export function cbsODataRegionVariants(code: string): string[] {
   const trimmed = code.trim();
@@ -49,9 +51,7 @@ export async function pageCbsOData<T>(
       $skip: String(skip),
       $format: "json",
     });
-    const response = await fetch(`${datasetUrl}/TypedDataSet?${params}`, { next: { revalidate: 86400 } });
-    if (!response.ok) throw new Error(`CBS OData ${response.status}`);
-    const payload = await response.json() as { value?: T[] };
+    const payload = await fetchJson<{ value?: T[] }>(`${datasetUrl}/TypedDataSet?${params}`, "CBS OData", { revalidate: 86400, timeoutMs: 20_000 });
     const batch = payload.value ?? [];
     rows.push(...batch);
     if (batch.length < limit) break;

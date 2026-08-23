@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/src/lib/types";
+import { fetchJson } from "@/src/lib/http/fetch-json";
 
 type WfsProvider = "Gemeente Nijmegen" | "Provincie Zuid-Holland";
 
@@ -72,9 +73,7 @@ function firstStringProperty(properties: Record<string, unknown>, keys: string[]
 }
 
 async function getWfsGeoJsonFeatureCollection(url: string) {
-  const res = await fetch(url, { next: { revalidate: 86_400 } });
-  if (!res.ok) throw new Error(`WFS request failed (${res.status})`);
-  const json = (await res.json()) as unknown;
+  const json = await fetchJson<unknown>(url, "Lokaal bodemregister WFS", { revalidate: 86_400 });
   if (typeof json !== "object" || json == null) throw new Error("WFS response is not an object");
   // We only need a subset for feasibility.
   return json as {

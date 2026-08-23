@@ -94,6 +94,13 @@
 .running-costs-notes strong { color: var(--fg); font-weight: 600; }
 .running-costs-disclaimer { margin: 8px 0 4px; font-size: 12px; color: var(--muted); font-style: italic; }
 .running-costs-sources { margin: 0; font-size: 11px; color: var(--muted); }
+.woz-benchmark-rows { display: grid; gap: 10px; margin: 4px 0 10px; }
+.woz-benchmark-row { display: grid; grid-template-columns: minmax(110px, 180px) 1fr auto; align-items: center; gap: 12px; }
+.woz-benchmark-label { color: var(--ink-soft); font-size: 13px; }
+.woz-benchmark-bar { height: 10px; border-radius: 6px; background: var(--paper); overflow: hidden; }
+.woz-benchmark-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), #7f9bd1); }
+.woz-benchmark-row strong { font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+.woz-benchmark-caveat { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .dash-hero-map-only { grid-template-columns: 1fr; }
 .dash-score-heading { margin: 8px 0 16px; font: 600 22px "DM Sans", sans-serif; letter-spacing: -.04em; }
 .dash-donut.is-lg { width: 120px; height: 120px; }

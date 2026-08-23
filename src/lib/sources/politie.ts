@@ -1,4 +1,5 @@
 import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
+import { fetchJson } from "@/src/lib/http/fetch-json";
 
 export const politieMisdrijvenUrl = "https://dataderden.cbs.nl/ODataApi/OData/47018NED";
 export const politieMisdrijvenTableUrl = "https://data.politie.nl/#/Politie/nl/dataset/47018NED/table";
@@ -177,9 +178,7 @@ async function fetchCrimeRows(regionCode: string): Promise<CrimeRow[]> {
       $filter: `${cbsODataEq("WijkenEnBuurten", variant)} and (${soortFilter()})`,
       $format: "json",
     });
-    const response = await fetch(`${politieMisdrijvenUrl}/TypedDataSet?${params}`, { next: { revalidate: 86400 } });
-    if (!response.ok) throw new Error(`Politie misdrijven ${response.status}`);
-    const payload = await response.json() as { value?: CrimeRow[] };
+    const payload = await fetchJson<{ value?: CrimeRow[] }>(`${politieMisdrijvenUrl}/TypedDataSet?${params}`, "Politie misdrijven", { revalidate: 86400 });
     if (payload.value?.length) {
       rows.push(...payload.value);
       break;

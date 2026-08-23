@@ -38,6 +38,8 @@ test("onboarding dismiss flag is read from preferences_json.onboarding", () => {
 
 test("workspace validator accepts onboarding dismiss action", () => {
   assert.equal(workspaceBodySchema.safeParse({ action: "onboarding", dismissOnboarding: true }).success, true);
-  assert.equal(workspaceBodySchema.safeParse({ action: "onboarding" }).success, true);
+  // The discriminated union requires the flag up front; the old loose schema
+  // let this through and the route rejected it afterwards — same 400 outcome.
+  assert.equal(workspaceBodySchema.safeParse({ action: "onboarding" }).success, false);
   assert.equal(workspaceBodySchema.safeParse({ action: "onboarding", dismissOnboarding: "yes" }).success, false);
 });
