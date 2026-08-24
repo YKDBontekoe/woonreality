@@ -40,7 +40,7 @@
     "@eslint/eslintrc": "^3.2.0",
     "@types/chrome": "^0.2.6",
     "@types/geojson": "^7946.0.16",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "esbuild": "^0.28.2",
