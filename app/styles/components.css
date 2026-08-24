@@ -383,6 +383,31 @@
 }
 
 /* Language switcher */
+.nav-extras {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(15, 17, 21, 0.12));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent, #1f6feb);
+  color: var(--accent-deep, var(--accent, #1f6feb));
+}
+
 .lang-switch {
   display: inline-flex;
   align-items: center;

@@ -8,6 +8,8 @@
     "extension:publish": "node scripts/publish-extension.mjs",
     "start": "next start",
     "test": "node --import tsx --test tests/*.test.ts",
+    "smoke": "node scripts/smoke.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "db:push": "supabase db push",

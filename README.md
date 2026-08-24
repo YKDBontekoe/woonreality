@@ -65,7 +65,13 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run smoke        # route checks against a running dev/prod server
 ```
+
+`npm run smoke` expects the app on `http://localhost:3000` (or pass a base URL:
+`npm run smoke -- https://woonreality.vercel.app`). `npm run icons:generate`
+regenerates `app/favicon.ico` and `public/apple-touch-icon.png` from
+`public/icon.svg` after changing the brand icon.
 
 GitHub automation
 

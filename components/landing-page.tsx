@@ -3,14 +3,13 @@
 import { CheckCircle2, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { AddressSearch } from "@/components/address-search";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { Card } from "@/components/ui/card";
 
 export function LandingPage() {
   const t = useTranslations("landing");
   return (
-    <main className="site-shell landing-shell">
-      <div className="container"><SiteHeader current="home" /></div>
+    <PageShell current="home" className="landing-shell" wrap={false}>
       <section className="container hero">
         <div>
           <div className="eyebrow"><span className="eyebrow-dot" /> {t("eyebrow")}</div>
@@ -32,7 +31,7 @@ export function LandingPage() {
             <div className="visual-building" />
             <div className="visual-pin"><MapPinIcon /></div>
             <div className="visual-score">
-              <div className="visual-score-label">{t("visualLabel")}</div>
+              <div className="visual-score-label">{t("visualExampleBadge")}</div>
               <div className="visual-score-number">7,8<span>/ 10</span></div>
               <div className="visual-score-meta"><span /> {t("visualScoreMeta")}</div>
             </div>
@@ -65,7 +64,7 @@ export function LandingPage() {
         <span><strong>WoonReality</strong> · {t("footerBrandTagline")}</span>
         <span>{t("footerLine2")}</span>
       </footer>
-    </main>
+    </PageShell>
   );
 }
 

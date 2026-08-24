@@ -20,6 +20,8 @@ export default async function ComparePage({
   if (places.length >= 1) {
     return <PlaceComparisonDashboard initialRefs={places} />;
   }
-  const ids = (query.ids ?? "").split(",").filter((id) => isValidBagId(id)).slice(0, 4);
-  return <ComparisonDashboard bagIds={ids} />;
+  const rawIds = (query.ids ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const validIds = [...new Set(rawIds.filter((id) => isValidBagId(id)))].slice(0, 4);
+  const invalidCount = rawIds.length - rawIds.filter((id) => isValidBagId(id)).length;
+  return <ComparisonDashboard bagIds={validIds} invalidCount={invalidCount} />;
 }

@@ -52,10 +52,19 @@
   "loadingComparison": "Vergelijking laden…",
   "loadingPlace": "Plek-analyse laden…",
   "loadingCockpit": "Aankoopomgeving laden…",
+  "loadingCase": "Dossier laden…",
+  "loadingMortgage": "Hypotheekchecker laden…",
+  "loadingMap": "Kaart laden…",
+  "loadingLogin": "Inloggen wordt voorbereid…",
+  "loadingOnboarding": "Onboarding wordt voorbereid…",
+  "loadingExtension": "Extensiepagina laden…",
+  "languageSwitcherAria": "Taal",
   "skipToContent": "Direct naar inhoud",
   "paletteTitle": "Opdrachtenmenu",
   "palettePages": "Pagina’s",
   "paletteEmpty": "Geen pagina gevonden",
   "paletteClose": "sluiten",
-  "paletteOpenHint": "kiezen"
+  "paletteOpenHint": "kiezen",
+  "paletteThemeToggle": "Wissel licht / donker",
+  "paletteTriggerAria": "Zoek of navigeer (⌘K)"
 }

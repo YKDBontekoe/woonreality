@@ -9,5 +9,8 @@
   "extensie": "Extension",
   "mijnAankoop": "My purchase",
   "adresZoeken": "Search address",
-  "home": "Home"
+  "home": "Home",
+  "themeLight": "Switch to light theme",
+  "themeDark": "Switch to dark theme",
+  "themeSystem": "Following system theme"
 }

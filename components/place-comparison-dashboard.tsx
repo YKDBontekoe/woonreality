@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowLeft, GitCompare, X } from "lucide-react";
-import { Link } from "@/src/lib/i18n/navigation";
-import { useTranslations } from "next-intl";
+import { ArrowLeft, GitCompare, Link2, Check, X } from "lucide-react";
+import { Link, usePathname } from "@/src/lib/i18n/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { ComparisonSkeleton } from "@/components/ui/route-skeletons";
 import { placeKindLabels } from "@/src/lib/place-labels";
 import { isBestInRow, loadStoredPlaces, placeFactRows, placeRefKey, placeSignalRows, removeStoredPlace, type PlaceRef } from "@/src/lib/place-compare";
@@ -15,32 +15,44 @@ type LoadedPlace = { ref: PlaceRef; place: PlaceAnalysis | null; error?: string 
 function PlacesEmptyState({ hint }: { hint?: string }) {
   const t = useTranslations("vergelijken");
   return (
-    <main className="site-shell comparison-shell">
-      <div className="container">
-        <SiteHeader current="vergelijken" />
-        <section className="comparison-empty" aria-labelledby="places-empty-title">
-          <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
-          <div className="eyebrow"><GitCompare size={13} /> {t("placesEyebrow")}</div>
-          <h1 id="places-empty-title">{t("placesEmptyTitle")}</h1>
-          <p className="hero-copy">{t("placesEmptyCopy")}</p>
-          {hint ? <p className="compare-alert" role="status">{hint}</p> : null}
-          <ol className="comparison-empty-steps">
-            <li><span>1</span><div><strong>{t("placeStep1Title")}</strong><small>{t("placeStep1Text")}</small></div></li>
-            <li><span>2</span><div><strong>{t("placeStep2Title")}</strong><small>{t("placeStep2Text")}</small></div></li>
-            <li><span>3</span><div><strong>{t("placeStep3Title")}</strong><small>{t("placeStep3Text")}</small></div></li>
-          </ol>
-          <Link className="primary-button" href="/#zoek-adres">{t("placesEmptyCta")}</Link>
-        </section>
-      </div>
-    </main>
+    <PageShell current="vergelijken" className="comparison-shell">
+      <section className="comparison-empty" aria-labelledby="places-empty-title">
+        <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
+        <div className="eyebrow"><GitCompare size={13} /> {t("placesEyebrow")}</div>
+        <h1 id="places-empty-title">{t("placesEmptyTitle")}</h1>
+        <p className="hero-copy">{t("placesEmptyCopy")}</p>
+        {hint ? <p className="compare-alert" role="status">{hint}</p> : null}
+        <ol className="comparison-empty-steps">
+          <li><span>1</span><div><strong>{t("placeStep1Title")}</strong><small>{t("placeStep1Text")}</small></div></li>
+          <li><span>2</span><div><strong>{t("placeStep2Title")}</strong><small>{t("placeStep2Text")}</small></div></li>
+          <li><span>3</span><div><strong>{t("placeStep3Title")}</strong><small>{t("placeStep3Text")}</small></div></li>
+        </ol>
+        <Link className="primary-button" href="/#zoek-adres">{t("placesEmptyCta")}</Link>
+      </section>
+    </PageShell>
   );
 }
 
 export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRef[] }) {
   const t = useTranslations("vergelijken");
+  const locale = useLocale();
+  const pathname = usePathname();
   const [refs, setRefs] = useState<PlaceRef[]>(initialRefs);
   const [loaded, setLoaded] = useState<LoadedPlace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  async function shareComparison() {
+    const query = refs.map((ref) => `${ref.kind}:${ref.code}`).join(",");
+    const url = `${window.location.origin}/${locale}${pathname}?places=${encodeURIComponent(query)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt(t("copyPrompt"), url);
+    }
+  }
 
   // Session-stored places extend URL refs (e.g. user added one on a place page).
   useEffect(() => {
@@ -81,7 +93,13 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
 
   function removeColumn(index: number) {
     removeStoredPlace(refs[index]);
-    setRefs((current) => current.filter((_, position) => position !== index));
+    const remaining = refs.filter((_, position) => position !== index);
+    setRefs(remaining);
+    // Keep the URL in sync so a refresh does not resurrect removed places.
+    const url = new URL(window.location.href);
+    if (remaining.length >= 1) url.searchParams.set("places", remaining.map((ref) => `${ref.kind}:${ref.code}`).join(","));
+    else url.searchParams.delete("places");
+    window.history.replaceState(null, "", url.toString());
   }
 
   if (loading) return <ComparisonSkeleton />;
@@ -96,13 +114,14 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
   const factRows = placeFactRows(valid.map((item) => item.place));
 
   return (
-    <main className="site-shell">
-      <div className="container comparison-page">
-        <SiteHeader current="vergelijken" />
-        <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link>
-        <div className="eyebrow"><GitCompare size={13} /> {t("placesDashEyebrow")}</div>
+    <PageShell current="vergelijken" containerClassName="comparison-page">
+      <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link>
+      <div className="eyebrow"><GitCompare size={13} /> {t("placesDashEyebrow")}</div>
+      <div className="compare-heading-row">
         <h1>{t("dashboardTitle")}</h1>
-        <p className="hero-copy">{t("placesDashCopy")}</p>
+        <button className="secondary-button" type="button" onClick={() => void shareComparison()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button>
+      </div>
+      <p className="hero-copy">{t("placesDashCopy")}</p>
         <section className="comparison-cards">
           {valid.map((item, index) => (
             <article className="comparison-card" key={placeRefKey(item.ref)}>
@@ -154,7 +173,6 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
           </table>
         </section>
         <p className="dashboard-disclaimer">{t("placesDisclaimer")}</p>
-      </div>
-    </main>
+    </PageShell>
   );
 }

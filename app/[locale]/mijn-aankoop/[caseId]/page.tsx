@@ -4,11 +4,12 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { CaseTools } from "@/components/case-tools";
 import { PurchaseWorkflow } from "@/components/purchase-workflow";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { CASE_STAGE_LABELS, CASE_STAGES, nextPurchaseAction, normalizeCaseStage, type CaseStage } from "@/src/lib/journey";
 import { JOURNEY_CHECKLIST, journeyStageStatus } from "@/src/lib/journey-checklist";
 import { PROFESSIONAL_GUIDES } from "@/src/lib/professionals";
 import { hrefForTask } from "@/src/lib/tasks";
+import { formatDate, formatDateTime } from "@/src/lib/format-locale";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import type { CaseEventRow } from "@/src/lib/supabase/database.types";
@@ -49,21 +50,21 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ l
     ? await getPropertyById(bagVboId).then(getSharedAnalysis).catch(() => null)
     : null;
 
-  return <main className="site-shell"><div className="container"><SiteHeader current="aankoop" /></div><div className="container purchase-page">
+  return <PageShell current="aankoop" wrap={false}><div className="container purchase-page">
     <Link className="back-link" href="/mijn-aankoop">{t("backToOverview")}</Link>
     <div className="case-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> {CASE_STAGE_LABELS[stage]}</div><h1>{purchaseCase.title}</h1><p className="hero-copy">{t("caseHeroCopy")}</p></div><span className="case-progress">{purchaseCase.status === "active" ? t("statusActive") : purchaseCase.status}</span></div>
-    <section className="next-step-card"><span className="section-kicker">{t("nextStepKickerCase")}</span><h2>{nextTask?.title ?? fallbackAction.title}</h2><p>{nextTask?.description ?? fallbackAction.text}</p>{nextTask?.due_at && <small>{t("dueBefore", { date: new Date(nextTask.due_at).toLocaleDateString("nl-NL", { dateStyle: "long" }) })}</small>}<Link className="primary-button" href={nextHref as never}>{t("openThisStep")}</Link></section>
+    <section className="next-step-card"><span className="section-kicker">{t("nextStepKickerCase")}</span><h2>{nextTask?.title ?? fallbackAction.title}</h2><p>{nextTask?.description ?? fallbackAction.text}</p>{nextTask?.due_at && <small>{t("dueBefore", { date: formatDate(nextTask.due_at, locale) })}</small>}<Link className="primary-button" href={nextHref as never}>{t("openThisStep")}</Link></section>
     <div className="case-overview-grid"><section className="case-panel"><span className="section-kicker">{t("progressKicker")}</span><div className="case-steps">{CASE_STAGES.map((key, index) => { const currentIndex = CASE_STAGES.indexOf(stage); return <div className={`case-step ${key === stage ? "current" : index < currentIndex ? "done" : ""}`} key={key}><span>{index + 1}</span><strong>{CASE_STAGE_LABELS[key]}</strong></div>; })}</div>{bagVboId && <p className="muted-copy"><Link href={`/woning/${bagVboId}`}>{t("openPropertyCheck")}</Link> · <Link href={`/woning/${bagVboId}/bezichtiging`}>{t("viewingMode")}</Link></p>}</section><section className="case-panel"><span className="section-kicker">{t("openPointsKicker")}</span><p className="case-count"><strong>{tasks?.length ?? 0}</strong> {t("tasksLabel")}</p><p className="case-count"><strong>{documents?.length ?? 0}</strong> {t("documentsLabel")}</p><p className="case-count"><strong>{openFindings}</strong> {t("findingsLabel")}</p></section></div>
-    <CaseTimeline events={(events ?? []) as CaseEventRow[]} />
+    <CaseTimeline events={(events ?? []) as CaseEventRow[]} locale={locale} />
     <JourneyChecklist stage={stage} />
     <CaseTools caseId={caseId} initialDocuments={documents ?? []} initialTasks={tasks ?? []} initialFindings={findings ?? []} />
     <PurchaseWorkflow caseId={caseId} initialStage={stage} bagVboId={bagVboId} analysis={analysis} />
     <ProfessionalGuidancePanel />
     <p className="dashboard-disclaimer">{t("caseDisclaimer")}</p>
-  </div></main>;
+  </div></PageShell>;
 }
 
-async function CaseTimeline({ events }: { events: CaseEventRow[] }) {
+async function CaseTimeline({ events, locale }: { events: CaseEventRow[]; locale: string }) {
   const t = await getTranslations("mijn-aankoop");
   if (!events.length) return null;
   const eventLabel = (type: string) => {
@@ -73,7 +74,7 @@ async function CaseTimeline({ events }: { events: CaseEventRow[] }) {
     if (type === "case_started") return t("eventCaseStarted");
     return type;
   };
-  return <section className="case-panel case-timeline"><span className="section-kicker">{t("timelineKicker")}</span><h2>{t("timelineTitle")}</h2><ol>{events.map((event) => <li key={event.id}><strong>{eventLabel(event.event_type)}</strong><small>{new Date(event.created_at).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}</small></li>)}</ol></section>;
+  return <section className="case-panel case-timeline"><span className="section-kicker">{t("timelineKicker")}</span><h2>{t("timelineTitle")}</h2><ol>{events.map((event) => <li key={event.id}><strong>{eventLabel(event.event_type)}</strong><small>{formatDateTime(event.created_at, locale)}</small></li>)}</ol></section>;
 }
 
 async function ProfessionalGuidancePanel() {

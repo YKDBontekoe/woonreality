@@ -32,6 +32,7 @@ export async function generateMetadata({
   const title = t("title");
 
   return {
+    metadataBase: new URL(process.env.WOONREALITY_APP_URL ?? "https://woonreality.vercel.app"),
     title: {
       default: title,
       template: `%s — WoonReality`,
@@ -40,7 +41,8 @@ export async function generateMetadata({
     manifest: "/manifest.webmanifest",
     icons: {
       icon: "/icon.svg",
-      apple: "/icon.svg",
+      shortcut: "/favicon.ico",
+      apple: "/apple-touch-icon.png",
     },
     openGraph: {
       title,
@@ -73,8 +75,15 @@ export default async function LocaleLayout({
   setRequestLocale(locale as Locale);
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body>
+        {/* Resolves the persisted/system theme before first paint so dark.css
+            (keyed off <html data-theme>) never flashes the wrong scheme. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem("woonreality-theme");if(s!=="light"&&s!=="dark")s=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=s;}catch(e){document.documentElement.dataset.theme="light";}})();`,
+          }}
+        />
         <NextIntlClientProvider>
           <WorkspaceProvider>{children}</WorkspaceProvider>
         </NextIntlClientProvider>

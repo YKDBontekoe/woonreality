@@ -6,7 +6,7 @@ import { ArrowLeft, Layers3, MapPinned, MousePointerClick, Search } from "lucide
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { AddressSearch } from "@/components/address-search";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 
 // mapbox-gl is the heaviest dependency in the app; keep it out of the
 // initial chunk so the page shell and search render first.
@@ -48,10 +48,20 @@ export function KaartPageContent({
     window.history.replaceState(null, "", url.toString());
   }
 
+  // Keep the URL in sync with the viewport + layer so a refresh or a copied
+  // link restores exactly what the user was looking at.
+  function handleViewChange(view: { layer: string; lat: number; lng: number; zoom: number }) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("layer", view.layer);
+    url.searchParams.set("lat", view.lat.toFixed(5));
+    url.searchParams.set("lng", view.lng.toFixed(5));
+    url.searchParams.set("z", String(Math.round(view.zoom)));
+    window.history.replaceState(null, "", url.toString());
+  }
+
   return (
-    <main className="site-shell kaart-shell">
+    <PageShell current="kaart" className="kaart-shell" wrap={false}>
       <div className="container">
-        <SiteHeader current="kaart" />
         <Link className="back-link" href="/"><ArrowLeft size={14} /> {t("backHome")}</Link>
         <div className="kaart-hero">
           <div className="kaart-intro">
@@ -88,8 +98,9 @@ export function KaartPageContent({
           initialLng={initialLng}
           initialZoom={initialZoom}
           focusAddress={focusAddress}
+          onViewChange={handleViewChange}
         />
       </div>
-    </main>
+    </PageShell>
   );
 }

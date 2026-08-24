@@ -282,5 +282,8 @@
   "lineDeductible": "deductible",
   "lineNotDeductible": "no",
   "lineRefund": "{refund} back",
-  "lineRefundNote": " Via your tax return you get roughly {refund} of this back."
+  "lineRefundNote": " Via your tax return you get roughly {refund} of this back.",
+  "copyScenarioLink": "Copy link with price & label",
+  "linkCopied": "Copied",
+  "copyPrompt": "Copy the link to this calculation:"
 }

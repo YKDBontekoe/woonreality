@@ -7,12 +7,15 @@
       (ink-filled controls keep their fill but need dark text once --ink
       flips to near-white).
 
+   The effective theme is resolved at runtime (inline script in the root
+   layout + ThemeToggle) and written to <html data-theme="light|dark">, so
+   this file keys off the attribute alone — no media queries here.
+
    Nothing else belongs in this file: new components should compose tokens
    so they adapt automatically.
 --------------------------------------------------------------------------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+:root[data-theme="dark"] {
+  color-scheme: dark;
     /* Text */
     --ink: #f2f2f7;
     --ink-soft: #b8b8c0;
@@ -61,13 +64,11 @@
     --map-bg: #1b2027;
     --map-line: #333c48;
     --map-line-soft: #2a323d;
-  }
+}
 
-  color-scheme: dark;
-
-  /* Ink-filled controls keep their high-contrast fill but must switch to
-     dark label text now that --ink is near-white. */
-  .brand-mark,
+/* Ink-filled controls keep their high-contrast fill but must switch to
+   dark label text now that --ink is near-white. */
+:root[data-theme="dark"] .brand-mark,
   .search-mode-tab.selected,
   .werkwijze-step-number,
   .feature-card-icon,
@@ -82,15 +83,15 @@
     color: var(--inverse);
   }
 
-  .decision-bar-actions .secondary-button {
-    border-color: color-mix(in srgb, var(--inverse) 35%, transparent);
-  }
-
-  /* Frosted chrome picks up a hairline so it separates from content. */
-  .search-box,
-  .dash-dock,
-  .floating-tag {
-    border-color: var(--line);
-  }
-  ::selection { background: rgba(10, 132, 255, 0.4); }
+:root[data-theme="dark"] .decision-bar-actions .secondary-button {
+  border-color: color-mix(in srgb, var(--inverse) 35%, transparent);
 }
+
+/* Frosted chrome picks up a hairline so it separates from content. */
+:root[data-theme="dark"] .search-box,
+:root[data-theme="dark"] .dash-dock,
+:root[data-theme="dark"] .floating-tag {
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] ::selection { background: rgba(10, 132, 255, 0.4); }

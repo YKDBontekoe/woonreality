@@ -11,6 +11,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Notice } from "@/components/ui/notice";
+import { PageShell } from "@/components/ui/page-shell";
 import { computePropertyAffordability, energyLabelFromAnalysis, fitLabel, fitSortRank } from "@/src/lib/affordability";
 import { calculatePersonalFit } from "@/src/lib/personalization";
 import { CASE_STAGE_LABELS, nextPurchaseAction, normalizeCaseStage } from "@/src/lib/journey";
@@ -154,7 +155,7 @@ export function PurchaseCockpit({
   const hasHistory = workspace.listingHistory.length > 0;
   const firstRun = !hasHomes && !hasHistory && initialCases.length === 0 && !mortgageConfigured;
 
-  return <main className="site-shell"><div className="container purchase-cockpit">
+  return <PageShell current="aankoop" containerClassName="purchase-cockpit">
     <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> {t("eyebrow")}</div><h1>{firstRun ? t("firstRunTitle") : t("dashboardTitle")}</h1><p className="hero-copy">{firstRun ? t("firstRunCopy") : t("dashboardCopy")}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> {t("addHome")}</Link>}</div>
 
     {focusCase && <Notice><Check size={15} /> {t("caseStartedNotice")}</Notice>}
@@ -267,7 +268,7 @@ export function PurchaseCockpit({
         </div>
       </section>
     )}
-  </div></main>;
+  </PageShell>;
 }
 
 function ProfileSummary({ profile, completion, configured, mortgageConfigured, onEdit }: { profile: BuyerProfile; completion: number; configured: boolean; mortgageConfigured: boolean; onEdit: () => void }) {

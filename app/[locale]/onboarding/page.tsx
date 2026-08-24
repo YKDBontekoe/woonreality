@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { onboardingComplete, parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, normalizeBuyerProfile } from "@/src/lib/purchase";
 import { mortgageStateHasCapacity, restoreCalculatorState } from "@/src/lib/mortgage/calculator-state";
@@ -51,11 +51,10 @@ export default async function OnboardingPage({ params, searchParams }: { params:
   }
 
   return (
-    <main className="site-shell onboarding-product-shell">
-      <div className="container"><SiteHeader current="aankoop" /></div>
+    <PageShell current="aankoop" className="onboarding-product-shell" wrap={false}>
       <div className="container onboarding-page">
         <OnboardingWizard suggestPasskey={search.setup === "passkey"} />
       </div>
-    </main>
+    </PageShell>
   );
 }

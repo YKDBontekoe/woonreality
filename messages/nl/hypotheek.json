@@ -282,5 +282,8 @@
   "lineDeductible": "aftrekbaar",
   "lineNotDeductible": "niet",
   "lineRefund": "terug {refund}",
-  "lineRefundNote": " Via de aangifte krijg je hiervan ongeveer {refund} terug."
+  "lineRefundNote": " Via de aangifte krijg je hiervan ongeveer {refund} terug.",
+  "copyScenarioLink": "Kopieer link met vraagprijs & label",
+  "linkCopied": "Gekopieerd",
+  "copyPrompt": "Kopieer de link naar deze berekening:"
 }

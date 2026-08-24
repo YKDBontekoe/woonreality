@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft, GitCompare, Heart, X } from "lucide-react";
-import { Link } from "@/src/lib/i18n/navigation";
-import { useTranslations } from "next-intl";
+import { ArrowLeft, GitCompare, Heart, Link2, Check, X } from "lucide-react";
+import { Link, usePathname } from "@/src/lib/i18n/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { SiteHeader } from "@/components/site-header";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
+import { PageShell } from "@/components/ui/page-shell";
 import { ComparisonSkeleton } from "@/components/ui/route-skeletons";
 import { comparisonListingFromUserRow, comparisonListingFromSessionDraft, type ComparisonListingFacts } from "@/src/lib/listing-history";
 import { calculatePersonalFit } from "@/src/lib/personalization";
@@ -25,35 +25,47 @@ const EMPTY_LISTING: ComparisonListingFacts = {
 function ComparisonEmptyState({ error }: { error: string }) {
   const t = useTranslations("vergelijken");
   return (
-    <main className="site-shell comparison-shell">
-      <div className="container">
-        <SiteHeader current="vergelijken" />
-        <section className="comparison-empty" aria-labelledby="comparison-empty-title">
-          <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
-          <div className="eyebrow"><GitCompare size={13} /> {t("eyebrow")}</div>
-          <h1 id="comparison-empty-title">{t("emptyTitle")}</h1>
-          <p className="hero-copy">{t("emptyCopy")}</p>
-          {error ? <p className="compare-alert" role="alert">{error}</p> : null}
-          <ol className="comparison-empty-steps">
-            <li><span>1</span><div><strong>{t("step1Title")}</strong><small>{t("step1Text")}</small></div></li>
-            <li><span>2</span><div><strong>{t("step2Title")}</strong><small>{t("step2Text")}</small></div></li>
-            <li><span>3</span><div><strong>{t("step3Title")}</strong><small>{t("step3Text")}</small></div></li>
-          </ol>
-          <Link className="primary-button" href="/#zoek-adres">{t("emptyCta")}</Link>
-        </section>
-      </div>
-    </main>
+    <PageShell current="vergelijken" className="comparison-shell">
+      <section className="comparison-empty" aria-labelledby="comparison-empty-title">
+        <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
+        <div className="eyebrow"><GitCompare size={13} /> {t("eyebrow")}</div>
+        <h1 id="comparison-empty-title">{t("emptyTitle")}</h1>
+        <p className="hero-copy">{t("emptyCopy")}</p>
+        {error ? <p className="compare-alert" role="alert">{error}</p> : null}
+        <ol className="comparison-empty-steps">
+          <li><span>1</span><div><strong>{t("step1Title")}</strong><small>{t("step1Text")}</small></div></li>
+          <li><span>2</span><div><strong>{t("step2Title")}</strong><small>{t("step2Text")}</small></div></li>
+          <li><span>3</span><div><strong>{t("step3Title")}</strong><small>{t("step3Text")}</small></div></li>
+        </ol>
+        <Link className="primary-button" href="/#zoek-adres">{t("emptyCta")}</Link>
+      </section>
+    </PageShell>
   );
 }
 
-export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
+export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: string[]; invalidCount?: number }) {
   const t = useTranslations("vergelijken");
+  const locale = useLocale();
+  const pathname = usePathname();
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [listings, setListings] = useState<Record<string, ComparisonListing>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [copied, setCopied] = useState(false);
   const { workspace, workspaceReady, authStatus, toggleCompare } = usePropertyWorkspace();
   const selectedBagIdsKey = (bagIds.length > 0 ? bagIds : workspace.compare).join(",");
+
+  async function shareComparison() {
+    const ids = analyses.map((analysis) => analysis.property.bagVboId).join(",");
+    const url = `${window.location.origin}/${locale}${pathname}?ids=${ids}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt(t("copyPrompt"), url);
+    }
+  }
 
   useEffect(() => {
     // A global navigation to /vergelijken has no query string. Wait for the
@@ -192,5 +204,5 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
     },
   ];
   const comparisonStorageLabel = authStatus === "authenticated" ? t("storedInAccount") : t("storedInSession");
-  return <main className="site-shell"><div className="container comparison-page"><SiteHeader current="vergelijken" /><Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link><div className="eyebrow"><GitCompare size={13} /> {t("dashboardEyebrow")}</div><h1>{t("dashboardTitle")}</h1><p className="hero-copy">{t("dashboardCopy")}</p>{loadError && <p className="compare-alert" role="alert">{loadError}</p>}<section className="comparison-cards">{analyses.map((analysis) => { const selected = workspace.compare.includes(analysis.property.bagVboId); return <article className="comparison-card" key={analysis.property.bagVboId}><div className="comparison-card-top"><div><h2>{analysis.property.street} {analysis.property.houseNumber}</h2><span>{analysis.property.postcode} {analysis.property.city}</span></div><button className="icon-button" type="button" aria-label={t("removeFromCompareAria")} onClick={async () => { await toggleCompare(analysis.property.bagVboId); }}><X size={15} /></button></div><div className="comparison-scores"><div><small>{t("realityScore")}</small><strong>{formatScore(analysis.overallScore)}</strong></div><div><small>{t("yourFit")}</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div></div><div className="comparison-card-footer"><span><Heart size={13} /> {comparisonStorageLabel}</span>{selected && <span className="selected-label">{t("selectedLabel")}</span>}</div></article>; })}</section><section className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>{t("colFeature")}</th>{analyses.map((analysis) => <th key={analysis.property.bagVboId}>{analysis.property.street} {analysis.property.houseNumber}</th>)}</tr></thead><tbody>{factRows.map((row) => <tr key={row.key}><th>{row.label}</th>{analyses.map((analysis) => <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>)}</tr>)}{domains.map((domain) => <tr key={domain.key}><th>{domain.label}</th>{analyses.map((analysis) => { const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score; const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value); return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? t("noData") : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>; })}</tr>)}</tbody></table><p className="muted-copy">{t("footnote")}</p></section></div></main>;
+  return <PageShell current="vergelijken" containerClassName="comparison-page"><Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link><div className="eyebrow"><GitCompare size={13} /> {t("dashboardEyebrow")}</div><div className="compare-heading-row"><h1>{t("dashboardTitle")}</h1><button className="secondary-button" type="button" onClick={() => void shareComparison()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button></div><p className="hero-copy">{t("dashboardCopy")}</p>{invalidCount > 0 && <p className="compare-alert" role="status">{t("invalidIdsWarning", { count: invalidCount })}</p>}{loadError && <p className="compare-alert" role="alert">{loadError}</p>}<section className="comparison-cards">{analyses.map((analysis) => { const selected = workspace.compare.includes(analysis.property.bagVboId); return <article className="comparison-card" key={analysis.property.bagVboId}><div className="comparison-card-top"><div><h2>{analysis.property.street} {analysis.property.houseNumber}</h2><span>{analysis.property.postcode} {analysis.property.city}</span></div><button className="icon-button" type="button" aria-label={t("removeFromCompareAria")} onClick={async () => { await toggleCompare(analysis.property.bagVboId); const remaining = analyses.filter((item) => item.property.bagVboId !== analysis.property.bagVboId); const url = new URL(window.location.href); if (remaining.length >= 2) url.searchParams.set("ids", remaining.map((item) => item.property.bagVboId).join(",")); else url.searchParams.delete("ids"); window.history.replaceState(null, "", url.toString()); }}><X size={15} /></button></div><div className="comparison-scores"><div><small>{t("realityScore")}</small><strong>{formatScore(analysis.overallScore)}</strong></div><div><small>{t("yourFit")}</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div></div><div className="comparison-card-footer"><span><Heart size={13} /> {comparisonStorageLabel}</span>{selected && <span className="selected-label">{t("selectedLabel")}</span>}</div></article>; })}</section><section className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>{t("colFeature")}</th>{analyses.map((analysis) => <th key={analysis.property.bagVboId}>{analysis.property.street} {analysis.property.houseNumber}</th>)}</tr></thead><tbody>{factRows.map((row) => <tr key={row.key}><th>{row.label}</th>{analyses.map((analysis) => <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>)}</tr>)}{domains.map((domain) => <tr key={domain.key}><th>{domain.label}</th>{analyses.map((analysis) => { const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score; const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value); return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? t("noData") : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>; })}</tr>)}</tbody></table><p className="muted-copy">{t("footnote")}</p></section></PageShell>;
 }

@@ -6,6 +6,8 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { PaletteTrigger } from "@/components/palette-trigger";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { HeaderCurrent } from "@/components/ui/page-shell";
 
 export function SiteHeader({ current }: { current?: HeaderCurrent }) {
@@ -78,7 +80,11 @@ export function SiteHeader({ current }: { current?: HeaderCurrent }) {
           <Link className="nav-cta" href="/#zoek-adres" onClick={() => setMenuOpen(false)}>
             {t("adresZoeken")}
           </Link>
-          <LanguageSwitcher />
+          <div className="nav-extras">
+            <PaletteTrigger />
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </div>
         </div>
       </nav>
     </header>

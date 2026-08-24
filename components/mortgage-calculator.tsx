@@ -1,8 +1,8 @@
 "use client";
 
-import { Link } from "@/src/lib/i18n/navigation";
-import { useTranslations } from "next-intl";
-import { Calculator, ChevronDown, CircleAlert, Landmark, ShieldCheck, Sparkles, Wallet } from "lucide-react";
+import { Link, usePathname } from "@/src/lib/i18n/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { Calculator, Check, ChevronDown, CircleAlert, Landmark, Link2, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ENERGY_LABELS,
@@ -117,6 +117,8 @@ export function MortgageCalculator({
 }) {
   const onboarding = variant === "onboarding";
   const t = useTranslations("hypotheek");
+  const locale = useLocale();
+  const pathname = usePathname();
   const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
   const onCapacityChangeRef = useRef(onCapacityChange);
   onCapacityChangeRef.current = onCapacityChange;
@@ -156,6 +158,24 @@ export function MortgageCalculator({
     includeInspection: true,
   });
   const [wozValue, setWozValue] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Share only the non-sensitive scenario trio (price, label, NHG) — never
+  // income or debt details, which stay in the workspace/account.
+  async function copyScenarioLink() {
+    const params = new URLSearchParams();
+    if (state.askingPrice > 0) params.set("price", String(state.askingPrice));
+    if (state.energyLabel) params.set("label", state.energyLabel);
+    params.set("nhg", state.nhg ? "1" : "0");
+    const url = `${window.location.origin}/${locale}${pathname}?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1800);
+    } catch {
+      window.prompt(t("copyPrompt"), url);
+    }
+  }
 
   const applyRestored = useCallback((restored: CalculatorState) => {
     const energyLabel = parseCanonicalEnergyLabel(initialEnergyLabel);
@@ -581,6 +601,7 @@ export function MortgageCalculator({
             {detailedCosts != null && <div><small>{t("buyerCosts")}</small><strong>{formatEuro(detailedCosts.total)}</strong></div>}
           </div>
           {fitCopy(result, t) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result, t)}</div>}
+          {!onboarding && <button className="text-link mortgage-toggle" type="button" onClick={() => void copyScenarioLink()}>{linkCopied ? <Check size={13} /> : <Link2 size={13} />} {linkCopied ? t("linkCopied") : t("copyScenarioLink")}</button>}
           {!onboarding && detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">{t("viewCostsCharts")}</a>}
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenExplain((value) => !value)} aria-expanded={openExplain}>
             {openExplain ? t("hideRules") : t("howCalculated")}

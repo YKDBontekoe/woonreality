@@ -52,10 +52,19 @@
   "loadingComparison": "Loading comparison…",
   "loadingPlace": "Loading place analysis…",
   "loadingCockpit": "Loading purchase workspace…",
+  "loadingCase": "Loading case…",
+  "loadingMortgage": "Loading mortgage calculator…",
+  "loadingMap": "Loading map…",
+  "loadingLogin": "Preparing sign in…",
+  "loadingOnboarding": "Preparing onboarding…",
+  "loadingExtension": "Loading extension page…",
+  "languageSwitcherAria": "Language",
   "skipToContent": "Skip to content",
   "paletteTitle": "Command menu",
   "palettePages": "Pages",
   "paletteEmpty": "No page found",
   "paletteClose": "close",
-  "paletteOpenHint": "select"
+  "paletteOpenHint": "select",
+  "paletteThemeToggle": "Toggle light / dark",
+  "paletteTriggerAria": "Search or navigate (⌘K)"
 }

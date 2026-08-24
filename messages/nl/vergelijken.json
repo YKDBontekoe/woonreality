@@ -60,5 +60,9 @@
   "inhabitants": "Inwoners",
   "openPlacePage": "Open plekpagina",
   "colMetric": "Cijfer",
-  "placesDisclaimer": "Signalen zijn gemiddelden voor het hele gebied; een enkele straat kan sterk afwijken. Open data vervangt geen keuring of advies."
+  "placesDisclaimer": "Signalen zijn gemiddelden voor het hele gebied; een enkele straat kan sterk afwijken. Open data vervangt geen keuring of advies.",
+  "invalidIdsWarning": "{count, plural, one {{count} adres uit de link bestaat niet en is overgeslagen.} other {{count} adressen uit de link bestaan niet en zijn overgeslagen.}}",
+  "shareLabel": "Kopieer link",
+  "copiedLabel": "Gekopieerd",
+  "copyPrompt": "Kopieer de link naar deze vergelijking:"
 }

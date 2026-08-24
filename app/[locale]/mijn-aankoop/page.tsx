@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PurchaseCockpit } from "@/components/purchase-cockpit";
-import { SiteHeader } from "@/components/site-header";
 import { normalizeCaseStage } from "@/src/lib/journey";
 import { parseOnboardingDismissed, shouldRedirectToOnboarding } from "@/src/lib/onboarding";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, normalizeBuyerProfile } from "@/src/lib/purchase";
@@ -58,5 +57,5 @@ export default async function MyPurchasePage({ params, searchParams }: { params:
     }
   }
 
-  return <><div className="container"><SiteHeader current="aankoop" /></div><PurchaseCockpit initialCases={cases} account={account} /></>;
+  return <PurchaseCockpit initialCases={cases} account={account} />;
 }

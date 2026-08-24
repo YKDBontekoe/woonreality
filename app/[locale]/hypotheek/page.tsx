@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { SiteHeader } from "@/components/site-header";
+import { PageShell } from "@/components/ui/page-shell";
 import { MortgageCalculator, MortgagePageIntro } from "@/components/mortgage-calculator";
 import { parseCanonicalEnergyLabel } from "@/src/lib/mortgage";
 
@@ -23,8 +23,7 @@ export default async function HypotheekPage({ params, searchParams }: Props) {
   setRequestLocale(locale);
   const query = await searchParams;
   const price = query.price ? Number(query.price) : 0;
-  return <main className="site-shell mortgage-shell">
-    <div className="container"><SiteHeader current="hypotheek" /></div>
+  return <PageShell current="hypotheek" className="mortgage-shell" wrap={false}>
     <div className="container mortgage-page">
       <MortgagePageIntro />
       <MortgageCalculator
@@ -33,5 +32,5 @@ export default async function HypotheekPage({ params, searchParams }: Props) {
         initialNhg={query.nhg === "1" ? true : query.nhg === "0" ? false : undefined}
       />
     </div>
-  </main>;
+  </PageShell>;
 }

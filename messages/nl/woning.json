@@ -2,7 +2,9 @@
   "meta": {
     "title": "Woningcheck",
     "titleWithAddress": "{label} — woningcheck",
-    "description": "Reality check voor {label}: open-data signalen, omgeving, risico's en bodhulp — met bronvermelding per gegeven."
+    "description": "Reality check voor {label}: open-data signalen, omgeving, risico's en bodhulp — met bronvermelding per gegeven.",
+    "viewingTitle": "Bezichtigingsmodus — {label}",
+    "bidMemoTitle": "Bodmemo — {label}"
   },
   "loading": {
     "aria": "Woningcheck wordt geladen",

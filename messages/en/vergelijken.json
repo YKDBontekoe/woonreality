@@ -60,5 +60,9 @@
   "inhabitants": "Residents",
   "openPlacePage": "Open place page",
   "colMetric": "Figure",
-  "placesDisclaimer": "Signals are averages for the whole area; a single street can differ substantially. Open data is no substitute for an inspection or advice."
+  "placesDisclaimer": "Signals are averages for the whole area; a single street can differ substantially. Open data is no substitute for an inspection or advice.",
+  "invalidIdsWarning": "{count, plural, one {{count} address from the link is invalid and was skipped.} other {{count} addresses from the link are invalid and were skipped.}}",
+  "shareLabel": "Copy link",
+  "copiedLabel": "Copied",
+  "copyPrompt": "Copy the link to this comparison:"
 }

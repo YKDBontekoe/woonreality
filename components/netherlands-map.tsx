@@ -147,13 +147,19 @@ export function NetherlandsMap({
   initialLng,
   initialZoom,
   focusAddress,
+  onViewChange,
 }: {
   initialLayer?: string;
   initialLat?: string;
   initialLng?: string;
   initialZoom?: string;
   focusAddress?: AddressSearchResult | null;
+  /** Fired after the layer, rasters or viewport change so the page can keep
+   * the URL shareable. Debounced internally by Mapbox moveend + state effects. */
+  onViewChange?: (view: { layer: NationalLayerId; rasters: RasterState; lat: number; lng: number; zoom: number }) => void;
 }) {
+  const onViewChangeRef = useRef(onViewChange);
+  onViewChangeRef.current = onViewChange;
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
@@ -328,7 +334,16 @@ export function NetherlandsMap({
       applyRasters(map, rastersRef.current);
       void refreshRegions(map, layerRef.current);
     });
-    map.on("moveend", () => scheduleRefresh(map));
+    map.on("moveend", () => {
+      scheduleRefresh(map);
+      onViewChangeRef.current?.({
+        layer: layerRef.current,
+        rasters: rastersRef.current,
+        lat: map.getCenter().lat,
+        lng: map.getCenter().lng,
+        zoom: map.getZoom(),
+      });
+    });
 
     return () => {
       observer.disconnect();
@@ -361,21 +376,39 @@ export function NetherlandsMap({
     if (!spec) return;
     setScene(nextScene);
     setLayer(spec.layer);
-    setRasters({
+    const nextRasters = {
       noise: spec.rasters.includes("noise"),
       no2: spec.rasters.includes("no2"),
       pm25: spec.rasters.includes("pm25"),
-    });
+    };
+    setRasters(nextRasters);
+    emitViewChange(spec.layer, nextRasters);
   }
 
   function toggleLayer(nextLayer: NationalLayerId) {
     setLayer(nextLayer);
     setScene("custom");
+    emitViewChange(nextLayer, rastersRef.current);
   }
 
   function toggleRaster(id: NationalRasterId) {
-    setRasters((current) => ({ ...current, [id]: !current[id] }));
+    const next = { ...rastersRef.current, [id]: !rastersRef.current[id] };
+    setRasters(next);
+    rastersRef.current = next;
     setScene("custom");
+    emitViewChange(layerRef.current, next);
+  }
+
+  function emitViewChange(nextLayer: NationalLayerId, nextRasters: RasterState) {
+    const map = mapInstance.current;
+    if (!map) return;
+    onViewChangeRef.current?.({
+      layer: nextLayer,
+      rasters: nextRasters,
+      lat: map.getCenter().lat,
+      lng: map.getCenter().lng,
+      zoom: map.getZoom(),
+    });
   }
 
   if (!hasToken) {

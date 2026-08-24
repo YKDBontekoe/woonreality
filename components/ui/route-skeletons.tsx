@@ -86,3 +86,109 @@ export function CockpitSkeleton() {
     </SkeletonShell>
   );
 }
+
+export function CaseSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="aankoop" label={t("loadingCase")}>
+      <div className="cockpit-loading-grid" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+        <div className="property-loading-card map">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}
+
+export function MortgageSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="hypotheek" label={t("loadingMortgage")}>
+      <div className="cockpit-loading-grid" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+        <div className="property-loading-card map">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}
+
+export function KaartSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="kaart" label={t("loadingMap")}>
+      <div className="property-loading-grid" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+        <div className="property-loading-card map" />
+      </div>
+    </SkeletonShell>
+  );
+}
+
+export function AuthSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="login" label={t("loadingLogin")}>
+      <div className="comparison-loading-cards" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}
+
+export function OnboardingSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="aankoop" label={t("loadingOnboarding")}>
+      <div className="comparison-loading-cards" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}
+
+export function ExtensionSkeleton() {
+  const t = useTranslations("common");
+  return (
+    <SkeletonShell current="extensie" label={t("loadingExtension")}>
+      <div className="cockpit-loading-grid" aria-hidden="true">
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+        <div className="property-loading-card">
+          <span className="property-loading-shimmer" />
+          <span className="property-loading-shimmer" />
+        </div>
+      </div>
+    </SkeletonShell>
+  );
+}

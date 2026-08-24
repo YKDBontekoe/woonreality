@@ -34,6 +34,6 @@ export const config = {
   // routes whose responses are CDN-cacheable, and the Supabase auth callback
   // route handler. Everything else gets locale routing + session refresh.
   matcher: [
-    "/((?!_next/static|_next/image|_next/data|favicon.ico|api/(?:address|analysis|map|place|mortgage|health)/?|auth/callback|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|_next/data|favicon\\.ico|robots\\.txt|sitemap\\.xml|api/(?:address|analysis|map|place|mortgage|health)/?|auth/callback|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

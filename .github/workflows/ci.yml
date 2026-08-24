@@ -46,6 +46,15 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Smoke test production server
+        run: |
+          npm run start &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/api/health > /dev/null && break
+            sleep 1
+          done
+          SMOKE_OFFLINE=1 npm run smoke
+
       - name: Build browser extension
         run: npm run extension:pack
 

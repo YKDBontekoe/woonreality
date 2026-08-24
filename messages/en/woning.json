@@ -2,7 +2,9 @@
   "meta": {
     "title": "Woningcheck",
     "titleWithAddress": "{label} — home check",
-    "description": "Reality check for {label}: open-data signals, surroundings, risks and offer guidance — with a source cited for every data point."
+    "description": "Reality check for {label}: open-data signals, surroundings, risks and offer guidance — with a source cited for every data point.",
+    "viewingTitle": "Viewing mode — {label}",
+    "bidMemoTitle": "Offer memo — {label}"
   },
   "loading": {
     "aria": "Home check is loading",

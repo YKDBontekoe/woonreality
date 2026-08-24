@@ -9,5 +9,8 @@
   "extensie": "Extensie",
   "mijnAankoop": "Mijn aankoop",
   "adresZoeken": "Adres zoeken",
-  "home": "Startpagina"
+  "home": "Startpagina",
+  "themeLight": "Wissel naar lichte modus",
+  "themeDark": "Wissel naar donkere modus",
+  "themeSystem": "Volgt de systeeminstelling"
 }

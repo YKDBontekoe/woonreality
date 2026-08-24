@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/src/lib/i18n/navigation";
 import { notFound } from "next/navigation";
@@ -12,6 +13,23 @@ import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { buildOfferMemo, offerMemoFilename } from "@/src/lib/offer-memo";
 
 const SCENARIOS: BidScenarioKey[] = ["cautious", "balanced", "strong"];
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const t = await getTranslations({ locale, namespace: "woning" });
+  const bagId = decodeURIComponent(slug);
+  if (!isValidBagId(bagId)) return { title: t("meta.title") };
+  try {
+    const property = await getPropertyById(bagId);
+    const label = `${property.street} ${property.houseNumber}${property.houseLetter ?? ""}${property.addition ?? ""}, ${property.city}`;
+    return {
+      title: t("meta.bidMemoTitle", { label }),
+      robots: { index: false },
+    };
+  } catch {
+    return { title: t("meta.title"), robots: { index: false } };
+  }
+}
 
 export default async function OfferMemoPage({
   params,

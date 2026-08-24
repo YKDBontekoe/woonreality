@@ -1,6 +1,6 @@
 "use client";
 
-import { Home as HomeIcon, Calculator, Map, GitCompareArrows, Puzzle, ShoppingCart } from "lucide-react";
+import { Home as HomeIcon, Calculator, Map, GitCompareArrows, Puzzle, ShoppingCart, SunMoon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/src/lib/i18n/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -37,8 +37,13 @@ export function CommandPalette() {
         setOpen((value) => !value);
       }
     };
+    const onOpenRequest = () => setOpen(true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("woonreality:open-palette", onOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("woonreality:open-palette", onOpenRequest);
+    };
   }, []);
 
   useEffect(() => {
@@ -46,8 +51,28 @@ export function CommandPalette() {
     document.documentElement.style.overflow = "hidden";
     const previousActive = document.activeElement as HTMLElement | null;
     dialogRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    // Keep Tab focus inside the dialog, mirroring the mobile menu trap.
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", trapFocus);
     return () => {
       document.documentElement.style.overflow = "";
+      document.removeEventListener("keydown", trapFocus);
       previousActive?.focus?.();
     };
   }, [open]);
@@ -73,6 +98,19 @@ export function CommandPalette() {
     close();
     router.push(href);
   }
+
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem("woonreality-theme", next);
+    } catch {
+      // Keep the visual switch even when storage is unavailable.
+    }
+    close();
+  }
+
+  const showThemeAction = !normalizedQuery || t("paletteThemeToggle").toLowerCase().includes(normalizedQuery);
 
   return (
     <div className="cmdk-overlay" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
@@ -101,6 +139,12 @@ export function CommandPalette() {
               {tHeader(page.labelKey)}
             </button>
           ))}
+          {showThemeAction && (
+            <button type="button" className="cmdk-item" onClick={toggleTheme}>
+              <span className="cmdk-item-icon" aria-hidden="true"><SunMoon size={15} /></span>
+              {t("paletteThemeToggle")}
+            </button>
+          )}
         </nav>
         <p className="cmdk-hint">
           <kbd>esc</kbd> {t("paletteClose")} · <kbd>↵</kbd> {t("paletteOpenHint")}
