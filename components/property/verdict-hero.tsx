@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Settings2 } from "lucide-react";
 import { PropertyKpiStrip } from "@/components/property/kpi-strip";
 import { ScoreDonut } from "@/components/property/score-donut";
@@ -7,10 +8,10 @@ import { buildVerdict, topThings, type TopThing } from "@/src/lib/report-summary
 import { preferenceLabel } from "@/src/lib/personalization";
 import type { Analysis, PersonalPreferences, PropertyListing } from "@/src/lib/types";
 
-function personalFitLabel(score: number) {
-  if (score >= 7) return "Goede match met je voorkeuren";
-  if (score >= 5) return "Redelijke match met je voorkeuren";
-  return "Minder match met je voorkeuren";
+function personalFitKey(score: number): "fitGood" | "fitFair" | "fitPoor" {
+  if (score >= 7) return "fitGood";
+  if (score >= 5) return "fitFair";
+  return "fitPoor";
 }
 
 function firstSentence(text: string) {
@@ -41,6 +42,7 @@ export function VerdictHero({
   onSavePreferences: () => void;
   onJumpToSignal: (thing: TopThing) => void;
 }) {
+  const t = useTranslations("woning");
   const verdict = buildVerdict(analysis);
   const things = topThings(analysis, 3);
   const hasListingFacts = Boolean(
@@ -53,20 +55,20 @@ export function VerdictHero({
         <div className="dash-verdict-score">
           <ScoreDonut score={analysis.overallScore} size="lg" />
           <div>
-            <div className="section-kicker">Omgevingsscore</div>
+            <div className="section-kicker">{t("hero.areaScore")}</div>
             <h2 className="dash-verdict-headline">{verdict.headline}</h2>
             <p className="dash-verdict-summary">{verdict.summary}</p>
           </div>
         </div>
         <div className="dash-verdict-fit">
           <div className="dash-verdict-fit-head">
-            <span>Persoonlijke fit</span>
+            <span>{t("hero.personalFit")}</span>
             <strong>{personalFit != null ? personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) : "—"}</strong>
           </div>
-          <small>{personalFit != null ? personalFitLabel(personalFit) : "Stel je voorkeuren in voor een persoonlijke match."}</small>
+          <small>{personalFit != null ? t(`hero.${personalFitKey(personalFit)}`) : t("hero.setPreferencesHint")}</small>
           <button className="ghost-button" type="button" onClick={onTogglePreferences}>
             <Settings2 size={14} />
-            {showPreferences ? "Sluiten" : preferencesConfigured ? "Voorkeuren" : "Stel voorkeuren in"}
+            {showPreferences ? t("hero.close") : preferencesConfigured ? t("hero.preferences") : t("hero.setPreferences")}
           </button>
           {showPreferences && (
             <div className="preference-controls dash-verdict-preferences">
@@ -88,7 +90,7 @@ export function VerdictHero({
                 );
               })}
               <button className="primary-button" type="button" onClick={onSavePreferences}>
-                Bewaar voorkeuren
+                {t("hero.savePreferences")}
               </button>
             </div>
           )}
@@ -96,7 +98,7 @@ export function VerdictHero({
       </div>
       {things.length > 0 && (
         <div className="dash-verdict-things">
-          <div className="section-kicker">{things.length === 1 ? "1 ding om te weten" : `${things.length} dingen om te weten`}</div>
+          <div className="section-kicker">{t("hero.thingsCount", { count: things.length })}</div>
           <ul className="dash-verdict-thing-grid">
             {things.map((thing) => (
               <li key={`${thing.title}-${thing.text.slice(0, 24)}`}>
@@ -105,7 +107,7 @@ export function VerdictHero({
                   className={`dash-verdict-thing is-${thing.tone}`}
                   onClick={() => onJumpToSignal(thing)}
                 >
-                  <em>{thing.tone === "good" ? "Plus" : thing.tone === "attention" ? "Let op" : "Context"}</em>
+                  <em>{thing.tone === "good" ? t("hero.plus") : thing.tone === "attention" ? t("hero.attention") : t("hero.context")}</em>
                   <strong>{thing.title}</strong>
                   <span>{firstSentence(thing.text)}</span>
                 </button>

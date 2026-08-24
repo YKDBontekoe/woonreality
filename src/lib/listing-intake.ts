@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 export type ExtractedListingFacts = {
   askingPrice?: number;
   livingAreaM2?: number;
@@ -46,7 +49,8 @@ function labelledArea(text: string, label: string, min: number, max: number) {
   return undefined;
 }
 
-export function extractListingFacts(text: string): ExtractedListingFacts {
+export function extractListingFacts(text: string, locale: Locale = "nl"): ExtractedListingFacts {
+  const t = getLibTranslator(locale, "lib-domain");
   const notes: string[] = [];
   const prices = uniqueNumbers([...text.matchAll(PRICE_RE)].map((match) => parseDutchNumber(match[1])));
   const years = uniqueNumbers([...text.matchAll(YEAR_RE)].map((match) => Number(match[1])));
@@ -59,10 +63,10 @@ export function extractListingFacts(text: string): ExtractedListingFacts {
   const plotAreaM2 = labelledArea(text, "perceeloppervlakte", 40, 8_000);
   const constructionYear = years.find((value) => value >= 1600 && value <= new Date().getFullYear());
 
-  if (!askingPrice && prices.length) notes.push("Er staan bedragen in de tekst, maar geen overtuigende vraagprijs.");
-  if (/erfpacht/i.test(text)) notes.push("De tekst noemt erfpacht — controleer canon en afkoop.");
-  if (/ouderdomsclausule/i.test(text)) notes.push("Ouderdomsclausule genoemd — laat de notaris dit toelichten.");
-  if (/asbest/i.test(text)) notes.push("Asbest wordt genoemd — vraag om rapport of keuring.");
+  if (!askingPrice && prices.length) notes.push(t("listingIntake.amountsNoAskingPrice"));
+  if (/erfpacht/i.test(text)) notes.push(t("listingIntake.leasehold"));
+  if (/ouderdomsclausule/i.test(text)) notes.push(t("listingIntake.ageClause"));
+  if (/asbest/i.test(text)) notes.push(t("listingIntake.asbestos"));
 
   return {
     ...(askingPrice ? { askingPrice } : {}),

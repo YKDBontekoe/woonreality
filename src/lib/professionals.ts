@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 export type ProfessionalGuide = {
   key: string;
   role: string;
@@ -18,47 +21,32 @@ export type ProfessionalGuide = {
  * would use, plus the official, free-to-search registry for each profession
  * when one exists.
  */
-export const PROFESSIONAL_GUIDES: ProfessionalGuide[] = [
-  {
-    key: "taxateur",
-    role: "Taxateur",
-    whatTheyDo: "Bepaalt de marktwaarde voor je hypotheek. De bank leent op basis van de laagste van koopsom en taxatiewaarde.",
-    howToChoose: [
-      "Kies zelf, ook als de bank of makelaar er één voorstelt — je bent niet verplicht die te gebruiken.",
-      "Moet in het NRVT-register staan (verplicht voor NHG en de meeste hypotheekverstrekkers).",
-      "Vraag een vaste prijs vooraf en een levertijd; bel niet de taxateur van de verkopende makelaar.",
-    ],
-    registryLabel: "Zoek een NRVT-taxateur",
-    registryUrl: "https://www.nrvt.nl/register/",
-    stage: "finance_inspection",
-  },
-  {
-    key: "keurder",
-    role: "Bouwkundig keurder",
-    whatTheyDo: "Beoordeelt de technische staat (dak, fundering, vocht, installaties) vóór je het keuringsvoorbehoud laat vervallen.",
-    howToChoose: [
-      "Kies een keurder die onafhankelijk is van de verkopende makelaar — geen gedeelde herkomstpremie of vaste doorverwijzing.",
-      "Vraag of het rapport werkt met een puntensysteem/NEN 2767 of vergelijkbare, herleidbare normering.",
-      "Loop zelf mee tijdens de keuring; een goed keurder legt ter plekke uit wat hij ziet.",
-      "Vergelijk offertes van minimaal twee onafhankelijke keurders; er is geen wettelijk openbaar register.",
-    ],
-    stage: "finance_inspection",
-  },
-  {
-    key: "notaris",
-    role: "Notaris",
-    whatTheyDo: "Stelt de leverings- en hypotheekakte op en verzorgt de overdracht. De koper kiest de notaris, niet de verkoper.",
-    howToChoose: [
-      "Vraag bij minimaal twee kantoren een vaste prijsopgave (all-in tarief) op vóór je kiest.",
-      "Moet ingeschreven staan bij de KNB (Koninklijke Notariële Beroepsorganisatie).",
-      "Vraag naar de conceptakte ruim vóór de passeerdatum, zodat je tijd hebt om vragen te stellen.",
-    ],
-    registryLabel: "Zoek een notaris (KNB)",
-    registryUrl: "https://www.notaris.nl/notaris-zoeken",
-    stage: "transfer",
-  },
+const GUIDE_SKELETONS: Array<{
+  key: "taxateur" | "keurder" | "notaris";
+  choices: number;
+  registryUrl?: string;
+  stage: ProfessionalGuide["stage"];
+}> = [
+  { key: "taxateur", choices: 3, registryUrl: "https://www.nrvt.nl/register/", stage: "finance_inspection" },
+  { key: "keurder", choices: 4, stage: "finance_inspection" },
+  { key: "notaris", choices: 3, registryUrl: "https://www.notaris.nl/notaris-zoeken", stage: "transfer" },
 ];
 
-export function professionalGuidesForStage(stage: string): ProfessionalGuide[] {
-  return PROFESSIONAL_GUIDES.filter((guide) => guide.stage === stage);
+export function professionalGuides(locale: Locale = "nl"): ProfessionalGuide[] {
+  const t = getLibTranslator(locale, "lib-domain");
+  return GUIDE_SKELETONS.map(({ key, choices, registryUrl, stage }) => ({
+    key,
+    role: t(`professionals.${key}.role`),
+    whatTheyDo: t(`professionals.${key}.whatTheyDo`),
+    howToChoose: Array.from({ length: choices }, (_, index) => t(`professionals.${key}.howToChoose.${index}`)),
+    ...(registryUrl ? { registryLabel: t(`professionals.${key}.registryLabel`), registryUrl } : {}),
+    stage,
+  }));
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer professionalGuides(locale). */
+export const PROFESSIONAL_GUIDES: ProfessionalGuide[] = professionalGuides();
+
+export function professionalGuidesForStage(stage: string, locale: Locale = "nl"): ProfessionalGuide[] {
+  return professionalGuides(locale).filter((guide) => guide.stage === stage);
 }

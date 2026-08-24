@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SignalInterpretationBlock } from "@/components/property/signal-interpretation";
@@ -7,15 +8,9 @@ import { interpretSignal } from "@/src/lib/signal-interpretation";
 import { scoreBand, triageSignals } from "@/src/lib/report-summary";
 import type { Analysis, Signal } from "@/src/lib/types";
 
-type FilterId = "focus" | "attention" | "good" | "unavailable" | "all";
+const FILTER_IDS = ["focus", "attention", "good", "unavailable", "all"] as const;
 
-const FILTERS: { id: FilterId; label: string }[] = [
-  { id: "focus", label: "Wat valt op" },
-  { id: "attention", label: "Let op" },
-  { id: "good", label: "Goed" },
-  { id: "unavailable", label: "Geen data" },
-  { id: "all", label: "Alles" },
-];
+type FilterId = (typeof FILTER_IDS)[number];
 
 function matchesFilter(filter: FilterId, signal: Signal, triaged: ReturnType<typeof triageSignals>) {
   if (filter === "all") return true;
@@ -44,6 +39,7 @@ export function SignalExplorer({
   focusSignalKey?: string | null;
   initialFilter?: FilterId;
 }) {
+  const t = useTranslations("woning");
   const [filter, setFilter] = useState<FilterId>(initialFilter);
   const [expandedKey, setExpandedKey] = useState<string | null>(focusSignalKey ?? null);
 
@@ -65,23 +61,23 @@ export function SignalExplorer({
     <section className="dash-signal-explorer" id="signalen">
       <div className="section-inline-heading">
         <div>
-          <div className="section-kicker">Open data</div>
-          <h2>Signalen</h2>
+          <div className="section-kicker">{t("explorer.openData")}</div>
+          <h2>{t("explorer.signalsTitle")}</h2>
           <p className="dash-signal-explorer-note">
-            {visibleCount} {filter === "focus" ? "punten die opvallen" : "signalen"} · tik een regel voor uitleg
+            {filter === "focus" ? t("explorer.noteFocus", { count: visibleCount }) : t("explorer.noteOther", { count: visibleCount })}
           </p>
         </div>
       </div>
-      <div className="dash-point-filters" role="group" aria-label="Signaalfilters">
-        {FILTERS.map((item) => (
+      <div className="dash-point-filters" role="group" aria-label={t("explorer.filtersAria")}>
+        {FILTER_IDS.map((id) => (
           <button
-            key={item.id}
+            key={id}
             type="button"
-            className={filter === item.id ? "is-on" : ""}
-            aria-pressed={filter === item.id}
-            onClick={() => setFilter(item.id)}
+            className={filter === id ? "is-on" : ""}
+            aria-pressed={filter === id}
+            onClick={() => setFilter(id)}
           >
-            {item.label}
+            {t(`explorer.filters.${id}`)}
           </button>
         ))}
       </div>
@@ -140,7 +136,7 @@ export function SignalExplorer({
                             <SignalInterpretationBlock interpretation={interpretation} hidePill />
                           )}
                           <p className="signal-summary">{signal.summary}</p>
-                          <p className="signal-action"><strong>Check dit:</strong> {signal.action}</p>
+                          <p className="signal-action"><strong>{t("checkThis")}</strong> {signal.action}</p>
                         </div>
                       )}
                     </article>

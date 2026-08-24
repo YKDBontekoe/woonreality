@@ -1,0 +1,519 @@
+{
+  "checklist": {
+    "items": {
+      "windows": "Listen with windows open and closed",
+      "light": "Check light, shadow and façade orientation",
+      "vve": "Ask for homeowners' association (VvE) minutes, budget, reserve fund, long-term maintenance plan (MJOP) and insurance policy",
+      "legal": "Check the deed of division, leasehold/freehold and usage restrictions",
+      "condition": "Plan a structural inspection"
+    }
+  },
+  "journey": {
+    "stages": {
+      "intake": "Housing profile",
+      "research": "Research",
+      "viewing": "Viewing",
+      "offer": "Offer",
+      "negotiation": "Negotiation",
+      "contract": "Deed of purchase",
+      "finance_inspection": "Inspection & financing",
+      "transfer": "Transfer"
+    },
+    "nextAction": {
+      "connectWorkspace": {
+        "title": "Connect your purchase workspace",
+        "text": "Log in to safely store your profile, documents and properties."
+      },
+      "completeProfile": {
+        "title": "Complete your housing profile",
+        "text": "Budget, household and must-haves determine what you take seriously."
+      },
+      "addFirstProperty": {
+        "title": "Add your first property",
+        "text": "Search an address or paste a Funda link. Characteristics come from the extension."
+      },
+      "openTask": {
+        "text": "This is the next action in your file."
+      },
+      "reviewFindings": {
+        "title": "Review document findings",
+        "text": "{count} point{plural} from your documents need a check."
+      },
+      "uploadDocuments": {
+        "title": "Upload the sales documents",
+        "text": "The brochure, questionnaire and any homeowners' association (VvE) documents belong in your file before you make an offer."
+      },
+      "stages": {
+        "intake": {
+          "title": "Finish your housing profile",
+          "text": "Then we can match properties against your limits."
+        },
+        "research": {
+          "title": "Complete the property research",
+          "text": "Check signals, upload documents and note what you don't know yet."
+        },
+        "viewing": {
+          "title": "Prepare the viewing",
+          "text": "Bring the checklist and note what you see."
+        },
+        "offer": {
+          "title": "Draft your offer",
+          "text": "Link amount, risks and resolutive conditions. WoonReality sends nothing on your behalf."
+        },
+        "negotiation": {
+          "title": "Prepare the negotiation",
+          "text": "Hold on to your maximum and conditions. A counteroffer is not an obligation."
+        },
+        "contract": {
+          "title": "Check the deed of purchase",
+          "text": "Compare price, conditions and delivery date with your draft."
+        },
+        "finance_inspection": {
+          "title": "Schedule inspection and financing",
+          "text": "Put the deadlines for your resolutive conditions in your calendar."
+        },
+        "transfer": {
+          "title": "Prepare the transfer",
+          "text": "Civil-law notary, deposit and handover points should now be on your radar."
+        }
+      }
+    },
+    "checklist": {
+      "intake": {
+        "budget": "Calculate your mortgage budget including buyer's costs, not before them.",
+        "profile": "Record your housing wishes and priorities (location, type, budget, must-haves).",
+        "nhg": "Check whether the National Mortgage Guarantee (NHG) applies to you and is a sensible choice."
+      },
+      "research": {
+        "analysis": "Read the property check and its points of attention per domain, not just the final grade.",
+        "compare": "Compare candidate properties side by side on price, m², energy and VvE signals.",
+        "listing": "Link the Funda listing so asking price, characteristics and VvE details are included.",
+        "ai": "Request the AI research for extra context (permits, municipal plans, contradictions)."
+      },
+      "viewing": {
+        "checklist": "Walk through the viewing checklist, including the points of attention from the property check.",
+        "questions": "Ask the questions raised by the AI analysis or document check.",
+        "debrief": "Record immediately afterwards: continue, doubt, or drop — and why."
+      },
+      "offer": {
+        "strategy": "Set your offer with the bid strategy: cautious, balanced or strong, based on the risks.",
+        "conditions": "Keep financing and inspection resolutive conditions in place, especially as a first-time buyer or with open points of attention.",
+        "valuation": "Remember: no valuation means no confirmed market value. Never bid blindly above the asking price."
+      },
+      "negotiation": {
+        "counter": "On a counteroffer: adjust only the amount or the conditions, never both at once without reason.",
+        "escalation": "Under competition, consider a bidding escalation clause instead of blindly bidding higher.",
+        "walkaway": "Know your maximum price upfront and be prepared to walk away once it is exceeded."
+      },
+      "contract": {
+        "review": "Have the deed of purchase checked before signing; compare the amount with your offer.",
+        "deadlines": "Put the cooling-off period and your resolutive-condition deadlines in your calendar right away.",
+        "clauses": "Ask for an explanation of unusual clauses (age clause, asbestos clause, leasehold)."
+      },
+      "finance_inspection": {
+        "mortgage": "Finalise the mortgage application well before the financing deadline.",
+        "inspection": "Schedule the structural inspection and address the findings before the inspection deadline.",
+        "documents": "Request missing documents (VvE, MJOP, building drawings, energy) and let them inform your decision."
+      },
+      "transfer": {
+        "final-inspection": "Do the final inspection just before the transfer and record handover points in writing.",
+        "notary": "Check the settlement statement and the draft deed at the civil-law notary before signing.",
+        "keys": "Arrange deposit/bank guarantee, insurance and the key handover."
+      }
+    }
+  },
+  "tasks": {
+    "profile": {
+      "title": "Fill in your housing profile",
+      "description": "Budget, household and must-haves should be recorded before you take an offer seriously."
+    },
+    "docsCore": {
+      "title": "Upload brochure or questionnaire",
+      "description": "Without sales documents you only see open data. A real estate agent would request these documents now."
+    },
+    "docsQuestionnaire": {
+      "title": "Request the seller's questionnaire",
+      "description": "Leaks, disputes and renovations rarely appear in the brochure."
+    },
+    "docsVve": {
+      "title": "Upload homeowners' association (VvE) documents",
+      "description": "Minutes, long-term maintenance plan (MJOP), reserve fund and contribution belong in your file before you make an offer."
+    },
+    "findingFallback": "Review this point of attention in your document dossier.",
+    "viewingSignals": {
+      "title": "Take the points of attention to the viewing"
+    },
+    "askingPrice": {
+      "title": "Enter the asking price",
+      "description": "Without an asking price we cannot sketch an offer draft or buyer's costs."
+    },
+    "viewingChecklist": {
+      "title": "Complete the viewing checklist",
+      "description": "Tick off what you saw and note doubts before preparing an offer."
+    },
+    "bidDraft": {
+      "title": "Save an offer draft",
+      "description": "Amount, conditions and your maximum belong on paper — not yet in an email to the agent."
+    },
+    "contractCheck": {
+      "title": "Compare the purchase price with your offer",
+      "description": "A mismatched amount in the deed is a stop sign, not a detail."
+    },
+    "inspectionBook": {
+      "title": "Schedule the structural inspection",
+      "description": "You are in {stage}. Put the resolutive-condition deadline in your calendar."
+    },
+    "deadlines": {
+      "bedenktijd": {
+        "title": "Cooling-off period ends",
+        "description": "Until and including {date} you can still withdraw free of charge (Art. 7:2 BW), without giving a reason."
+      },
+      "financing": {
+        "title": "Financing condition expires",
+        "description": "Arrange your mortgage (rejection or approval) before {date}, otherwise your resolutive condition lapses."
+      },
+      "inspection": {
+        "title": "Structural inspection condition expires",
+        "description": "Schedule and complete the structural inspection before {date} to stay able to dissolve at no cost."
+      }
+    }
+  },
+  "purchase": {
+    "propertyStages": {
+      "saved": "Saved",
+      "research": "Researching",
+      "viewing": "Viewing scheduled",
+      "visited": "Viewed",
+      "offer": "Prepare offer",
+      "offered": "Offer submitted",
+      "negotiation": "Negotiation",
+      "accepted": "Accepted",
+      "dropped": "Dropped",
+      "bought": "Bought"
+    },
+    "households": {
+      "single": "Single",
+      "couple": "Together",
+      "family": "Family"
+    },
+    "propertyTypes": {
+      "any": "No preference",
+      "house": "Detached/semi-detached",
+      "apartment": "Apartment"
+    }
+  },
+  "personalization": {
+    "preferences": {
+      "quiet": "Quiet",
+      "green": "Green",
+      "energy": "Energy",
+      "mobility": "Mobility",
+      "climate": "Climate",
+      "future": "Future"
+    }
+  },
+  "signalInterpretation": {
+    "youMarker": "You",
+    "scoreLabels": {
+      "good": "Strong",
+      "attention": "Attention",
+      "neutral": "Average"
+    },
+    "unavailable": {
+      "label": "No data",
+      "explainer": "There is no reliable open-data source available for this topic right now."
+    },
+    "selfCheck": {
+      "label": "Check this yourself"
+    },
+    "informational": {
+      "label": "Informational"
+    },
+    "transitNoun": "Distance to public transport stop",
+    "distanceSuffix": "{noun}: {explainer} CBS provides neighbourhood averages, not an exact walking route from your front door.",
+    "scoredExplainer": "{label} on our 0–10 scale ({score}). {summary}",
+    "domainEmpty": "No reliable data for this topic.",
+    "air": {
+      "pollutantNo2": "nitrogen dioxide (NO₂)",
+      "pollutantPm25": "particulate matter (PM₂·₅)",
+      "labels": {
+        "neutral": "Average for NL",
+        "good": "Below WHO guideline",
+        "aboveEu": "Above EU annual limit",
+        "aboveWho": "Above WHO guideline"
+      },
+      "explainer": "{value} µg/m³ {pollutant} is a neighbourhood average from RIVM data — lower is healthier, but ventilation and street-level traffic count too."
+    },
+    "noise": {
+      "labels": {
+        "neutral": "Typical city level",
+        "good": "Relatively quiet",
+        "loud": "Relatively loud",
+        "busy": "Busier street level"
+      },
+      "explainer": "{value} dB Lden is a modelled value for road traffic noise — listen during the viewing with windows open at different times of day."
+    },
+    "crime": {
+      "labels": {
+        "neutral": "Around the NL average",
+        "good": "Below the NL average",
+        "attention": "Above the NL average"
+      },
+      "unit": "per 1,000",
+      "explainer": "{value} registered offences per 1,000 residents — national average around {average}. Police figures only, no prediction for your home."
+    },
+    "ses": {
+      "labels": {
+        "neutral": "Around the NL average",
+        "below": "Below the NL average",
+        "above": "Above the NL average"
+      },
+      "explainer": "SES-WOA {value} — the Netherlands ≈ 0. This is neighbourhood context on wealth, education and work, not a judgement of the home or your neighbours."
+    },
+    "distance": {
+      "near": {
+        "label": "Close by",
+        "explainer": "Within walking or cycling distance — usually easy to reach in daily life."
+      },
+      "reachable": {
+        "label": "Reasonably reachable",
+        "explainer": "Within about a kilometre — usually still manageable by bike or a short drive."
+      },
+      "farther": {
+        "label": "Further away",
+        "explainer": "More than a kilometre — plan consciously how you get there day to day."
+      },
+      "far": {
+        "label": "Far",
+        "explainer": "Relatively far for daily use — check whether that fits your life."
+      }
+    },
+    "benchmarks": {
+      "who": "WHO",
+      "eu": "EU",
+      "quiet": "Quiet",
+      "loud": "Loud",
+      "nlAverage": "NL avg.",
+      "nlZero": "NL ≈ 0",
+      "middle": "Middle",
+      "oneKm": "1 km"
+    }
+  },
+  "reportSummary": {
+    "verdict": {
+      "good": {
+        "headline": "The surroundings look predominantly favourable",
+        "summary": "Area score {score} / 10. {coverage}."
+      },
+      "attention": {
+        "headline": "There are points of attention in the surroundings",
+        "summary": "{count} point{plural} need extra attention alongside the area score {score} / 10."
+      },
+      "mixed": {
+        "headline": "Mixed picture — check the details",
+        "summary": "Area score {score} / 10 with both strengths and points of attention. {coverage}."
+      }
+    }
+  },
+  "deadlines": {
+    "bedenktijd": "Cooling-off period (Art. 7:2 BW) ends",
+    "financing": "Financing condition expires",
+    "inspection": "Structural inspection condition expires"
+  },
+  "professionals": {
+    "taxateur": {
+      "role": "Appraiser",
+      "whatTheyDo": "Determines the market value for your mortgage. The bank lends based on the lower of purchase price and appraised value.",
+      "howToChoose": [
+        "Choose your own, even when the bank or real estate agent suggests one — you are not obliged to use theirs.",
+        "Must be listed in the NRVT register (required for NHG and most mortgage lenders).",
+        "Ask for a fixed price upfront and a delivery time; do not call the selling agent's appraiser."
+      ],
+      "registryLabel": "Find an NRVT appraiser"
+    },
+    "keurder": {
+      "role": "Structural inspector",
+      "whatTheyDo": "Assesses the technical condition (roof, foundation, moisture, installations) before you let the inspection condition lapse.",
+      "howToChoose": [
+        "Choose an inspector independent of the selling agent — no shared referral fee or fixed referral arrangement.",
+        "Ask whether the report follows a scoring system such as NEN 2767 or another traceable standard.",
+        "Join the inspection yourself; a good inspector explains on the spot what he sees.",
+        "Compare quotes from at least two independent inspectors; there is no statutory public register."
+      ]
+    },
+    "notaris": {
+      "role": "Civil-law notary",
+      "whatTheyDo": "Drafts the transfer deed and the mortgage deed and handles the transfer. The buyer chooses the notary, not the seller.",
+      "howToChoose": [
+        "Request a fixed-price quote (all-in rate) from at least two offices before choosing.",
+        "Must be registered with the KNB (Royal Professional Organisation of Civil-law Notaries).",
+        "Ask for the draft deed well before the signing date so you have time to ask questions."
+      ],
+      "registryLabel": "Find a civil-law notary (KNB)"
+    }
+  },
+  "placeLabels": {
+    "kinds": {
+      "woonplaats": "Residence",
+      "gemeente": "Municipality",
+      "buurt": "Neighbourhood"
+    }
+  },
+  "map": {
+    "noData": "No data",
+    "layers": {
+      "ses": {
+        "label": "SES-WOA",
+        "hint": "Wealth, education and work in the neighbourhood",
+        "caveat": "Neighbourhood average; not a judgement of households or the home."
+      },
+      "education": {
+        "label": "Education level",
+        "hint": "Share of highly educated residents (SES-WOA)",
+        "caveat": "No school quality or Cito scores; only the education mix in the neighbourhood."
+      },
+      "schools": {
+        "label": "Schools nearby",
+        "hint": "Average distance to primary education",
+        "caveat": "Distance, not inspection results. Quality: scholenopdekaart.nl."
+      },
+      "crime": {
+        "label": "Offences",
+        "hint": "Registered offences per 1,000 residents",
+        "caveat": "Registration figures; not every incident is reported."
+      },
+      "woz": {
+        "label": "Avg. WOZ value",
+        "hint": "CBS average property value",
+        "caveat": "Neighbourhood WOZ average, not an asking price or €/m² from listings."
+      },
+      "children": {
+        "label": "Children",
+        "hint": "Share aged 0–15"
+      },
+      "density": {
+        "label": "Population density",
+        "hint": "Residents per km²"
+      }
+    },
+    "rasters": {
+      "noise": { "label": "Road traffic noise", "hint": "RIVM Lden road traffic" },
+      "no2": { "label": "NO₂", "hint": "RIVM air quality" },
+      "pm25": { "label": "PM2.5", "hint": "RIVM air quality" }
+    },
+    "scenes": {
+      "buurt": { "label": "Neighbourhood", "hint": "SES, crime and demographics" },
+      "scholen": { "label": "Schools", "hint": "Education and school distance" },
+      "wonen": { "label": "Housing", "hint": "Average WOZ value" },
+      "verkeer": { "label": "Traffic", "hint": "Noise and air" }
+    },
+    "regions": {
+      "area": "Area",
+      "municipality": "Municipality",
+      "inhabitants": "Residents",
+      "sesWoa": "SES-WOA",
+      "highlyEducated": "Highly educated",
+      "offences": "Offences",
+      "avgWoz": "Avg. WOZ",
+      "primarySchool": "Primary school",
+      "primarySchoolAvg": "{km} km on average",
+      "age0to15": "Ages 0–15",
+      "density": "Density",
+      "per1000": "per 1,000",
+      "perKm2": "per km²"
+    }
+  },
+  "placeCompare": {
+    "inhabitants": "Residents",
+    "densityPerKm2": "Density / km²",
+    "avgWozValue": "Avg. WOZ value",
+    "householdsWithChildren": "Households with children",
+    "primarySchoolDistance": "Primary school distance"
+  },
+  "onboarding": {
+    "steps": {
+      "mortgage": {
+        "title": "Buying power",
+        "lead": "Calculate what you can borrow. Budget and monthly payment then fill in your housing profile automatically."
+      },
+      "wishes": {
+        "title": "Housing wishes",
+        "lead": "Search area, household and must-haves — the hard limits for your property check."
+      },
+      "priorities": {
+        "title": "Priorities",
+        "lead": "What weighs heaviest in your personal fit score?"
+      },
+      "done": {
+        "title": "Done",
+        "lead": "Your purchase workspace is ready. Search an address or open your dashboard."
+      }
+    }
+  },
+  "listingIntake": {
+    "amountsNoAskingPrice": "The text contains amounts, but no convincing asking price.",
+    "leasehold": "The text mentions leasehold — check the ground rent and buyout.",
+    "ageClause": "Age clause mentioned — have the civil-law notary explain it.",
+    "asbestos": "Asbestos is mentioned — ask for a report or inspection."
+  },
+  "kenmerken": {
+    "groups": {
+      "overdracht": "Transfer",
+      "bouw": "Construction",
+      "oppervlakten": "Surface areas",
+      "indeling": "Layout",
+      "energie": "Energy",
+      "buiten": "Outdoor",
+      "kadastraal": "Cadastral",
+      "overig": "Other"
+    },
+    "rows": {
+      "status": "Status",
+      "askingPrice": "Asking price",
+      "pricePerM2": "Price per m²",
+      "livingArea": "Living area",
+      "plot": "Plot",
+      "volume": "Volume",
+      "rooms": "Rooms",
+      "bedrooms": "Bedrooms",
+      "bathrooms": "Bathrooms",
+      "type": "Type",
+      "constructionYear": "Year of construction",
+      "energyLabel": "Energy label",
+      "insulation": "Insulation",
+      "heating": "Heating",
+      "glazing": "Glazing",
+      "solarPanels": "Solar panels",
+      "outdoorSpace": "Outdoor space",
+      "gardenOrientation": "Garden orientation",
+      "balcony": "Balcony",
+      "terrace": "Terrace",
+      "parking": "Parking",
+      "storage": "Storage",
+      "vveContribution": "Homeowners' association (VvE) contribution",
+      "vveReserve": "Homeowners' association (VvE) reserve",
+      "ownership": "Ownership situation"
+    },
+    "status": {
+      "active": "For sale",
+      "sold": "Sold",
+      "withdrawn": "Withdrawn",
+      "unknown": "Status unknown"
+    },
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "emailNotConfirmed": "Confirm your email address first via the link in your inbox.",
+    "userBanned": "This account cannot log in at the moment.",
+    "passkeysDisabled": "Passkeys are still disabled in this project. Enable them via Authentication → Passkeys in the Supabase Dashboard (RP ID: woonreality.vercel.app).",
+    "tooManyPasskeys": "You have reached the maximum number of passkeys. Remove one first.",
+    "passkeyAlreadyLinked": "This passkey is already linked to your account.",
+    "passkeyNotLinked": "This passkey is not linked to your account. Try email instead.",
+    "challengeExpired": "The passkey check has expired. Please try again.",
+    "verificationFailed": "Your passkey could not be verified. Try again or use email.",
+    "ceremonyAborted": "Passkey request cancelled. Try again when you are ready.",
+    "invalidDomain": "This website is missing the correct passkey domain setting. Check the Relying Party ID and origins in Supabase.",
+    "deviceFailed": "Your device or password manager could not complete the passkey. Try a different browser or manager."
+  }
+}

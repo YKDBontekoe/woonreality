@@ -1,0 +1,488 @@
+{
+  "offerMemo": {
+    "title": "Bodmemo",
+    "composedOn": "Opgesteld op {date}",
+    "bidMarkdown": "**Bod: {amount}**",
+    "notProvided": "niet opgegeven",
+    "askingPriceLine": "Vraagprijs: {value}.",
+    "bidLine": "Bod: {amount} ({scenario}).",
+    "ownMaximumLine": "Eigen maximum: {value}.",
+    "ownFundsAvailableLine": "Eigen geld beschikbaar: {value}.",
+    "buyerCostsLine": "Kosten koper (indicatie): {value}.",
+    "ownFundsNeededLine": "Totaal benodigd eigen geld bij deze koopsom (indicatie): {value}.",
+    "sections": {
+      "offer": "Dit bod",
+      "financials": "Financiële onderbouwing",
+      "conditions": "Voorwaarden",
+      "attention": "Aandachtspunten uit openbare data",
+      "nextSteps": "Volgende stappen"
+    },
+    "offerLine": "{amount} voor de woning op {address}, opgesteld op {date}.",
+    "tone": {
+      "cautious": "Voorzichtig bod met beide voorwaarden; ruimte om te verhogen als er nieuwe informatie is.",
+      "balanced": "Reëel bod dat past bij wat de openbare check laat zien.",
+      "strong": "Serieuze intentie; beperkt aantal voorwaarden, mits documenten dit ondersteunen."
+    },
+    "conditions": {
+      "financingRequired": "Financieringsvoorbehoud van toepassing.",
+      "financingWaived": "Geen financieringsvoorbehoud; financiering staat (bijna) rond. Bankgarantie/waarborgsom wordt direct aangeboden.",
+      "inspectionRequired": "Voorbehoud bouwkundige keuring (verslag volgt binnen de afgesproken termijn).",
+      "inspectionWaived": "Geen bouwkundig voorbehoud; recente keuringsrapportage kan worden overlegd."
+    },
+    "attentionFooter": "Deze punten komen uit openbare bronnen en zijn geen bouwkundig oordeel; een eigen keuring blijft nodig.",
+    "nextStep1": "Bij akkoord ontvangt u graag zo snel mogelijk het concept-koopakkoord.",
+    "nextStep2": "Bankgarantie of waarborgsom wordt binnen 2 werkdagen na mondeling akkoord geregeld.",
+    "nextStep3": "Notaris en taxateur zijn al aangenomen voor deze woning.",
+    "disclaimer": "Deze memo is door de koper zelf opgesteld met WoonReality en is geen advies, taxatie of garantie. Openbare data vervangt geen keuring, notaris of hypotheekadvies."
+  },
+  "bidStrategy": {
+    "labels": {
+      "cautious": "Voorzichtig",
+      "balanced": "Gebalanceerd",
+      "strong": "Sterk"
+    },
+    "reasons": {
+      "cappedAtBudget": "Afgetopt op je maximum van {amount}.",
+      "noInspectionRisk": "Zonder keuringsvoorbehoud draag je bouwkundig risico zelf.",
+      "noFinancingPenalty": "Zonder financieringsvoorbehoud kun je de boete van 10% riskeren als de bank niet meegaat.",
+      "aboveAskingPrice": "Boven de vraagprijs: de bank leent op basis van de taxatiewaarde of de koopsom (laagste van de twee). Het verschil met de taxatiewaarde moet je uit eigen zak bijleggen."
+    },
+    "cautiousReason1": "Lager dan de vraagprijs omdat er nog onzekerheid is.",
+    "cautiousReason2": "Financierings- en keuringsvoorbehoud blijven aan.",
+    "balancedAdjusted": "Vraagprijs gecorrigeerd voor aandachtspunten uit de woningcheck.",
+    "balancedAtAskingPrice": "Rond de vraagprijs, met beide ontbindende voorwaarden.",
+    "balancedStarterSurvey": "Als starter is een keuringsvoorbehoud extra verstandig.",
+    "balancedConditionsHold": "Voorbehouden houden de koop omkeerbaar tot de deadlines.",
+    "strongCleanReason1": "Alleen een klein surplus als de open data weinig rode vlaggen toont.",
+    "strongCleanReason2": "Dit is geen winkansvoorspelling: biedconcurrentie kennen we niet.",
+    "strongIssuesReason": "Geen opslag boven de vraag zolang er aandachtspunten openstaan.",
+    "strongNoAnalysisReason1": "Zonder woninganalyse blijft het bod op of onder de vraagprijs.",
+    "strongNoAnalysisReason2": "Financierings- en keuringsvoorbehouden blijven aan tot de check er is.",
+    "valuationNoteWithCosts": "Geen taxatie. Vraagprijs is wat de verkoper vraagt, niet wat de woning waard is. Indicatieve kosten koper circa {costs}.",
+    "valuationNoteWithoutCosts": "Geen taxatie en geen Kadaster-referenties. Vul de vraagprijs in; een marktwaarde volgt pas met officiële comparables of een taxateur.",
+    "riskSummary": {
+      "one": "{count} aandachtspunt uit de open-data check{suffix}.",
+      "many": "{count} aandachtspunten uit de open-data check{suffix}.",
+      "foundationSuffix": ", waaronder fundering",
+      "none": "Geen zware open-data aandachtspunten; bouwkundige staat blijft onbekend zonder keuring."
+    },
+    "negotiation": {
+      "step1": "Reageer op één variabele tegelijk: óf het bedrag, óf een voorwaarde (bv. een voorbehoud laten vallen). Niet allebei in dezelfde stap weggeven.",
+      "step2": "Vraag altijd wat de reden van het tegenbod is: een ander bod, een taxatieverschil, of gewoon onderhandelruimte. Dat bepaalt je reactie.",
+      "step3": "Verhoog in kleine, beargumenteerde stappen. Elke verhoging zonder toelichting wekt de indruk dat er nog meer ruimte is.",
+      "step4": "Zet nieuwe afspraken altijd schriftelijk (e-mail) vast, ook als de makelaar van de verkoper mondeling akkoord lijkt.",
+      "escalationTitle": "Ophoogclausule (escalatieclausule)",
+      "escalationSummary": "Een ophoogclausule zegt: 'ik bied X, maar ga automatisch Y hoger dan het beste concurrerende bod, tot een maximum van Z.' Dit voorkomt dat je blind moet gokken tegen onbekende concurrentie.",
+      "escalationWhenToUse": "Vooral zinvol bij aantoonbare biedconcurrentie (meerdere kijkers, korte reactietermijn) en als je een keiharde bovengrens hebt.",
+      "escalationCaution": "Spreek vooraf met de verkopend makelaar af dat je na afloop het geanonimiseerde biedlogboek ontvangt, zodat je kunt controleren dat de ophoging terecht was. Niet elke verkopend makelaar accepteert deze clausule.",
+      "walkAwayWithMax": "Bepaal vooraf je maximum (nu circa {max}) en wees bereid om af te haken zodra dat wordt overschreden. Een huis waarvoor je je financiële marge opgeeft, is geen goede koop.",
+      "walkAwayWithoutMax": "Bepaal vooraf je maximum en wees bereid om af te haken zodra dat wordt overschreden. Een huis waarvoor je je financiële marge opgeeft, is geen goede koop."
+    }
+  },
+  "costs": {
+    "lines": {
+      "transferTax": {
+        "label": "Overdrachtsbelasting",
+        "noteInvestor": "{rate}% voor een woning die niet als hoofdverblijf geldt ({year}). Niet aftrekbaar.",
+        "noteStarterExemption": "Startersvrijstelling tot {threshold} ({year}; leeftijd, zelfbewoning en eerdere vrijstelling toetst de notaris). Niet aftrekbaar.",
+        "noteOwnerOccupier": "{rate}% voor een woning als hoofdverblijf. Belegging: {investorRate}%. Startersvrijstelling hangt af van leeftijd en zelfbewoning. Niet aftrekbaar.",
+        "noteNewBuild": "Nieuwbouw v.o.n.: btw zit in de koopsom, geen overdrachtsbelasting."
+      },
+      "notaryTransfer": {
+        "label": "Notaris leveringsakte (indicatie)",
+        "note": "Transportakte van de woning. Niet aftrekbaar. Vraag een offerte."
+      },
+      "notaryMortgage": {
+        "label": "Notaris hypotheekakte (indicatie)",
+        "note": "Financieringskosten: aftrekbaar in box 1 in het jaar van betaling."
+      },
+      "kadasterTransfer": {
+        "label": "Kadaster levering",
+        "note": "Inschrijving levering ({year} KIK-tarief). Niet aftrekbaar."
+      },
+      "kadasterMortgage": {
+        "label": "Kadaster hypotheek",
+        "note": "Inschrijving hypotheek ({year} KIK-tarief). Aftrekbaar als financieringskosten."
+      },
+      "appraisal": {
+        "label": "Taxatie (indicatie)",
+        "note": "Vaak verplicht voor de hypotheek. Aftrekbaar als de taxatie voor de lening nodig is. Geen WoonReality-waardering."
+      },
+      "inspection": {
+        "label": "Bouwkundige keuring (indicatie)",
+        "note": "Optioneel maar sterk aangeraden bij oudere bouw. Niet aftrekbaar."
+      },
+      "nhg": {
+        "label": "NHG-borgtochtprovisie",
+        "note": "{rate}% van de hypotheeksom ({year}; grens {limit}). Aftrekbaar. Vaak meegefinancierd."
+      },
+      "advice": {
+        "label": "Hypotheekadvies (indicatie)",
+        "note": "Advies- en bemiddelingskosten voor de hypotheek. Aftrekbaar in box 1. Vraag een offerte."
+      },
+      "bankGuarantee": {
+        "label": "Bankgarantie (indicatie)",
+        "note": "In plaats van {percent}% waarborgsom contant. Niet aftrekbaar."
+      },
+      "buyingAgent": {
+        "label": "Aankoopmakelaar (indicatie)",
+        "note": "{rate}% excl. btw + {vat}% btw. Niet aftrekbaar."
+      },
+      "moving": {
+        "label": "Verhuiskosten (indicatie)",
+        "note": "Geen vaste post; hangt af van afstand en volume. Niet aftrekbaar."
+      }
+    },
+    "disclaimer": "Dit is een rekenschets op basis van parameters {year}, geen hypotheekadvies. Notaris- en adviseurstarieven zijn indicaties; NHG, rente en bankvoorwaarden horen bij een erkend adviseur."
+  },
+  "runningCosts": {
+    "lines": {
+      "electricity": {
+        "label": "Elektriciteit",
+        "note": "~{usage} kWh/jaar × {price}/kWh + vaste kosten."
+      },
+      "gas": {
+        "label": "Gas",
+        "note": "~{usage} m³/jaar × {price}/m³ + vaste kosten. Inclusief verwarming, warm water en koken."
+      },
+      "water": {
+        "label": "Water",
+        "note": "Landelijk gemiddelde drinkwaterkosten per huishouden."
+      },
+      "vve": {
+        "label": "VvE-bijdrage",
+        "note": "Maandelijkse bijdrage aan de Vereniging van Eigenaren (uit advertentie)."
+      },
+      "municipalTaxes": {
+        "label": "Gemeentelijke belastingen",
+        "note": "Indicatie OZB, rioolheffing en afvalstoffenheffing. Verschilt per gemeente."
+      },
+      "insurance": {
+        "label": "Opstalverzekering",
+        "note": "Indicatie op basis van {area} m² woonoppervlak."
+      }
+    },
+    "disclaimer": "Dit is een indicatie op basis van CBS-gemiddelden en vaste schattingen, geen persoonlijke offerte. Werkelijke kosten hangen af van leverancier, verbruik, gemeente en woningsituatie."
+  },
+  "listingRisk": {
+    "erfpacht": {
+      "title": "Erfpacht: check de canon en looptijd",
+      "summary": "De advertentie noemt erfpacht. Dat betekent een aparte, vaak jaarlijkse canon bovenop je hypotheeklasten, en kan de financierbaarheid en waardeontwikkeling raken.",
+      "action": "Vraag de erfpachtvoorwaarden op: resterende looptijd, canon, herzieningsdatum en of afkoop mogelijk of al gedaan is. Neem dit mee in je hypotheekaanvraag."
+    },
+    "vveReserveUnknown": {
+      "title": "VvE-reserve niet vermeld",
+      "summary": "Er is een VvE-bijdrage, maar geen reservefonds genoemd. Zonder reserve loop je risico op een onverwachte bijzondere bijdrage.",
+      "action": "Vraag de VvE-stukken (MJOP, reservefonds, notulen) op via de makelaar of notaris."
+    },
+    "vveSpecialLevy": {
+      "title": "Bijzondere bijdrage of achterstallig onderhoud genoemd",
+      "summary": "De tekst noemt een bijzondere bijdrage of achterstallig onderhoud. Dit kan een aanzienlijke extra kostenpost zijn bovenop de koopsom.",
+      "action": "Vraag het bedrag, de reden en of het al is geïnd of nog gaat komen."
+    },
+    "ouderdomsclausule": {
+      "title": "Ouderdomsclausule genoemd",
+      "summary": "Een ouderdomsclausule beperkt wat je later kunt verhalen op de verkoper voor gebreken die passen bij de leeftijd van de woning.",
+      "action": "Laat de notaris de exacte clausuletekst beoordelen voordat je tekent."
+    },
+    "asbest": {
+      "title": "Asbest genoemd in de advertentie",
+      "summary": "Asbest wordt genoemd. Vooral bij bouw voor 1994 is dit relevant voor je bouwkundige keuring.",
+      "action": "Vraag of er een asbestinventarisatie is en overweeg een asbestclausule te bespreken met de notaris."
+    },
+    "vochtLekkage": {
+      "title": "Vocht, schimmel of lekkage genoemd",
+      "summary": "De advertentietekst noemt vocht, schimmel of lekkage. Dit is een concreet keuringspunt.",
+      "action": "Laat de bouwkundig keurder dit gericht controleren en vraag de verkoper naar de herstelhistorie."
+    }
+  },
+  "listingProfileMatch": {
+    "listingLabel": "Advertentie",
+    "noListingDetails": "Nog geen Funda-kenmerken",
+    "bedrooms": {
+      "unit": "slk",
+      "notListed": "Niet in de advertentie",
+      "matchDetail": "≥ {wanted} gewenst",
+      "mismatchDetail": "{have} van {wanted} gewenst"
+    },
+    "garden": {
+      "label": "Tuin",
+      "mentioned": "Genoemd",
+      "notMentioned": "Niet genoemd"
+    },
+    "parking": {
+      "label": "Parkeren",
+      "mentioned": "Genoemd",
+      "notMentioned": "Niet genoemd"
+    },
+    "type": {
+      "house": "Huis",
+      "apartment": "Appartement",
+      "unknown": "Type onbekend"
+    },
+    "vve": {
+      "label": "VvE",
+      "notInListing": "Niet in de advertentie",
+      "inListing": "VvE in de advertentie",
+      "none": "Geen VvE",
+      "contributionListed": "Bijdrage genoemd",
+      "mentioned": "VvE genoemd"
+    },
+    "budget": {
+      "label": "Budget",
+      "within": "Onder je budget",
+      "above": "Boven je budget"
+    }
+  },
+  "documents": {
+    "unreadable": {
+      "title": "Document nauwelijks leesbaar",
+      "summary": "We konden bijna geen tekst uit deze PDF halen. Scans zonder tekstlaag moeten handmatig.",
+      "action": "Upload een doorzoekbare PDF of neem de kernpunten zelf over in je notities."
+    },
+    "areaMismatch": {
+      "title": "Oppervlakte wijkt af van BAG",
+      "summary": "In het document staat ongeveer {advertised} m², BAG registreert {registered} m². Dat is geen meetfout die we stil mogen wegstrepen.",
+      "action": "Vraag welke meetinstructie de advertentie gebruikt (NEN 2580) en of berging/zolder is meegerekend."
+    },
+    "priceMismatch": {
+      "title": "Koopsom wijkt af van je bod",
+      "summary": "In de akte staat een bedrag rond € {contract}, je conceptbod is € {offer}.",
+      "action": "Zet de akte naast je bieding en vraag de notaris of makelaar om de afwijking."
+    },
+    "mjopMissing": {
+      "title": "MJOP niet duidelijk genoemd",
+      "summary": "In deze VvE-stukken is geen duidelijk meerjarenonderhoudsplan herkend.",
+      "action": "Vraag het actuele MJOP en de laatste Algemene Ledenvergadering-notulen."
+    },
+    "reserveFundUnclear": {
+      "title": "Reservefonds onduidelijk",
+      "summary": "Het reservefonds is niet herkend. Dat zegt nog niet dat het ontbreekt, wel dat je het moet nazoeken.",
+      "action": "Vraag de stand van het reservefonds en of er een bijzondere bijdrage aankomt."
+    },
+    "questionnaireIncomplete": {
+      "title": "Vragenlijst lijkt incompleet",
+      "summary": "Kenmerkende onderhoudsvragen (dak, vocht, CV, fundering) zijn niet herkend.",
+      "action": "Loop de vragenlijst zelf na en markeer lege of ontwijkende antwoorden."
+    },
+    "prewarFoundation": {
+      "title": "Fundering niet toegelicht bij vooroorlogse bouw",
+      "summary": "BAG-bouwjaar {year} en de stukken noemen fundering niet. Dat is een gat, geen groene vlag.",
+      "action": "Vraag de verkoper naar funderingsonderzoek of bekende zetting."
+    },
+    "patterns": {
+      "moisture": {
+        "title": "Vocht of lekkage genoemd",
+        "summary": "In de stukken staat vocht, schimmel of lekkage. Dat is een keuringspunt, geen reden om het te negeren.",
+        "action": "Vraag foto’s, herstelhistorie en laat de keurder hier gericht naar kijken."
+      },
+      "foundation": {
+        "title": "Funderingsrisico in de tekst",
+        "summary": "Fundering of zetting wordt benoemd. Open data is geen funderingsonderzoek.",
+        "action": "Vraag om funderingsrapport of een specialistische inspectie."
+      },
+      "asbestos": {
+        "title": "Asbest genoemd",
+        "summary": "Asbest in de stukken vraagt om een rapport of gerichte keuring, vooral bij bouw voor 1994.",
+        "action": "Vraag of er een asbestinventarisatie is en of er een asbestclausule in de akte staat."
+      },
+      "legalConflict": {
+        "title": "Juridisch conflict genoemd",
+        "summary": "Er lijkt een geschil, procedure of handhaving in de stukken te staan.",
+        "action": "Laat de notaris of een jurist de passage duiden voordat je biedt."
+      },
+      "vveExtraCosts": {
+        "title": "Extra VvE-kosten of achterstallig onderhoud",
+        "summary": "De tekst wijst op extra bijdragen of onderhoud dat is blijven liggen.",
+        "action": "Vraag MJOP, reservefonds en of er een bijzondere bijdrage is vastgesteld."
+      },
+      "ageClause": {
+        "title": "Ouderdomsclausule",
+        "summary": "Een ouderdomsclausule beperkt de aansprakelijkheid van de verkoper voor gebreken die bij de leeftijd passen.",
+        "action": "Laat de notaris uitleggen wat je wél en niet kunt verhalen."
+      },
+      "leasehold": {
+        "title": "Erfpacht of canon",
+        "summary": "Erfpacht verandert de maandlast en de verkoopbaarheid. BAG zegt niet of de grond in erfpacht is.",
+        "action": "Vraag resterende looptijd, canon en of afkoop mogelijk is."
+      }
+    }
+  },
+  "mortgage": {
+    "disclaimer": "Dit is het wettelijke maximum volgens de leennormen 2026, geen hypotheekadvies en geen bankofferte. Banken toetsen strenger (documenten, BKR, ondernemers vaak via IKV) en komen vaak lager uit.",
+    "capacity": {
+      "noIncome": "Vul minstens één inkomen in om de leenruimte te berekenen.",
+      "income": {
+        "label": "Toetsinkomen",
+        "notePartner": "Jij {applicant} + partner {partner} (tweede inkomen telt 100%).",
+        "noteSingle": "Bruto toetsinkomen volgens de gekozen inkomensbronnen."
+      },
+      "quote": {
+        "label": "Woonquote {quote}%",
+        "noteAow": "Bijlage 1 AOW, toetsrente {rate}%.",
+        "notePreAow": "Bijlage 1 pre-AOW, toetsrente {rate}%."
+      },
+      "incomeLoan": {
+        "label": "Maximale hypotheek uit inkomen",
+        "note": "Annuïteit {years} jaar op de toetsrente."
+      },
+      "singleExtra": {
+        "label": "Alleenstaandentoeslag",
+        "note": "Buiten de financieringslast tot {amount} (art. 3 lid 8)."
+      },
+      "energyPurchase": {
+        "label": "Energielabel {label} extra",
+        "noteGuarantee": "A++++ met energieprestatiegarantie: {amount}.",
+        "noteTable": "Extra leenruimte bij aankoop volgens de tabel 2026."
+      },
+      "energyMeasures": {
+        "label": "Extra voor verduurzaming",
+        "note": "Alleen te gebruiken voor energiebesparende maatregelen; LTV tot 106%."
+      },
+      "testRate": {
+        "label": "AFM-toetsrente",
+        "note": "Rentevast onder 10 jaar: getoetst tegen {rate}% ({basis}).",
+        "floorBasis": "minimaal {floor}%"
+      },
+      "nhgCapped": {
+        "label": "NHG-plafond",
+        "note": "Inkomensruimte {room} begrensd tot kostengrens {year} {limit}{ebv}.",
+        "ebv": " (met EBV tot {limit})"
+      },
+      "nhgApplies": {
+        "label": "NHG van toepassing",
+        "note": "Onder de kostengrens {year} {limit}{ebv}.",
+        "ebv": ", met EBV {limit}"
+      },
+      "maxLoan": {
+        "label": "Maximale hypotheek voor aankoop",
+        "noteWithMeasures": "Plus {measures} alleen voor verduurzaming (totaal {total}).",
+        "notePlain": "Som van inkomenslening en aankoopextra’s, na eventueel NHG-plafond."
+      },
+      "maxPrice": {
+        "label": "Maximale koopsom (vóór kosten koper)",
+        "noteWithFunds": "Hypotheek voor aankoop {loan} + eigen geld {funds}. Overdrachtsbelasting, notaris en taxatie moeten hier nog vanaf.",
+        "noteNoFunds": "Zonder eigen geld is dit gelijk aan de maximale hypotheek (LTV 100%) — kosten koper kunnen hier niet uit betaald worden."
+      },
+      "realBudget": {
+        "label": "Wat je écht kunt uitgeven",
+        "note": "Koopsom die je eigen geld en hypotheekruimte dekken ná overdrachtsbelasting, notaris, kadaster, taxatie en keuring. Gebruik dit bedrag om te bepalen of een huis past."
+      },
+      "buyerCosts": {
+        "label": "Kosten koper (indicatie)",
+        "note": "Overdrachtsbelasting, notaris, kadaster, taxatie, keuring en NHG-provisie indien van toepassing. Zie het kostenoverzicht voor aftrekbaarheid."
+      },
+      "ownFunds": {
+        "label": "Eigen geld",
+        "noteFallback": "Inleg voor koopsom en kosten koper.",
+        "sources": {
+          "savings": "spaargeld",
+          "gift": "schenking",
+          "saleEquity": "overwaarde"
+        }
+      },
+      "fundsGap": {
+        "shortfallLabel": "Tekort eigen geld",
+        "surplusLabel": "Ruimte in eigen geld",
+        "shortfallNote": "Kosten koper plus het deel van de koopsom dat buiten je maximale hypotheek valt.",
+        "surplusNote": "Je inleg dekt de kosten koper en eventuele rest van de koopsom (tot LTV 100%)."
+      },
+      "entrepreneur": {
+        "label": "Ondernemer",
+        "note": "Toetsinkomen = 3-jaarsgemiddelde, gemaximeerd op het laatste jaar (NHG IKV). De bank vraagt meestal een Inkomensverklaring Ondernemer."
+      }
+    },
+    "scenarios": {
+      "current": "Huidige situatie",
+      "noLeaseLabel": "Zonder private lease",
+      "noLeaseNote": "Nu {monthly} per maand in de toets.",
+      "noDebtsLabel": "Zonder schulden of vaste lasten",
+      "energyLabel": "Energielabel {label}",
+      "rateDownLabel": "Rente {rate}%",
+      "rateDownNote": "Halve procent lager dan je huidige toetsrente-input.",
+      "rateUpLabel": "Rente {rate}%",
+      "rateUpNote": "Halve procent hoger dan je huidige toetsrente-input.",
+      "nhgWithoutLabel": "Zonder NHG-plafond",
+      "nhgWithLabel": "Met NHG-plafond",
+      "nhgWithoutNote": "Kostengrens {year} {limit}; inkomensruimte kan hoger liggen.",
+      "nhgWithNote": "Begrenst op {limit} (of {energyLimit} met EBV)."
+    },
+    "obligations": {
+      "lease": {
+        "label": "Private lease",
+        "note": "Werkelijke maandlast (NHG/BKR OA sinds april 2022, 100% van het contract)."
+      },
+      "student": {
+        "label": "Studieschuld",
+        "bracketSf35": "0,35% (SF35)",
+        "bracketLegacy": "0,65% (oud stelsel)",
+        "noteRemaining": "{bracket} van de restschuld per maand, omdat het DUO-termijnbedrag ontbreekt.",
+        "noteTerm": "DUO-termijnbedrag gebruteerd met factor {factor} (art. 3a)."
+      },
+      "revolving": {
+        "label": "Doorlopend krediet / creditcard",
+        "note": "{percent}% per maand van de limiet (gangbare BKR RK-toets)."
+      },
+      "installment": {
+        "label": "Leningen (auto, persoonlijk)",
+        "note": "Werkelijke maandlast van aflopend krediet."
+      },
+      "groundLease": {
+        "label": "Erfpachtcanon",
+        "note": "Jaarlijkse canon telt mee als financiële verplichting bij deze woning."
+      },
+      "alimony": {
+        "label": "Alimentatie",
+        "note": "Partner- en kinderalimentatie die je betaalt."
+      },
+      "otherDebts": {
+        "label": "Overige maandlasten",
+        "note": "Overige BKR- of vaste verplichtingen."
+      }
+    },
+    "salary": {
+      "months": "12 × maandsalaris",
+      "holiday": "Vakantiegeld",
+      "holidayRate": "Vakantiegeld 8%",
+      "allowances": "Vaste toeslagen",
+      "thirteenth": "13e maand",
+      "yearEnd": "Eindejaarsuitkering",
+      "structuralBonus": "Vaste bonus",
+      "variableBonus": "Variabele bonus (3 jaar)"
+    },
+    "taxDisclaimer": "Hypotheekrenteaftrek-schets {year}: max aftrektarief {rate}%, inclusief eigenwoningforfait. Netto maandlast is een jaar-1-indicatie. Geen aangifteadvies.",
+    "market": {
+      "statutoryMinimum": "wettelijk minimum {floor}%",
+      "builtInIndication": "ingebouwde indicatie",
+      "dnbEcbSource": "DNB/ECB nieuwe woninghypotheken (banken)"
+    },
+    "workTypes": {
+      "permanent": "Loondienst",
+      "temporary": "Tijdelijk",
+      "flex": "Flex",
+      "self_employed": "Zelfstandig",
+      "dga": "DGA",
+      "pension": "Pensioen",
+      "mix": "Mix"
+    },
+    "affordability": {
+      "fitLabels": {
+        "fits": "Past",
+        "tight": "Krap",
+        "over": "Te duur",
+        "unknown": "Onbekend"
+      },
+      "emptyNoFinance": "Vul je hypotheekcalculator in om te zien of dit huis past.",
+      "emptyNoPrice": "Vul een vraagprijs in om te zien of dit huis past bij je koopkracht.",
+      "noAskingPrice": "Je kunt na kosten koper ongeveer {budget} uitgeven aan een huis. Vul een vraagprijs in voor een fit-check.",
+      "fitsBase": "Deze vraagprijs past, ook na kosten koper (budget {budget}).",
+      "headroom": "Koopruimte: {value}.",
+      "renovationBuffer": "Ongeveer {value} eigen geld over voor verbouwing of buffer.",
+      "energyExtra": "Plus {value} extra leenruimte alleen voor verduurzaming.",
+      "tight": "Krap: je komt ná kosten koper ongeveer {gap} tekort tot je budget van {budget}. Extra eigen geld of een lager bod kan het gat dichten.",
+      "over": "Boven je budget: dit huis kost {price}. Ná kosten koper kun je tot {budget} betalen — {gap} tekort.",
+      "needOwnFunds": "Je hebt ongeveer {gap} extra eigen geld nodig voor kosten koper en inleg.",
+      "fallback": "Wat je écht kunt uitgeven volgens je hypotheekschets: {budget}."
+    }
+  }
+}

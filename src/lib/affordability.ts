@@ -1,6 +1,8 @@
 import { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
 import { calculatorStateToFinance, type CalculatorState } from "@/src/lib/mortgage/calculator-state";
 import type { MortgageCapacity, MortgageFinance } from "@/src/lib/mortgage/types";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { formatEuro } from "@/src/lib/purchase";
 
 export type AffordabilityFit = MortgageCapacity["fit"];
@@ -34,7 +36,8 @@ export type AffordabilityInput = {
   ownFunds?: number | null;
 };
 
-export function computePropertyAffordability(input: AffordabilityInput): PropertyAffordability {
+export function computePropertyAffordability(input: AffordabilityInput, locale: Locale = "nl"): PropertyAffordability {
+  const t = getLibTranslator(locale, "lib-finance");
   const finance = input.finance ?? (input.state ? calculatorStateToFinance(input.state) : null);
   const askingPrice = Math.max(0, input.askingPrice ?? 0);
   const empty: PropertyAffordability = {
@@ -52,8 +55,8 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     renovationBuffer: 0,
     energyMeasureExtra: 0,
     summary: askingPrice > 0
-      ? "Vul je hypotheekcalculator in om te zien of dit huis past."
-      : "Vul een vraagprijs in om te zien of dit huis past bij je koopkracht.",
+      ? t("mortgage.affordability.emptyNoFinance")
+      : t("mortgage.affordability.emptyNoPrice"),
   };
   if (!finance) return empty;
 
@@ -62,7 +65,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
     energyLabel: input.energyLabel,
     nhg: input.nhg ?? (input.state?.nhg ?? false),
     ownFunds: input.ownFunds,
-  });
+  }, undefined, locale);
 
   if (!capacity.available) {
     return {
@@ -99,7 +102,7 @@ export function computePropertyAffordability(input: AffordabilityInput): Propert
       renovationBuffer,
       ownFundsGap: capacity.ownFundsGap,
       energyMeasureExtra: capacity.energyMeasureExtra,
-    }),
+    }, locale),
   };
 }
 
@@ -112,35 +115,37 @@ export function affordabilitySummary(input: {
   renovationBuffer: number;
   ownFundsGap: number | null;
   energyMeasureExtra: number;
-}) {
+}, locale: Locale = "nl") {
+  const t = getLibTranslator(locale, "lib-finance");
+  const euro = (value: number) => formatEuro(value, locale);
   if (input.askingPrice <= 0) {
-    return `Je kunt na kosten koper ongeveer ${formatEuro(input.maxPurchasePrice)} uitgeven aan een huis. Vul een vraagprijs in voor een fit-check.`;
+    return t("mortgage.affordability.noAskingPrice", { budget: euro(input.maxPurchasePrice) });
   }
   if (input.fit === "fits") {
-    const parts = [`Deze vraagprijs past, ook na kosten koper (budget ${formatEuro(input.maxPurchasePrice)}).`];
+    const parts = [t("mortgage.affordability.fitsBase", { budget: euro(input.maxPurchasePrice) })];
     if (input.purchaseHeadroom != null && input.purchaseHeadroom > 0) {
-      parts.push(`Koopruimte: ${formatEuro(input.purchaseHeadroom)}.`);
+      parts.push(t("mortgage.affordability.headroom", { value: euro(input.purchaseHeadroom) }));
     }
     if (input.renovationBuffer > 0) {
-      parts.push(`Ongeveer ${formatEuro(input.renovationBuffer)} eigen geld over voor verbouwing of buffer.`);
+      parts.push(t("mortgage.affordability.renovationBuffer", { value: euro(input.renovationBuffer) }));
     }
     if (input.energyMeasureExtra > 0) {
-      parts.push(`Plus ${formatEuro(input.energyMeasureExtra)} extra leenruimte alleen voor verduurzaming.`);
+      parts.push(t("mortgage.affordability.energyExtra", { value: euro(input.energyMeasureExtra) }));
     }
     return parts.join(" ");
   }
   if (input.fit === "tight") {
     const gap = Math.max(0, Math.round(input.askingPrice - input.maxPurchasePrice));
-    return `Krap: je komt ná kosten koper ongeveer ${formatEuro(gap)} tekort tot je budget van ${formatEuro(input.maxPurchasePrice)}. Extra eigen geld of een lager bod kan het gat dichten.`;
+    return t("mortgage.affordability.tight", { gap: euro(gap), budget: euro(input.maxPurchasePrice) });
   }
   if (input.fit === "over") {
     const gap = Math.max(0, Math.round(input.askingPrice - input.maxPurchasePrice));
-    return `Boven je budget: dit huis kost ${formatEuro(input.askingPrice)}. Ná kosten koper kun je tot ${formatEuro(input.maxPurchasePrice)} betalen — ${formatEuro(gap)} tekort.`;
+    return t("mortgage.affordability.over", { price: euro(input.askingPrice), budget: euro(input.maxPurchasePrice), gap: euro(gap) });
   }
   if (input.ownFundsGap != null && input.ownFundsGap > 0) {
-    return `Je hebt ongeveer ${formatEuro(input.ownFundsGap)} extra eigen geld nodig voor kosten koper en inleg.`;
+    return t("mortgage.affordability.needOwnFunds", { gap: euro(input.ownFundsGap) });
   }
-  return `Wat je écht kunt uitgeven volgens je hypotheekschets: ${formatEuro(input.maxPurchasePrice)}.`;
+  return t("mortgage.affordability.fallback", { budget: euro(input.maxPurchasePrice) });
 }
 
 export function fitSortRank(fit: AffordabilityFit) {
@@ -150,11 +155,8 @@ export function fitSortRank(fit: AffordabilityFit) {
   return 3;
 }
 
-export function fitLabel(fit: AffordabilityFit) {
-  if (fit === "fits") return "Past";
-  if (fit === "tight") return "Krap";
-  if (fit === "over") return "Te duur";
-  return "Onbekend";
+export function fitLabel(fit: AffordabilityFit, locale: Locale = "nl") {
+  return getLibTranslator(locale, "lib-finance")(`mortgage.affordability.fitLabels.${fit}`);
 }
 
 export function energyLabelFromAnalysis(analysis: { signals?: Array<{ key: string; value?: string | number | null }> } | null | undefined) {

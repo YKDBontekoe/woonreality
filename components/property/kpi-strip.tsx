@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { Analysis, PropertyListing } from "@/src/lib/types";
 import { formatEuro } from "@/src/lib/purchase";
 
@@ -18,46 +19,47 @@ export function PropertyKpiStrip({
   listing: PropertyListing | null;
   variant?: "compact" | "full";
 }) {
+  const t = useTranslations("woning");
   const label = listing?.energyLabel;
   const pin = energyPin(label);
   const kpis = [
     {
       key: "score",
-      label: "Score",
+      label: t("kpi.score"),
       value: analysis.overallScore.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
       hint: "/ 10",
       compact: false,
     },
     {
       key: "price",
-      label: "Vraagprijs",
+      label: t("kpi.askingPrice"),
       value: listing?.askingPrice != null ? formatEuro(listing.askingPrice) : "—",
-      hint: listing?.status === "active" ? "te koop" : listing?.provider,
+      hint: listing?.status === "active" ? t("kpi.forSale") : listing?.provider,
       compact: true,
     },
     {
       key: "area",
-      label: "Wonen",
+      label: t("kpi.living"),
       value: listing?.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : "—",
-      hint: listing?.plotAreaM2 != null ? `perceel ${listing.plotAreaM2} m²` : undefined,
+      hint: listing?.plotAreaM2 != null ? t("kpi.plotHint", { area: listing.plotAreaM2 }) : undefined,
       compact: true,
     },
     {
       key: "year",
-      label: "Bouw",
+      label: t("kpi.buildYear"),
       value: listing?.constructionYear != null ? String(listing.constructionYear) : "—",
       hint: listing?.propertyType?.split(",")[0],
       compact: true,
     },
     {
       key: "rooms",
-      label: "Kamers",
+      label: t("kpi.rooms"),
       value: listing?.roomCount != null && listing?.bedroomCount != null
         ? `${listing.roomCount} / ${listing.bedroomCount}`
         : listing?.roomCount != null
           ? String(listing.roomCount)
           : "—",
-      hint: listing?.bedroomCount != null ? "kamers / slk" : undefined,
+      hint: listing?.bedroomCount != null ? t("kpi.roomsHint") : undefined,
       compact: false,
     },
     {
@@ -73,7 +75,7 @@ export function PropertyKpiStrip({
   if (variant === "compact" && !label && visible.every((kpi) => kpi.value === "—")) return null;
 
   return (
-    <section className={`dash-kpis ${variant === "compact" ? "is-compact" : ""}`} aria-label="Kerncijfers">
+    <section className={`dash-kpis ${variant === "compact" ? "is-compact" : ""}`} aria-label={t("kpi.keyFiguresAria")}>
       {visible.map((kpi) => (
         <div className="dash-kpi" key={kpi.key}>
           <small>{kpi.label}</small>
@@ -83,7 +85,7 @@ export function PropertyKpiStrip({
       ))}
       {variant === "full" && (
         <div className="dash-kpi dash-kpi-energy">
-          <small>Label</small>
+          <small>{t("kpi.energyShort")}</small>
           <strong>{label ?? "—"}</strong>
           <div className="energy-track" aria-hidden="true">
             {ENERGY_TRACK.map((letter) => (
@@ -94,7 +96,7 @@ export function PropertyKpiStrip({
       )}
       {variant === "compact" && (
         <div className="dash-kpi dash-kpi-energy">
-          <small>Label</small>
+          <small>{t("kpi.energyShort")}</small>
           <strong>{label ?? "—"}</strong>
         </div>
       )}

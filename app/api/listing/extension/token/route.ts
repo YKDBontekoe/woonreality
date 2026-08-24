@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createExtensionToken, hashExtensionToken } from "@/src/lib/extension-auth";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -16,14 +19,16 @@ function tokenLabel(request: Request, bodyLabel?: string) {
   return "Browser-extensie";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Account is hier niet geconfigureerd." }, { status: 503, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionAccountNotConfigured") }, { status: 503, headers: PRIVATE });
   }
   try {
     const supabase = await createSupabaseServerClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) return NextResponse.json({ error: "Log in om de extensie te koppelen." }, { status: 401, headers: PRIVATE });
+    if (authError || !auth.user) return NextResponse.json({ error: t("errors.loginToLinkExtension") }, { status: 401, headers: PRIVATE });
     const { data, error } = await supabase
       .from("listing_extension_tokens")
       .select("id, label, created_at, last_used_at, revoked_at")
@@ -33,13 +38,15 @@ export async function GET() {
     if (error) throw error;
     return NextResponse.json({ tokens: data ?? [] }, { headers: PRIVATE });
   } catch {
-    return NextResponse.json({ error: "Koppelcodes konden niet worden geladen." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.linkCodesLoadFailed") }, { status: 502, headers: PRIVATE });
   }
 }
 
 export async function POST(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Account is hier niet geconfigureerd." }, { status: 503, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionAccountNotConfigured") }, { status: 503, headers: PRIVATE });
   }
   let label: string | undefined;
   try {
@@ -51,7 +58,7 @@ export async function POST(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) return NextResponse.json({ error: "Log in om de extensie te koppelen." }, { status: 401, headers: PRIVATE });
+    if (authError || !auth.user) return NextResponse.json({ error: t("errors.loginToLinkExtension") }, { status: 401, headers: PRIVATE });
     const token = createExtensionToken();
     const { data, error } = await supabase.from("listing_extension_tokens").insert({
       user_id: auth.user.id,
@@ -66,6 +73,6 @@ export async function POST(request: Request) {
       createdAt: data.created_at,
     }, { headers: PRIVATE });
   } catch {
-    return NextResponse.json({ error: "Koppelcode kon niet worden aangemaakt." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.linkCodeCreateFailed") }, { status: 502, headers: PRIVATE });
   }
 }

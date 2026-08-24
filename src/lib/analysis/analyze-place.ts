@@ -1,4 +1,5 @@
 import type { Coordinates, PlaceAnalysis, PlaceKind } from "@/src/lib/types";
+import type { Locale } from "@/src/lib/i18n/config";
 import {
   createCbsEvidence,
   createCrimeEvidence,
@@ -69,7 +70,7 @@ function spatialScaleForKind(kind: PlaceKind) {
   return "gemeente";
 }
 
-export async function analyzePlace(kind: PlaceKind, code: string): Promise<PlaceAnalysis | null> {
+export async function analyzePlace(kind: PlaceKind, code: string, locale: Locale = "nl"): Promise<PlaceAnalysis | null> {
   let name = code;
   let subtitle: string | undefined;
   let coordinates: Coordinates | null = null;
@@ -128,11 +129,11 @@ export async function analyzePlace(kind: PlaceKind, code: string): Promise<Place
     cbs,
     ses,
     crime,
-    cbsEvidence: createCbsEvidence(cbs, cbsSourceUrl),
-    sesEvidence: createSesEvidence(ses, sesStatLineTableUrl),
-    crimeEvidence: createCrimeEvidence(crime, politieMisdrijvenTableUrl),
+    cbsEvidence: createCbsEvidence(cbs, cbsSourceUrl, locale),
+    sesEvidence: createSesEvidence(ses, sesStatLineTableUrl, locale),
+    crimeEvidence: createCrimeEvidence(crime, politieMisdrijvenTableUrl, locale),
     spatialScale,
-  });
+  }, locale);
 
   return {
     kind,

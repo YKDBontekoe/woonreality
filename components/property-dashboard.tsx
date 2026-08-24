@@ -11,9 +11,10 @@ import {
   RotateCcw,
   Share2,
 } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
 import dynamic from "next/dynamic";
 import type { Route } from "next";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
@@ -56,6 +57,11 @@ import type {
   PropertyListing,
 } from "@/src/lib/types";
 
+function MapLoadingFallback() {
+  const t = useTranslations("woning");
+  return <div className="property-map-loading" role="status">{t("dashboard.mapLoading")}</div>;
+}
+
 // Mapbox accounts for most of the property page's JavaScript. Let people read
 // the verdict and key figures first; the interactive map follows immediately
 // after hydration instead of delaying the whole decision screen.
@@ -63,7 +69,7 @@ const PropertyMap = dynamic(
   () => import("@/components/property-map").then((module) => module.PropertyMap),
   {
     ssr: false,
-    loading: () => <div className="property-map-loading" role="status">Kaart laden…</div>,
+    loading: () => <MapLoadingFallback />,
   },
 );
 
@@ -79,14 +85,14 @@ const TAB_IDS = [
 
 type TabId = (typeof TAB_IDS)[number];
 
-const TABS: { id: TabId; label: string; hash: string }[] = [
-  { id: "overzicht", label: "Overzicht", hash: "#overzicht" },
-  { id: "deal", label: "Jouw deal", hash: "#deal" },
-  { id: "advertentie", label: "Advertentie", hash: "#advertentie" },
-  { id: "signalen", label: "Signalen", hash: "#signalen" },
-  { id: "omgeving", label: "Omgeving", hash: "#omgeving" },
-  { id: "checklist", label: "Bezichtiging", hash: "#checklist" },
-  { id: "bronnen", label: "Bronnen", hash: "#bronnen" },
+const TABS: { id: TabId; hash: string }[] = [
+  { id: "overzicht", hash: "#overzicht" },
+  { id: "deal", hash: "#deal" },
+  { id: "advertentie", hash: "#advertentie" },
+  { id: "signalen", hash: "#signalen" },
+  { id: "omgeving", hash: "#omgeving" },
+  { id: "checklist", hash: "#checklist" },
+  { id: "bronnen", hash: "#bronnen" },
 ];
 
 const HASH_ALIASES: Record<string, TabId> = {
@@ -104,6 +110,7 @@ function hashToTab(hash: string): TabId {
 }
 
 export function PropertyDashboard({ bagId }: { bagId: string }) {
+  const t = useTranslations("woning");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -170,18 +177,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       .then(async (response) => {
         const body = (await response.json()) as Analysis & { error?: string };
         if (!response.ok)
-          throw new Error(body.error ?? "De analyse kon niet worden geladen");
+          throw new Error(body.error ?? t("dashboard.analysisLoadFailed"));
         setAnalysis(body);
         setError("");
       })
       .catch((caught) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError"))
           setError(
-            caught instanceof Error ? caught.message : "Er ging iets mis",
+            caught instanceof Error ? caught.message : t("somethingWentWrong"),
           );
       });
     return () => controller.abort();
-  }, [bagId, analysisRetry]);
+  }, [bagId, analysisRetry, t]);
 
   useEffect(() => {
     if (!analysis || !visitedTabs.has("overzicht")) return;
@@ -238,7 +245,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         };
         if (response.status === 404 || response.status === 503) return null;
         if (!response.ok)
-          throw new Error("Advertentiedata kon niet worden geladen");
+          throw new Error(t("dashboard.listingLoadFailed"));
         return body.listing ?? null;
       })
       .then((value) => {
@@ -249,7 +256,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           setListing(null);
       });
     return () => controller.abort();
-  }, [bagId]);
+  }, [bagId, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -335,11 +342,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           const defaults = checklistForAnalysis(analysis);
           const cached = loadSessionChecklist(bagId);
           setChecklist(cached ? mergeChecklistWithDefaults(defaults, cached) : defaults);
-          setChecklistError(response.status === 401 ? "Log in om je checklist te bewaren." : checklistSessionNotice);
+          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
           return;
         }
         if (!response.ok)
-          throw new Error(body.error ?? "Checklist kon niet worden geladen.");
+          throw new Error(body.error ?? t("viewing.checklistLoadFailed"));
         const defaults = checklistForAnalysis(analysis);
         setChecklist(
           Array.isArray(body.items)
@@ -354,12 +361,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           setChecklistError(
             caught instanceof Error
               ? caught.message
-              : "Checklist kon niet worden geladen.",
+              : t("viewing.checklistLoadFailed"),
           );
         }
       });
     return () => controller.abort();
-  }, [analysis, bagId, visitedTabs]);
+  }, [analysis, bagId, visitedTabs, t]);
 
   const marketListingPreview = mergeListings(userListing, listing);
   const listingExtractKey = marketListingPreview && hasListingExtractText(marketListingPreview)
@@ -430,13 +437,13 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         );
         const body = (await response.json()) as { error?: string };
         if (supportsSessionChecklistFallback(response.status)) {
-          if (!saveSessionChecklist(bagId, next)) throw new Error("Je checklist kon niet in deze browser worden bewaard.");
-          setChecklistError(response.status === 401 ? "Log in om je checklist te bewaren." : checklistSessionNotice);
+          if (!saveSessionChecklist(bagId, next)) throw new Error(t("viewing.browserSaveFailed"));
+          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
           return;
         }
         if (!response.ok)
           throw new Error(
-            body.error ?? "Checklist kon niet worden opgeslagen.",
+            body.error ?? t("viewing.checklistSaveFailed"),
           );
         setChecklistError("");
       });
@@ -447,7 +454,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       setChecklistError(
         caught instanceof Error
           ? caught.message
-          : "Checklist kon niet worden opgeslagen.",
+          : t("viewing.checklistSaveFailed"),
       );
     }
   }
@@ -500,7 +507,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     setShareFallback(false);
     try {
       if (navigator.share) {
-        await navigator.share({ title: "WoonReality woningcheck", url });
+        await navigator.share({ title: t("dashboard.shareTitle"), url });
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -512,7 +519,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       // making the button appear to do nothing.
       if (caught instanceof DOMException && caught.name === "AbortError") return;
       setShareFallback(true);
-      window.prompt("Kopieer de link naar deze woningcheck:", url);
+      window.prompt(t("dashboard.copyPrompt"), url);
     }
   }
 
@@ -521,9 +528,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       <PageShell current="woning">
         <div className="loading-shell">
           <Link className="back-link" href="/">
-            <ArrowLeft size={14} /> Terug naar zoeken
+            <ArrowLeft size={14} /> {t("backToSearch")}
           </Link>
-          <h1>Dit adres lukt nu niet.</h1>
+          <h1>{t("dashboard.addressErrorTitle")}</h1>
           <p className="hero-copy" role="alert">{error}</p>
           <div className="loading-actions">
             <button
@@ -531,10 +538,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               type="button"
               onClick={() => { setError(""); setAnalysisRetry((count) => count + 1); }}
             >
-              <RotateCcw size={14} /> Probeer opnieuw
+              <RotateCcw size={14} /> {t("dashboard.tryAgain")}
             </button>
             <Link className="ghost-button" href="/">
-              Nieuw adres zoeken
+              {t("searchNewAddress")}
             </Link>
           </div>
         </div>
@@ -570,7 +577,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     setActionNotice("");
     const result = await toggleSaved(property, marketListing?.askingPrice ?? workspace.askingPrices[property.bagVboId]);
     if (!result.ok) {
-      setActionNotice("Bewaren lukt nu niet. Probeer het later opnieuw.");
+      setActionNotice(t("dashboard.saveFailedNotice"));
       window.setTimeout(() => setActionNotice(""), 4200);
     }
   }
@@ -590,7 +597,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         <div className="dashboard-top">
           <div>
             <div className="eyebrow">
-              <span className="eyebrow-dot" /> woningcheck
+              <span className="eyebrow-dot" /> {t("dashboard.eyebrow")}
             </div>
             <h1>
               {property.street} {property.houseNumber}
@@ -607,21 +614,21 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               onClick={() => { void saveProperty(); }}
             >
               {isSaved ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}
-              {isSaved ? "Bewaard" : "Bewaar"}
+              {isSaved ? t("saved") : t("save")}
             </button>
             <button
               className={`ghost-button ${isCompared ? "selected" : ""}`}
               type="button"
               disabled={comparisonIsFull}
-              title={comparisonIsFull ? "Je kunt maximaal vier woningen tegelijk vergelijken." : undefined}
+              title={comparisonIsFull ? t("dashboard.compareFullTitle") : undefined}
               onClick={() => { void toggleCompare(property.bagVboId); }}
             >
               <GitCompare size={14} />
-              {isCompared ? "In vergelijking" : comparisonIsFull ? "Vergelijking vol" : "Vergelijk"}
+              {isCompared ? t("dashboard.inComparison") : comparisonIsFull ? t("dashboard.comparisonFull") : t("dashboard.compare")}
             </button>
             <button className="ghost-button share-button" type="button" onClick={() => { void share(); }}>
               {copied ? <Check size={14} /> : <Share2 size={14} />}
-              {copied ? "Gekopieerd" : shareFallback ? "Kopieer link" : "Deel"}
+              {copied ? t("dashboard.copied") : shareFallback ? t("dashboard.copyLink") : t("dashboard.share")}
             </button>
             {actionNotice ? <span className="dashboard-action-note" role="status">{actionNotice}</span> : null}
           </div>
@@ -643,7 +650,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         onJumpToSignal={jumpToSignal}
       />
 
-      <nav className="dashboard-tabs" role="tablist" aria-label="Dashboardsecties">
+      <nav className="dashboard-tabs" role="tablist" aria-label={t("dashboard.sectionsAria")}>
         {TABS.map((item, index) => (
           <button
             key={item.id}
@@ -673,7 +680,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               tabButtonRefs.current[nextIndex]?.focus();
             }}
           >
-            {item.label}
+            {t(`dashboard.tabs.${item.id}`)}
           </button>
         ))}
       </nav>
@@ -682,14 +689,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         <div className="compare-banner" role="status">
           <span>
             <GitCompare size={15} /> {workspace.compare.length === 1
-              ? "1 woning staat klaar. Voeg nog één woning toe om de verschillen naast elkaar te zien."
-              : `${workspace.compare.length} woningen geselecteerd om te vergelijken`}
+              ? t("dashboard.compareBannerOne")
+              : t("dashboard.compareBannerMany", { count: workspace.compare.length })}
           </span>
           <Link
             className="primary-button"
             href={workspace.compare.length >= 2 ? `/vergelijken?ids=${workspace.compare.join(",")}` : "/#zoek-adres"}
           >
-            {workspace.compare.length >= 2 ? "Open vergelijking" : "Kies tweede woning"}
+            {workspace.compare.length >= 2 ? t("openComparison") : t("dashboard.chooseSecond")}
           </Link>
         </div>
       )}
@@ -717,7 +724,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           />
           {(analysis.everydayInsights ?? []).length > 0 && (
             <section className="dash-insights-panel">
-              <div className="section-kicker">In het dagelijks leven</div>
+              <div className="section-kicker">{t("dashboard.dailyLifeKicker")}</div>
               <ul className="dash-point-list">
                 {analysis.everydayInsights.map((insight) => (
                   <li
@@ -738,7 +745,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             housingType={marketListing?.propertyType}
           />
           <details className="dash-collapsible-panel" id="ai-onderzoek">
-            <summary>AI-onderzoek</summary>
+            <summary>{t("dashboard.aiResearchSummary")}</summary>
             <AiResearchSection
               report={aiReport}
               status={aiStatus}
@@ -800,7 +807,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               className="secondary-button"
               href={`/kaart?lat=${property.coordinates.lat}&lng=${property.coordinates.lng}&z=12&layer=ses`}
             >
-              Bekijk op de Nederlandkaart
+              {t("dashboard.viewOnMap")}
             </Link>
           </div>
           <div className="dash-map-studio" id="kaart">
@@ -813,8 +820,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               focusBagId={mapFocusId}
             />
             <aside className="dash-map-nearby">
-              <div className="section-kicker">Woningen dichtbij</div>
-              <h2>Klik om te zien op de kaart</h2>
+              <div className="section-kicker">{t("dashboard.nearbyKicker")}</div>
+              <h2>{t("dashboard.nearbyHeading")}</h2>
               {nearbyProperties.length ? (
                 <div className="nearby-list">
                   {nearbyProperties.map((nearby) => (
@@ -822,15 +829,15 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                       <button type="button" className="nearby-card-focus" onClick={() => setMapFocusId(nearby.bagVboId)}>
                         <strong>{nearby.addressLabel.split(",")[0]}</strong>
                         <span>
-                          {nearby.areaM2 ? `${nearby.areaM2} m²` : "oppervlakte onbekend"} · {nearby.distanceM} m
+                          {nearby.areaM2 ? `${nearby.areaM2} m²` : t("dashboard.areaUnknown")} · {nearby.distanceM} m
                         </span>
                       </button>
-                      <Link href={`/woning/${nearby.bagVboId}`}>Open check</Link>
+                      <Link href={`/woning/${nearby.bagVboId}`}>{t("openCheck")}</Link>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p>Geen omliggende woonadressen gevonden.</p>
+                <p>{t("dashboard.noNearby")}</p>
               )}
             </aside>
           </div>
@@ -842,20 +849,20 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           <section className="checklist-section" id="checklist">
             <div className="section-inline-heading">
               <div>
-                <div className="eyebrow"><span className="eyebrow-dot" /> checklist</div>
-                <h2>Bezichtiging</h2>
+                <div className="eyebrow"><span className="eyebrow-dot" /> {t("dashboard.checklistEyebrow")}</div>
+                <h2>{t("dashboard.viewingTitle")}</h2>
                 {checklistError && (
                   <p className="form-message" role="status">
-                    {checklistError}{authStatus === "anonymous" && <> <Link href="/login">Inloggen</Link></>}
+                    {checklistError}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}
                   </p>
                 )}
               </div>
               <div className="dashboard-actions">
                 <Link className="secondary-button" href={`/woning/${bagId}/bezichtiging`}>
-                  Open op je telefoon
+                  {t("dashboard.openOnPhone")}
                 </Link>
                 <button className="secondary-button" type="button" onClick={() => window.print()}>
-                  <Printer size={14} /> Print
+                  <Printer size={14} /> {t("dashboard.print")}
                 </button>
               </div>
             </div>
@@ -885,12 +892,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                         {item.reason && <small>{item.reason}</small>}
                       </span>
                     </label>
-                    <label className="sr-only" htmlFor={noteId}>Notitie voor {item.label}</label>
+                    <label className="sr-only" htmlFor={noteId}>{t("dashboard.noteAria", { label: item.label })}</label>
                     <input
                       id={noteId}
                       className="checklist-note"
                       value={item.note ?? ""}
-                      placeholder="Eigen notitie"
+                      placeholder={t("dashboard.notePlaceholder")}
                       onChange={(event) => {
                         queueChecklistNoteSave(
                           visibleChecklist.map((candidate) =>
@@ -914,22 +921,22 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-bronnen" aria-labelledby="tab-bronnen">
           <div className="purchase-guardrail-grid dash-guardrails">
             <article>
-              <strong>Juridisch</strong>
-              <p>VvE, erfpacht, splitsing — zelf opvragen.</p>
+              <strong>{t("dashboard.legal")}</strong>
+              <p>{t("dashboard.legalBody")}</p>
             </article>
             <article>
-              <strong>{property.buildingYear != null && property.buildingYear < 1945 ? "Fundering" : "Bouwkundig"}</strong>
-              <p>Keuring blijft nodig. Open data ziet de constructie niet.</p>
+              <strong>{property.buildingYear != null && property.buildingYear < 1945 ? t("dashboard.foundation") : t("dashboard.structural")}</strong>
+              <p>{t("dashboard.structuralBody")}</p>
             </article>
             <article>
-              <strong>Prijs</strong>
-              <p>Bod pas na documenten en keuring.</p>
+              <strong>{t("dashboard.price")}</strong>
+              <p>{t("dashboard.priceBody")}</p>
             </article>
           </div>
           <section className="sources-section" id="bronnen">
             <div className="section-inline-heading">
               <div>
-                <h2>Bronnen</h2>
+                <h2>{t("dashboard.sourcesTitle")}</h2>
               </div>
               <span className="coverage-pill"><Check size={12} /> {analysis.dataCoverage.label}</span>
             </div>
@@ -938,14 +945,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 <div key={source.source}>
                   <span className={`status-dot ${source.status}`} />
                   <strong>{source.source}</strong>
-                  <span>{source.status === "ok" ? "beschikbaar" : (source.message ?? "niet beschikbaar")}</span>
+                  <span>{source.status === "ok" ? t("dashboard.statusAvailable") : (source.message ?? t("dashboard.statusUnavailable"))}</span>
                 </div>
               ))}
             </div>
           </section>
           {analysis.knownGaps.length > 0 && (
             <section className="known-gaps-section" id="niet-gedekt">
-              <h2>Niet gedekt</h2>
+              <h2>{t("dashboard.notCovered")}</h2>
               <div className="known-gaps-list">
                 {analysis.knownGaps.map((gap) => (
                   <div key={gap.key} className="known-gap">
@@ -958,11 +965,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             </section>
           )}
           <div className="source-note">
-            <span><strong>Score</strong> is een omgevingsindicatie, geen koopadvies.</span>
+            <span><strong>{t("dashboard.scoreNoteStrong")}</strong> {t("dashboard.scoreNoteRest")}</span>
             <span><RefreshCw size={12} /> {analysis.analysisVersion}</span>
           </div>
           <p className="dashboard-disclaimer">
-            Open data vervangt geen keuring, notaris of hypotheekadvies.
+            {t("dashboard.disclaimer")}
           </p>
         </div>
       )}
@@ -978,12 +985,17 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   );
 }
 
+function LoadingBackLabel() {
+  const t = useTranslations("woning");
+  return <>{t("backToSearch")}</>;
+}
+
 function LoadingDashboard() {
   return (
     <PageShell current="woning" className="property-dash-shell">
       <div className="loading-shell">
         <Link className="back-link" href="/">
-          <ArrowLeft size={14} /> Terug naar zoeken
+          <ArrowLeft size={14} /> <LoadingBackLabel />
         </Link>
         <div className="loading-block" />
         <div className="loading-block big" />

@@ -1,3 +1,4 @@
+import type { Locale } from "@/src/lib/i18n/config";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { listingFromUserRecord } from "@/src/lib/listing-import";
 import { mergeListings } from "@/src/lib/listing-merge";
@@ -40,9 +41,9 @@ export async function loadListingContext(bagId: string) {
   return { property, listing, userId: cacheUserId(user.listing, user.userId), signedIn: Boolean(user.userId) };
 }
 
-export async function loadAiContext(bagId: string) {
+export async function loadAiContext(bagId: string, locale: Locale = "nl") {
   const base = await loadListingContext(bagId);
-  const analysis = await getSharedAnalysis(base.property);
+  const analysis = await getSharedAnalysis(base.property, locale);
   return { ...base, analysis };
 }
 

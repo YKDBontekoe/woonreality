@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/src/lib/i18n/navigation";
 import type { Route } from "next";
 import { Heart } from "lucide-react";
 import { StartCaseButton } from "@/components/start-case-button";
@@ -16,18 +17,19 @@ export function PropertyActionDock({
   isSaved: boolean;
   onSave: () => void;
 }) {
+  const t = useTranslations("woning");
   return (
-    <nav className="dash-dock" aria-label="Volgende stappen">
-      <Link className="primary-button" href={`/woning/${bagVboId}/bezichtiging`}>Bezichtiging</Link>
-      <Link className="secondary-button" href={hypotheekHref}>Hypotheek</Link>
+    <nav className="dash-dock" aria-label={t("actionDock.nextSteps")}>
+      <Link className="primary-button" href={`/woning/${bagVboId}/bezichtiging`}>{t("actionDock.viewingLink")}</Link>
+      <Link className="secondary-button" href={hypotheekHref}>{t("actionDock.mortgageLink")}</Link>
       {caseId ? (
-        <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>Dossier</Link>
+        <Link className="secondary-button" href={`/mijn-aankoop/${caseId}`}>{t("actionDock.caseFile")}</Link>
       ) : (
         <StartCaseButton bagVboId={bagVboId} />
       )}
       <button className={`ghost-button ${isSaved ? "selected" : ""}`} type="button" onClick={onSave}>
         <Heart size={14} fill={isSaved ? "currentColor" : "none"} />
-        {isSaved ? "Bewaard" : "Bewaar"}
+        {isSaved ? t("saved") : t("save")}
       </button>
     </nav>
   );

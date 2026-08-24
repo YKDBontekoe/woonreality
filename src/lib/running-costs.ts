@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type { EnergyTariffs, EnergyConsumption } from "@/src/lib/sources/cbs-energy";
 
 export type RunningCostCategory = "energy" | "housing" | "tax";
@@ -43,7 +45,9 @@ function isGasloos(gasConnection?: boolean): boolean {
   return gasConnection === false;
 }
 
-export function estimateRunningCosts(input: RunningCostInput): RunningCostEstimate {
+export function estimateRunningCosts(input: RunningCostInput, locale: Locale = "nl"): RunningCostEstimate {
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = locale === "en" ? "en-IE" : "nl-NL";
   const { tariffs, consumption, areaM2, vveContribution, gasConnection } = input;
   const lines: RunningCostLine[] = [];
 
@@ -58,10 +62,13 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
   );
   lines.push({
     key: "electricity",
-    label: "Elektriciteit",
+    label: t("runningCosts.lines.electricity.label"),
     amountYearly: Math.max(0, elecYearly),
     amountMonthly: Math.max(0, round(elecYearly / 12)),
-    note: `~${consumption.avgElectricityKwh.toLocaleString("nl-NL")} kWh/jaar × ${tariffs.electricityTotalPerKwh.toLocaleString("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 })}/kWh + vaste kosten.`,
+    note: t("runningCosts.lines.electricity.note", {
+      usage: consumption.avgElectricityKwh.toLocaleString(numTag),
+      price: tariffs.electricityTotalPerKwh.toLocaleString(numTag, { style: "currency", currency: "EUR", minimumFractionDigits: 2 }),
+    }),
     category: "energy",
     cbsSourced: cbsSourcedEnergy,
   });
@@ -73,10 +80,13 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
     );
     lines.push({
       key: "gas",
-      label: "Gas",
+      label: t("runningCosts.lines.gas.label"),
       amountYearly: Math.max(0, gasYearly),
       amountMonthly: Math.max(0, round(gasYearly / 12)),
-      note: `~${consumption.avgGasM3.toLocaleString("nl-NL")} m³/jaar × ${tariffs.gasTotalPerM3.toLocaleString("nl-NL", { style: "currency", currency: "EUR", minimumFractionDigits: 2 })}/m³ + vaste kosten. Inclusief verwarming, warm water en koken.`,
+      note: t("runningCosts.lines.gas.note", {
+        usage: consumption.avgGasM3.toLocaleString(numTag),
+        price: tariffs.gasTotalPerM3.toLocaleString(numTag, { style: "currency", currency: "EUR", minimumFractionDigits: 2 }),
+      }),
       category: "energy",
       cbsSourced: cbsSourcedEnergy,
     });
@@ -84,10 +94,10 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
 
   lines.push({
     key: "water",
-    label: "Water",
+    label: t("runningCosts.lines.water.label"),
     amountYearly: WATER_YEARLY,
     amountMonthly: round(WATER_YEARLY / 12),
-    note: "Landelijk gemiddelde drinkwaterkosten per huishouden.",
+    note: t("runningCosts.lines.water.note"),
     category: "energy",
     cbsSourced: false,
   });
@@ -96,10 +106,10 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
     const yearly = round(vveContribution * 12);
     lines.push({
       key: "vve",
-      label: "VvE-bijdrage",
+      label: t("runningCosts.lines.vve.label"),
       amountYearly: yearly,
       amountMonthly: round(vveContribution),
-      note: "Maandelijkse bijdrage aan de Vereniging van Eigenaren (uit advertentie).",
+      note: t("runningCosts.lines.vve.note"),
       category: "housing",
       cbsSourced: false,
     });
@@ -107,10 +117,10 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
 
   lines.push({
     key: "municipal-taxes",
-    label: "Gemeentelijke belastingen",
+    label: t("runningCosts.lines.municipalTaxes.label"),
     amountYearly: MUNICIPAL_TAXES_YEARLY,
     amountMonthly: round(MUNICIPAL_TAXES_YEARLY / 12),
-    note: "Indicatie OZB, rioolheffing en afvalstoffenheffing. Verschilt per gemeente.",
+    note: t("runningCosts.lines.municipalTaxes.note"),
     category: "tax",
     cbsSourced: false,
   });
@@ -119,10 +129,10 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
     const insuranceYearly = round(areaM2 * INSURANCE_PER_M2_YEARLY);
     lines.push({
       key: "insurance",
-      label: "Opstalverzekering",
+      label: t("runningCosts.lines.insurance.label"),
       amountYearly: insuranceYearly,
       amountMonthly: round(insuranceYearly / 12),
-      note: `Indicatie op basis van ${areaM2} m² woonoppervlak.`,
+      note: t("runningCosts.lines.insurance.note", { area: areaM2.toLocaleString(numTag) }),
       category: "housing",
       cbsSourced: false,
     });
@@ -139,6 +149,6 @@ export function estimateRunningCosts(input: RunningCostInput): RunningCostEstima
     consumptionPeriod: consumption.period,
     tariffSource: tariffs.source,
     consumptionSource: consumption.source,
-    disclaimer: "Dit is een indicatie op basis van CBS-gemiddelden en vaste schattingen, geen persoonlijke offerte. Werkelijke kosten hangen af van leverancier, verbruik, gemeente en woningsituatie.",
+    disclaimer: t("runningCosts.disclaimer"),
   };
 }

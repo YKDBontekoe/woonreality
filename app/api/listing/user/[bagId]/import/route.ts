@@ -9,6 +9,9 @@ import {
   normalizeFundaListingUrl,
 } from "@/src/lib/listing-import";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { userListingImportBodySchema, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
@@ -20,21 +23,23 @@ async function currentUser() {
 }
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { bagId } = await context.params;
-  if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+  if (!isValidBagId(bagId)) return NextResponse.json({ error: t("errors.invalidBagAddress") }, { status: 400 });
   let raw: unknown;
   try {
     raw = await request.json();
   } catch {
-    return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.listingDataInvalid") }, { status: 400 });
   }
   const parsed = userListingImportBodySchema.safeParse(raw);
   if (!parsed.success || !isHttpUrl(parsed.data.sourceUrl)) {
-    return NextResponse.json({ error: "Plak een geldige Funda-advertentielink." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.pasteFundaLink") }, { status: 400 });
   }
   const sourceUrl = normalizeFundaListingUrl(parsed.data.sourceUrl);
   if (!sourceUrl) {
-    return NextResponse.json({ error: "Dit is geen Funda-advertentielink. Plak de link van één woning, geen zoekresultaat." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.notFundaListing") }, { status: 400 });
   }
 
   let imported;
@@ -43,7 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
   } catch (error) {
     const message = error instanceof ListingImportError
       ? error.message
-      : "Deze Funda-link kon niet worden herkend.";
+      : t("errors.fundaLinkUnrecognized");
     const status = error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 422;
     return NextResponse.json({
       error: message,

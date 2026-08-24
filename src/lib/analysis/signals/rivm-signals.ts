@@ -3,8 +3,11 @@ import { createEvidence } from "@/src/lib/analysis/evidence";
 import { clamp, round1 } from "@/src/lib/math";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import { rivmFloodLayer, rivmUrls, type RivmContext } from "@/src/lib/sources/rivm";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export function rivmEvidence(context: RivmContext | null): Evidence {
+export function rivmEvidence(context: RivmContext | null, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "rivm-air-noise",
     source: "RIVM geo-services",
@@ -12,11 +15,12 @@ export function rivmEvidence(context: RivmContext | null): Evidence {
     confidence: "medium",
     fetchedAt: context?.fetchedAt,
     spatialResolution: "RIVM rastercel",
-    caveat: "RIVM-waarden zijn model- of rasterwaarden; gevel, verdieping en momentane omstandigheden kunnen afwijken.",
+    caveat: t("noise.caveat"),
   });
 }
 
-export function rivmFloodEvidence(context: RivmContext | null): Evidence {
+export function rivmFloodEvidence(context: RivmContext | null, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "rivm-flood",
     source: "RIVM geo-services",
@@ -24,7 +28,7 @@ export function rivmFloodEvidence(context: RivmContext | null): Evidence {
     confidence: "low",
     fetchedAt: context?.fetchedAt,
     spatialResolution: "landelijke rastercel (Klimaateffectenatlas)",
-    caveat: "Modelklasse voor overstroming door falen van primaire keringen. Geeft geen waterdiepte en geen regenwateroverlast; check risicokaart.nl voor het officiële beeld.",
+    caveat: t("flood.caveat"),
   });
 }
 
@@ -40,22 +44,23 @@ function formatDb(value: number) {
   return value.toLocaleString("nl-NL", { maximumFractionDigits: 1 });
 }
 
-export function noiseSignal(input: { rivm: RivmContext | null; evidence: Evidence; fallback?: Partial<Signal> }): Signal {
+export function noiseSignal(input: { rivm: RivmContext | null; evidence: Evidence; fallback?: Partial<Signal> }, locale: Locale = "nl"): Signal {
   const { rivm, evidence, fallback } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const hasModelValue = rivm?.noiseLden != null;
   const score = hasModelValue ? noiseScoreFromLden(rivm!.noiseLden!) : undefined;
   return {
     key: "noise",
-    label: "Geluidsscreening",
+    label: t("noise.label"),
     category: "gezondheid",
-    value: hasModelValue ? round1(score!) : (fallback?.value ?? "Geen data"),
+    value: hasModelValue ? round1(score!) : (fallback?.value ?? t("common.noData")),
     unit: hasModelValue ? "/ 10" : undefined,
     score,
     severity: hasModelValue ? scoreSeverity(score!) : (fallback?.severity ?? "neutral"),
     summary: hasModelValue
-      ? `RIVM-modelwaarde voor wegverkeersgeluid is ${formatDb(rivm!.noiseLden!)} dB Lden.`
-      : (fallback?.summary ?? "Er is geen geluidsindicatie beschikbaar."),
-    action: "Luister tijdens de avondspits met ramen open én dicht; dit is geen officiële geluidmeting.",
+      ? t("noise.summaryDb", { db: formatDb(rivm!.noiseLden!) })
+      : (fallback?.summary ?? t("noise.noDataSummary")),
+    action: t("noise.action"),
     raw: hasModelValue
       ? { value: rivm!.noiseLden!, unit: "dB Lden", metric: "RIVM wegverkeersgeluid" }
       : fallback?.raw,
@@ -66,28 +71,29 @@ export function noiseSignal(input: { rivm: RivmContext | null; evidence: Evidenc
   };
 }
 
-export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence }): Signal {
+export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence }, locale: Locale = "nl"): Signal {
   const { rivm, evidence } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const no2Score = rivm?.no2 != null ? clamp(10 - Math.max(0, rivm.no2 - 10) / 3) : undefined;
   const pm25Score = rivm?.pm25 != null ? clamp(10 - Math.max(0, rivm.pm25 - 5) / 2) : undefined;
   const score = no2Score ?? pm25Score;
   return {
     key: "air",
-    label: "Luchtkwaliteit",
+    label: t("air.label"),
     category: "gezondheid",
     value: rivm?.no2 != null
-      ? `${formatDb(rivm.no2)} µg/m³ NO₂`
+      ? t("air.valueNo2", { db: formatDb(rivm.no2) })
       : rivm?.pm25 != null
-        ? `${formatDb(rivm.pm25)} µg/m³ PM₂·₅`
-        : "Geen data",
+        ? t("air.valuePm25", { db: formatDb(rivm.pm25) })
+        : t("common.noData"),
     score,
     severity: score != null ? scoreSeverity(score) : "neutral",
     summary: rivm?.no2 != null
-      ? `RIVM rapporteert ${formatDb(rivm.no2)} µg/m³ jaargemiddelde NO₂.`
+      ? t("air.summaryNo2", { db: formatDb(rivm.no2) })
       : rivm?.pm25 != null
-        ? `RIVM rapporteert ${formatDb(rivm.pm25)} µg/m³ PM₂·₅.`
-        : "Er is geen RIVM-luchtkwaliteitswaarde beschikbaar.",
-    action: "Gebruik de waarde als buurtindicatie; ventilatie, verkeer op straatniveau en binnenlucht bepalen je werkelijke blootstelling.",
+        ? t("air.summaryPm25", { db: formatDb(rivm.pm25) })
+        : t("air.noDataSummary"),
+    action: t("air.action"),
     raw: rivm?.no2 != null
       ? { value: rivm.no2, unit: "µg/m³", metric: "RIVM jaargemiddelde NO₂" }
       : rivm?.pm25 != null
@@ -104,7 +110,8 @@ export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence 
  * Official legend of the RIVM "kans op overstroming" raster, in legend order.
  * The raster returns these as GRAY_INDEX 1–6; the mapping was calibrated
  * against known terrain (Veluwe = 1, IJsselmeer = 6, buitendijks Rotterdam = 2,
- * Verdronken Land van Saeftinghe = 5).
+ * Verdronken Land van Saeftinghe = 5). Labels stay the calibrated raster
+ * legend; display copy is resolved per locale in floodSignal.
  */
 export const FLOOD_RISK_CLASSES: Record<number, { label: string; score: number | null }> = {
   1: { label: "overstroomt niet", score: 9 },
@@ -120,23 +127,25 @@ export function floodScoreFromClass(floodClass: number) {
   return FLOOD_RISK_CLASSES[floodClass]?.score ?? undefined;
 }
 
-export function floodSignal(input: { rivm: RivmContext | null; evidence: Evidence }): Signal {
+export function floodSignal(input: { rivm: RivmContext | null; evidence: Evidence }, locale: Locale = "nl"): Signal {
   const { rivm, evidence } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const floodClass = rivm?.floodClass;
   const entry = floodClass != null ? FLOOD_RISK_CLASSES[floodClass] : undefined;
+  const classLabel = floodClass != null ? t(`flood.class.${floodClass}`) : undefined;
   const score = entry?.score ?? undefined;
   return {
     key: "flood",
-    label: "Overstromingskans (indicatie)",
+    label: t("flood.label"),
     category: "klimaat",
-    value: entry?.label ?? "Geen data",
+    value: classLabel ?? t("common.noData"),
     unit: score != null ? "/ 10" : undefined,
     score,
     severity: score != null ? scoreSeverity(score) : "neutral",
-    summary: floodClass != null && entry
-      ? `RIVM modelleert voor deze locatie “${entry.label}” bij falen van primaire keringen. Dit is een grove rasterindicatie: geen waterdiepte en geen regenwateroverlast.`
-      : "De RIVM-overstromingsrasterwaarde is niet beschikbaar voor dit punt.",
-    action: "Bekijk de officiële diepte- en scenariokaarten op Risicokaart.nl en vraag bij de gemeente naar het rioleringsplan bij hevige regen.",
+    summary: floodClass != null && entry && classLabel
+      ? t("flood.summary", { label: classLabel })
+      : t("flood.noDataSummary"),
+    action: t("flood.action"),
     raw: floodClass != null
       ? { value: floodClass, unit: "klasse", metric: "RIVM kans op overstroming (Klimaateffectenatlas)" }
       : undefined,

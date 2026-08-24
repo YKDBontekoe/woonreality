@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
 import { caseStageFromProperty, normalizeCaseStage } from "@/src/lib/journey";
 import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
@@ -42,7 +45,7 @@ async function currentUser() {
   return { supabase, user: error ? null : data.user };
 }
 
-async function readWorkspace() {
+async function readWorkspace(locale: Locale = "nl") {
   const { supabase, user } = await currentUser();
   if (!user) return { supabase, user: null, workspace: null };
   const [{ data: profile, error: profileError }, { data: saved, error: savedError }, { data: listings, error: listingsError }] = await Promise.all([
@@ -75,7 +78,7 @@ async function readWorkspace() {
       nhg: mortgageState.nhg,
       energyLabel: mortgageState.energyLabel || undefined,
       askingPrice: mortgageState.askingPrice || undefined,
-    });
+    }, undefined, locale);
     if (capacity.available) mortgageSnapshot = buildMortgageSnapshot(capacity, mortgageState.nhg);
   }
   return {
@@ -106,22 +109,26 @@ async function readWorkspace() {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   try {
-    const result = await readWorkspace();
-    if (!result.user || !result.workspace) return NextResponse.json({ error: "Log in om je aankoopomgeving te bewaren." }, { status: 401 });
+    const result = await readWorkspace(locale);
+    if (!result.user || !result.workspace) return NextResponse.json({ error: t("errors.loginToSaveWorkspace") }, { status: 401 });
     return NextResponse.json({ workspace: result.workspace });
   } catch {
-    return NextResponse.json({ error: "De veilige aankoopomgeving is nog niet gekoppeld aan Supabase." }, { status: 503 });
+    return NextResponse.json({ error: t("errors.workspaceNotConfigured") }, { status: 503 });
   }
 }
 
 export async function POST(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   try {
-    const result = await readWorkspace();
-    if (!result.user || !result.workspace) return NextResponse.json({ error: "Log in om wijzigingen te bewaren." }, { status: 401 });
+    const result = await readWorkspace(locale);
+    if (!result.user || !result.workspace) return NextResponse.json({ error: t("errors.loginToSaveChanges") }, { status: 401 });
     const parsed = workspaceBodySchema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: "Ongeldige aankoopomgevinggegevens." }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: t("errors.workspaceInvalidData") }, { status: 400 });
     const body: WorkspaceRequest = parsed.data;
     const now = new Date().toISOString();
 
@@ -168,7 +175,7 @@ export async function POST(request: Request) {
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare, p_mortgage: null });
       if (error) throw error;
     } else if (body.action === "profile") {
-      if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
+      if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: t("errors.profileTooLarge") }, { status: 413 });
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: body.preferences ?? null, p_buyer_profile: body.buyerProfile ?? null, p_compare_ids: null, p_mortgage: null });
       if (error) throw error;
     } else if (body.action === "mortgage") {
@@ -177,14 +184,14 @@ export async function POST(request: Request) {
         nhg: state.nhg,
         energyLabel: state.energyLabel || undefined,
         askingPrice: state.askingPrice || undefined,
-      });
+      }, undefined, locale);
       const snapshot = capacity.available ? buildMortgageSnapshot(capacity, state.nhg) : null;
       const nextProfile = capacity.available
         ? buyerProfileFromMortgageCapacity(result.workspace.buyerProfile, capacity, state)
         : result.workspace.buyerProfile;
       const mortgagePayload = { ...state, snapshot };
       if (!preferencesJsonWithinLimit({ mortgageState: mortgagePayload, buyerProfile: nextProfile })) {
-        return NextResponse.json({ error: "Je hypotheekgegevens zijn te groot." }, { status: 413 });
+        return NextResponse.json({ error: t("errors.mortgageTooLarge") }, { status: 413 });
       }
       const { error } = await result.supabase.rpc("merge_profile_preferences", {
         p_preferences: null,
@@ -204,7 +211,7 @@ export async function POST(request: Request) {
     } else if (body.action === "onboarding") {
       const onboardingPatch = { dismissedAt: now };
       if (!preferencesJsonWithinLimit({ onboarding: onboardingPatch })) {
-        return NextResponse.json({ error: "Je profielgegevens zijn te groot." }, { status: 413 });
+        return NextResponse.json({ error: t("errors.profileTooLarge") }, { status: 413 });
       }
       const { error } = await result.supabase.rpc("merge_profile_preferences", {
         p_preferences: null,
@@ -220,9 +227,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Onbekende workspaceactie." }, { status: 400 });
     }
 
-    const updated = await readWorkspace();
+    const updated = await readWorkspace(locale);
     return NextResponse.json({ workspace: updated.workspace });
   } catch {
-    return NextResponse.json({ error: "Je wijziging kon niet worden opgeslagen. Controleer de Supabase-koppeling en probeer opnieuw." }, { status: 502 });
+    return NextResponse.json({ error: t("errors.workspaceSaveFailed") }, { status: 502 });
   }
 }

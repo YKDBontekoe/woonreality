@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Landmark } from "lucide-react";
 import { formatEuro } from "@/src/lib/purchase";
 import { wozRatio } from "@/src/lib/types";
@@ -14,13 +15,14 @@ type WozRow = {
  * region levels. Deliberately framed as context, never as a valuation.
  */
 export function WozBenchmarkCard({ analysis, listing }: { analysis: Analysis; listing: PropertyListing | null }) {
+  const t = useTranslations("woning");
   const benchmark = analysis.wozBenchmark;
   if (!benchmark) return null;
 
   const rows: WozRow[] = [
-    { key: "buurt", label: benchmark.buurtName ? `Buurt (${benchmark.buurtName})` : "Buurt", average: benchmark.buurtAverage },
-    { key: "wijk", label: "Wijk", average: benchmark.wijkAverage },
-    { key: "gemeente", label: "Gemeente", average: benchmark.gemeenteAverage },
+    { key: "buurt", label: benchmark.buurtName ? t("woz.buurtNamed", { name: benchmark.buurtName }) : t("woz.buurt"), average: benchmark.buurtAverage },
+    { key: "wijk", label: t("woz.wijk"), average: benchmark.wijkAverage },
+    { key: "gemeente", label: t("woz.gemeente"), average: benchmark.gemeenteAverage },
   ];
   const available = rows.filter((row) => row.average != null && row.average > 0);
   if (!available.length) return null;
@@ -31,18 +33,18 @@ export function WozBenchmarkCard({ analysis, listing }: { analysis: Analysis; li
   const ratioLabel = ratio == null
     ? null
     : ratio >= 1.05
-      ? `circa ${Math.round((ratio - 1) * 100)}% boven het buurtgemiddelde`
+      ? t("woz.ratioAbove", { pct: Math.round((ratio - 1) * 100) })
       : ratio <= 0.95
-        ? `circa ${Math.round((1 - ratio) * 100)}% onder het buurtgemiddelde`
-        : "rond het buurtgemiddelde";
+        ? t("woz.ratioBelow", { pct: Math.round((1 - ratio) * 100) })
+        : t("woz.ratioAround");
 
   return (
-    <section className="dash-collapsible-panel woz-benchmark" aria-label="WOZ-omgevingsschets">
+    <section className="dash-collapsible-panel woz-benchmark" aria-label={t("woz.surroundingsSketchAria")}>
       <div className="section-inline-heading">
         <div>
-          <div className="eyebrow"><Landmark size={13} /> waarde in de omgeving</div>
-          <h2>Wat kost de buurt?</h2>
-          <p>Gemiddelde WOZ-waarde van álle woningen per gebied (CBS {new Date(benchmark.fetchedAt).getFullYear()}). Dit is geen waarde van deze woning en geen taxatie.</p>
+          <div className="eyebrow"><Landmark size={13} /> {t("woz.areaValueEyebrow")}</div>
+          <h2>{t("woz.whatDoesAreaCost")}</h2>
+          <p>{t("woz.intro", { year: new Date(benchmark.fetchedAt).getFullYear() })}</p>
         </div>
         {askingPrice != null && ratioLabel ? (
           <span className="coverage-pill">{formatEuro(askingPrice)} — {ratioLabel}</span>
@@ -55,17 +57,17 @@ export function WozBenchmarkCard({ analysis, listing }: { analysis: Analysis; li
             <span
               className="woz-benchmark-bar"
               role="img"
-              aria-label={`${row.label}: ${formatEuro(row.average!)}`}
+              aria-label={t("woz.rowAria", { label: row.label, amount: formatEuro(row.average!) })}
             >
               <i style={{ width: `${Math.max(6, Math.round(((row.average ?? 0) / maxAverage) * 100))}%` }} />
             </span>
             <strong>{formatEuro(row.average)}</strong>
           </div>
         ))}
-        {!askingPrice && <small>Vul of importeer een advertentie met vraagprijs om je af te zetten tegen deze gemiddelden.</small>}
+        {!askingPrice && <small>{t("woz.importPrompt")}</small>}
       </div>
       <small className="woz-benchmark-caveat">
-        Het buurtgemiddelde mixt appartementen, rijwoningen en villa&rsquo;s; een afwijkend woningtype verklaart meestal een groot verschil met de vraagprijs.
+        {t("woz.caveat")}
       </small>
     </section>
   );

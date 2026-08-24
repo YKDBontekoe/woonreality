@@ -1,0 +1,488 @@
+{
+  "offerMemo": {
+    "title": "Offer memo",
+    "composedOn": "Prepared on {date}",
+    "bidMarkdown": "**Offer: {amount}**",
+    "notProvided": "not provided",
+    "askingPriceLine": "Asking price: {value}.",
+    "bidLine": "Offer: {amount} ({scenario}).",
+    "ownMaximumLine": "Your own maximum: {value}.",
+    "ownFundsAvailableLine": "Own funds available: {value}.",
+    "buyerCostsLine": "Buyer's closing costs (indication): {value}.",
+    "ownFundsNeededLine": "Total own funds needed for this purchase price (indication): {value}.",
+    "sections": {
+      "offer": "This offer",
+      "financials": "Financial basis",
+      "conditions": "Conditions",
+      "attention": "Attention points from public data",
+      "nextSteps": "Next steps"
+    },
+    "offerLine": "{amount} for the property at {address}, prepared on {date}.",
+    "tone": {
+      "cautious": "Cautious offer with both conditions in place; room to raise the bid if new information comes in.",
+      "balanced": "A realistic offer that matches what the public check shows.",
+      "strong": "Serious intent; a limited number of conditions, provided the documents support them."
+    },
+    "conditions": {
+      "financingRequired": "Financing contingency applies.",
+      "financingWaived": "No financing contingency; funding is (nearly) arranged. A bank guarantee or deposit is offered immediately.",
+      "inspectionRequired": "Structural survey contingency (report follows within the agreed period).",
+      "inspectionWaived": "No structural contingency; a recent survey report can be provided."
+    },
+    "attentionFooter": "These points come from public sources and are not a structural assessment; your own survey remains necessary.",
+    "nextStep1": "If agreed, we would like to receive the draft purchase deed as soon as possible.",
+    "nextStep2": "A bank guarantee or deposit will be arranged within 2 business days of verbal agreement.",
+    "nextStep3": "A civil-law notary and appraiser have already been engaged for this property.",
+    "disclaimer": "This memo was prepared by the buyer using WoonReality and is not advice, an appraisal, or a guarantee. Public data does not replace a survey, a civil-law notary, or mortgage advice."
+  },
+  "bidStrategy": {
+    "labels": {
+      "cautious": "Cautious",
+      "balanced": "Balanced",
+      "strong": "Strong"
+    },
+    "reasons": {
+      "cappedAtBudget": "Capped at your maximum of {amount}.",
+      "noInspectionRisk": "Without a survey contingency you carry the structural risk yourself.",
+      "noFinancingPenalty": "Without a financing contingency you risk the 10% penalty if the bank does not go along.",
+      "aboveAskingPrice": "Above the asking price: the bank lends based on the appraised value or the purchase price (whichever is lower). You must cover the difference from the appraised value out of your own pocket."
+    },
+    "cautiousReason1": "Below the asking price because there is still uncertainty.",
+    "cautiousReason2": "Financing and survey contingencies stay in place.",
+    "balancedAdjusted": "Asking price corrected for attention points from the home check.",
+    "balancedAtAskingPrice": "Around the asking price, with both conditions precedent in place.",
+    "balancedStarterSurvey": "As a first-time buyer, a survey contingency is extra wise.",
+    "balancedConditionsHold": "Conditions keep the purchase reversible until the deadlines.",
+    "strongCleanReason1": "Only a small premium if the open data shows few red flags.",
+    "strongCleanReason2": "This is not a winning-chance prediction: bidding competition is unknown.",
+    "strongIssuesReason": "No markup above the asking price while attention points remain open.",
+    "strongNoAnalysisReason1": "Without a home analysis the offer stays at or below the asking price.",
+    "strongNoAnalysisReason2": "Financing and survey contingencies stay in place until the check is done.",
+    "valuationNoteWithCosts": "Not an appraisal. The asking price is what the seller asks, not what the home is worth. Indicative buyer's closing costs around {costs}.",
+    "valuationNoteWithoutCosts": "No appraisal and no Cadastre references. Enter the asking price; a market value only follows from official comparables or an appraiser.",
+    "riskSummary": {
+      "one": "{count} attention point from the open-data check{suffix}.",
+      "many": "{count} attention points from the open-data check{suffix}.",
+      "foundationSuffix": ", including foundation",
+      "none": "No serious open-data attention points; the structural condition remains unknown without a survey."
+    },
+    "negotiation": {
+      "step1": "React to one variable at a time: either the amount, or a condition (e.g. dropping a contingency). Never give away both in the same step.",
+      "step2": "Always ask what the reason behind the counteroffer is: another bid, an appraisal difference, or simply negotiating room. That determines your response.",
+      "step3": "Raise the bid in small, well-argued steps. Every increase without explanation suggests there is more room still.",
+      "step4": "Always put new agreements in writing (email), even if the seller's agent seems to agree verbally.",
+      "escalationTitle": "Escalation clause",
+      "escalationSummary": "An escalation clause says: 'I bid X, but automatically go Y above the best competing bid, up to a maximum of Z.' This prevents you from having to blindly guess against unknown competition.",
+      "escalationWhenToUse": "Especially useful with demonstrable bidding competition (multiple viewers, short response window) and when you have a hard ceiling.",
+      "escalationCaution": "Agree beforehand with the selling agent that you receive the anonymised bid log afterwards, so you can verify the escalation was justified. Not every selling agent accepts this clause.",
+      "walkAwayWithMax": "Decide your maximum in advance (currently around {max}) and be prepared to walk away from the deal once it is exceeded. A house that costs you your financial margin is not a good buy.",
+      "walkAwayWithoutMax": "Decide your maximum in advance and be prepared to walk away from the deal once it is exceeded. A house that costs you your financial margin is not a good buy."
+    }
+  },
+  "costs": {
+    "lines": {
+      "transferTax": {
+        "label": "Transfer tax",
+        "noteInvestor": "{rate}% for a property that is not a main residence ({year}). Not deductible.",
+        "noteStarterExemption": "First-time buyer exemption up to {threshold} ({year}; age, self-occupancy and prior use are verified by the civil-law notary). Not deductible.",
+        "noteOwnerOccupier": "{rate}% for a property as a main residence. Investment: {investorRate}%. The first-time buyer exemption depends on age and self-occupancy. Not deductible.",
+        "noteNewBuild": "New build (V.O.N.): VAT is included in the purchase price, no transfer tax."
+      },
+      "notaryTransfer": {
+        "label": "Civil-law notary – deed of transfer (indication)",
+        "note": "Deed transferring the property. Not deductible. Ask for a quote."
+      },
+      "notaryMortgage": {
+        "label": "Civil-law notary – mortgage deed (indication)",
+        "note": "Financing costs: deductible in box 1 in the year of payment."
+      },
+      "kadasterTransfer": {
+        "label": "Cadastre – transfer registration",
+        "note": "Registration of the transfer ({year} KIK rate). Not deductible."
+      },
+      "kadasterMortgage": {
+        "label": "Cadastre – mortgage registration",
+        "note": "Registration of the mortgage ({year} KIK rate). Deductible as financing costs."
+      },
+      "appraisal": {
+        "label": "Appraisal (indication)",
+        "note": "Often required for the mortgage. Deductible if the appraisal is needed for the loan. Not a WoonReality valuation."
+      },
+      "inspection": {
+        "label": "Structural survey (indication)",
+        "note": "Optional but strongly recommended for older builds. Not deductible."
+      },
+      "nhg": {
+        "label": "NHG guarantee fee",
+        "note": "{rate}% of the mortgage amount ({year}; limit {limit}). Deductible. Often financed into the mortgage."
+      },
+      "advice": {
+        "label": "Mortgage advice (indication)",
+        "note": "Advice and brokerage fees for the mortgage. Deductible in box 1. Ask for a quote."
+      },
+      "bankGuarantee": {
+        "label": "Bank guarantee (indication)",
+        "note": "Instead of paying a {percent}% deposit in cash. Not deductible."
+      },
+      "buyingAgent": {
+        "label": "Buying agent (indication)",
+        "note": "{rate}% excl. VAT + {vat}% VAT. Not deductible."
+      },
+      "moving": {
+        "label": "Moving costs (indication)",
+        "note": "No fixed fee; depends on distance and volume. Not deductible."
+      }
+    },
+    "disclaimer": "This is a calculation sketch based on {year} parameters, not mortgage advice. Civil-law notary and adviser rates are indications; NHG, interest rates and bank conditions belong with a certified adviser."
+  },
+  "runningCosts": {
+    "lines": {
+      "electricity": {
+        "label": "Electricity",
+        "note": "~{usage} kWh/year × {price}/kWh + fixed costs."
+      },
+      "gas": {
+        "label": "Gas",
+        "note": "~{usage} m³/year × {price}/m³ + fixed costs. Includes heating, hot water and cooking."
+      },
+      "water": {
+        "label": "Water",
+        "note": "National average drinking water costs per household."
+      },
+      "vve": {
+        "label": "VvE contribution",
+        "note": "Monthly contribution to the owners' association (from the listing)."
+      },
+      "municipalTaxes": {
+        "label": "Municipal taxes",
+        "note": "Indication of property tax (OZB), sewerage charges and waste levies. Varies by municipality."
+      },
+      "insurance": {
+        "label": "Buildings insurance",
+        "note": "Indication based on {area} m² of living area."
+      }
+    },
+    "disclaimer": "This is an indication based on CBS averages and fixed estimates, not a personal quote. Actual costs depend on supplier, consumption, municipality and the property itself."
+  },
+  "listingRisk": {
+    "erfpacht": {
+      "title": "Leasehold: check the ground rent and term",
+      "summary": "The listing mentions leasehold (erfpacht). That means a separate, often annual ground rent on top of your monthly payments, and it can affect mortgageability and value development.",
+      "action": "Request the leasehold conditions: remaining term, ground rent, review date, and whether a buyout is possible or already done. Include this in your mortgage application."
+    },
+    "vveReserveUnknown": {
+      "title": "VvE reserve fund not mentioned",
+      "summary": "There is a VvE contribution, but no reserve fund is mentioned. Without a reserve you risk an unexpected special assessment.",
+      "action": "Ask for the VvE documents (MJOP long-term maintenance plan, reserve fund, minutes) via the agent or civil-law notary."
+    },
+    "vveSpecialLevy": {
+      "title": "Special levy or deferred maintenance mentioned",
+      "summary": "The text mentions a special levy or deferred maintenance. This can be a significant extra cost on top of the purchase price.",
+      "action": "Ask for the amount, the reason, and whether it has already been collected or is still to come."
+    },
+    "ouderdomsclausule": {
+      "title": "Age clause mentioned",
+      "summary": "An age clause limits what you can later recover from the seller for defects that fit the age of the property.",
+      "action": "Have the civil-law notary review the exact clause wording before you sign."
+    },
+    "asbest": {
+      "title": "Asbestos mentioned in the listing",
+      "summary": "Asbestos is mentioned. Especially for builds before 1994 this matters for your structural survey.",
+      "action": "Ask whether there is an asbestos inventory and consider discussing an asbestos clause with the civil-law notary."
+    },
+    "vochtLekkage": {
+      "title": "Moisture, mould or leakage mentioned",
+      "summary": "The listing text mentions moisture, mould or leakage. This is a concrete survey point.",
+      "action": "Have the surveyor check this specifically and ask the seller for the repair history."
+    }
+  },
+  "listingProfileMatch": {
+    "listingLabel": "Listing",
+    "noListingDetails": "No Funda characteristics yet",
+    "bedrooms": {
+      "unit": "bd",
+      "notListed": "Not in the listing",
+      "matchDetail": "≥ {wanted} wanted",
+      "mismatchDetail": "{have} of {wanted} wanted"
+    },
+    "garden": {
+      "label": "Garden",
+      "mentioned": "Mentioned",
+      "notMentioned": "Not mentioned"
+    },
+    "parking": {
+      "label": "Parking",
+      "mentioned": "Mentioned",
+      "notMentioned": "Not mentioned"
+    },
+    "type": {
+      "house": "House",
+      "apartment": "Apartment",
+      "unknown": "Type unknown"
+    },
+    "vve": {
+      "label": "VvE",
+      "notInListing": "Not in the listing",
+      "inListing": "VvE in the listing",
+      "none": "No VvE",
+      "contributionListed": "Contribution mentioned",
+      "mentioned": "VvE mentioned"
+    },
+    "budget": {
+      "label": "Budget",
+      "within": "Under your budget",
+      "above": "Over your budget"
+    }
+  },
+  "documents": {
+    "unreadable": {
+      "title": "Document barely readable",
+      "summary": "We could extract almost no text from this PDF. Scans without a text layer have to be handled manually.",
+      "action": "Upload a searchable PDF, or copy the key points into your notes yourself."
+    },
+    "areaMismatch": {
+      "title": "Floor area differs from BAG",
+      "summary": "The document states about {advertised} m², BAG registers {registered} m². That is not a measurement error we may quietly ignore.",
+      "action": "Ask which measuring instruction the listing uses (NEN 2580) and whether storage/attic space was included."
+    },
+    "priceMismatch": {
+      "title": "Purchase price differs from your offer",
+      "summary": "The deed states an amount around € {contract}; your offer draft is € {offer}.",
+      "action": "Put the deed next to your bid and ask the civil-law notary or agent about the difference."
+    },
+    "mjopMissing": {
+      "title": "MJOP maintenance plan not clearly mentioned",
+      "summary": "No clear long-term maintenance plan was recognised in these VvE documents.",
+      "action": "Ask for the current MJOP and the latest general meeting minutes."
+    },
+    "reserveFundUnclear": {
+      "title": "Reserve fund unclear",
+      "summary": "The reserve fund was not recognised. That does not mean it is missing, but it does mean you need to verify it.",
+      "action": "Ask for the reserve fund balance and whether a special assessment is coming."
+    },
+    "questionnaireIncomplete": {
+      "title": "Questionnaire appears incomplete",
+      "summary": "Characteristic maintenance questions (roof, moisture, central heating, foundation) were not recognised.",
+      "action": "Review the questionnaire yourself and mark empty or evasive answers."
+    },
+    "prewarFoundation": {
+      "title": "Foundation not explained for pre-war build",
+      "summary": "BAG build year {year} and the documents do not mention the foundation. That is a gap, not a green flag.",
+      "action": "Ask the seller for foundation research or known settlement."
+    },
+    "patterns": {
+      "moisture": {
+        "title": "Moisture or leakage mentioned",
+        "summary": "The documents mention moisture, mould or leakage. That is a survey point, not a reason to ignore it.",
+        "action": "Ask for photos and repair history, and have the surveyor look at it specifically."
+      },
+      "foundation": {
+        "title": "Foundation risk in the text",
+        "summary": "Foundation or subsidence is mentioned. Open data is not a foundation study.",
+        "action": "Ask for a foundation report or a specialised inspection."
+      },
+      "asbestos": {
+        "title": "Asbestos mentioned",
+        "summary": "Asbestos in the documents calls for a report or targeted survey, especially for builds before 1994.",
+        "action": "Ask whether there is an asbestos inventory and whether an asbestos clause is in the deed."
+      },
+      "legalConflict": {
+        "title": "Legal conflict mentioned",
+        "summary": "There appears to be a dispute, legal procedure or enforcement action in the documents.",
+        "action": "Have the civil-law notary or a lawyer interpret the passage before you bid."
+      },
+      "vveExtraCosts": {
+        "title": "Extra VvE costs or deferred maintenance",
+        "summary": "The text points to extra contributions or maintenance that has fallen behind.",
+        "action": "Ask for the MJOP maintenance plan, the reserve fund, and whether a special assessment has been decided."
+      },
+      "ageClause": {
+        "title": "Age clause",
+        "summary": "An age clause limits the seller's liability for defects that fit the age of the property.",
+        "action": "Have the civil-law notary explain what you can and cannot recover."
+      },
+      "leasehold": {
+        "title": "Leasehold or ground rent",
+        "summary": "Leasehold changes the monthly payments and saleability. BAG does not say whether the land is leasehold.",
+        "action": "Ask for the remaining term, the ground rent, and whether a buyout is possible."
+      }
+    }
+  },
+  "mortgage": {
+    "disclaimer": "This is the statutory maximum under the 2026 lending norms, not mortgage advice and not a bank offer. Banks assess more strictly (documents, BKR registry, entrepreneurs often via IKV) and often land lower.",
+    "capacity": {
+      "noIncome": "Enter at least one income to calculate your borrowing capacity.",
+      "income": {
+        "label": "Test income",
+        "notePartner": "You {applicant} + partner {partner} (second income counts 100%).",
+        "noteSingle": "Gross test income according to the chosen income sources."
+      },
+      "quote": {
+        "label": "Housing quote {quote}%",
+        "noteAow": "Annex 1 AOW, test rate {rate}%.",
+        "notePreAow": "Annex 1 pre-AOW, test rate {rate}%."
+      },
+      "incomeLoan": {
+        "label": "Maximum mortgage from income",
+        "note": "Annuity over {years} years at the test rate."
+      },
+      "singleExtra": {
+        "label": "Single-person supplement",
+        "note": "Outside the financing burden up to {amount} (art. 3 paragraph 8)."
+      },
+      "energyPurchase": {
+        "label": "Energy label {label} extra",
+        "noteGuarantee": "A++++ with energy performance guarantee: {amount}.",
+        "noteTable": "Extra borrowing room at purchase according to the 2026 table."
+      },
+      "energyMeasures": {
+        "label": "Extra for sustainability measures",
+        "note": "Only usable for energy-saving measures; LTV up to 106%."
+      },
+      "testRate": {
+        "label": "AFM test rate",
+        "note": "Fixed-rate period under 10 years: tested against {rate}% ({basis}).",
+        "floorBasis": "minimum {floor}%"
+      },
+      "nhgCapped": {
+        "label": "NHG cap",
+        "note": "Income room of {room} capped at the {year} cost limit of {limit}{ebv}.",
+        "ebv": " (with EBV up to {limit})"
+      },
+      "nhgApplies": {
+        "label": "NHG applies",
+        "note": "Below the {year} cost limit of {limit}{ebv}.",
+        "ebv": ", with EBV {limit}"
+      },
+      "maxLoan": {
+        "label": "Maximum mortgage for purchase",
+        "noteWithMeasures": "Plus {measures} solely for sustainability measures (total {total}).",
+        "notePlain": "Sum of the income loan and purchase extras, after any NHG cap."
+      },
+      "maxPrice": {
+        "label": "Maximum purchase price (before buyer's closing costs)",
+        "noteWithFunds": "Mortgage for purchase {loan} + own funds {funds}. Transfer tax, civil-law notary and appraisal still need to come off this.",
+        "noteNoFunds": "Without own funds this equals the maximum mortgage (LTV 100%) — buyer's closing costs cannot be paid out of it."
+      },
+      "realBudget": {
+        "label": "What you can really spend",
+        "note": "The purchase price your own funds and mortgage room cover after transfer tax, civil-law notary, Cadastre, appraisal and survey. Use this amount to decide whether a house fits."
+      },
+      "buyerCosts": {
+        "label": "Buyer's closing costs (indication)",
+        "note": "Transfer tax, civil-law notary, Cadastre, appraisal, survey and NHG fee where applicable. See the costs overview for deductibility."
+      },
+      "ownFunds": {
+        "label": "Own funds",
+        "noteFallback": "Contribution towards the purchase price and buyer's closing costs.",
+        "sources": {
+          "savings": "savings",
+          "gift": "gift",
+          "saleEquity": "home equity"
+        }
+      },
+      "fundsGap": {
+        "shortfallLabel": "Own funds shortfall",
+        "surplusLabel": "Own funds headroom",
+        "shortfallNote": "Buyer's closing costs plus the part of the purchase price outside your maximum mortgage.",
+        "surplusNote": "Your contribution covers the buyer's closing costs and any remainder of the purchase price (up to LTV 100%)."
+      },
+      "entrepreneur": {
+        "label": "Entrepreneur",
+        "note": "Test income = 3-year average, capped at the most recent year (NHG IKV). The bank usually requires an Entrepreneur's Income Statement."
+      }
+    },
+    "scenarios": {
+      "current": "Current situation",
+      "noLeaseLabel": "Without private lease",
+      "noLeaseNote": "Currently {monthly} per month in the assessment.",
+      "noDebtsLabel": "Without debts or fixed obligations",
+      "energyLabel": "Energy label {label}",
+      "rateDownLabel": "Interest rate {rate}%",
+      "rateDownNote": "Half a percent lower than your current test-rate input.",
+      "rateUpLabel": "Interest rate {rate}%",
+      "rateUpNote": "Half a percent higher than your current test-rate input.",
+      "nhgWithoutLabel": "Without the NHG cap",
+      "nhgWithLabel": "With the NHG cap",
+      "nhgWithoutNote": "Cost limit {year} {limit}; income room may be higher.",
+      "nhgWithNote": "Caps at {limit} (or {energyLimit} with EBV)."
+    },
+    "obligations": {
+      "lease": {
+        "label": "Private lease",
+        "note": "Actual monthly payment (NHG/BKR OA since April 2022, 100% of the contract)."
+      },
+      "student": {
+        "label": "Student loan",
+        "bracketSf35": "0.35% (SF35)",
+        "bracketLegacy": "0.65% (legacy system)",
+        "noteRemaining": "{bracket} of the outstanding balance per month, because the DUO instalment is missing.",
+        "noteTerm": "DUO instalment grossed up with factor {factor} (art. 3a)."
+      },
+      "revolving": {
+        "label": "Revolving credit / credit card",
+        "note": "{percent}% of the limit per month (standard BKR RK assessment)."
+      },
+      "installment": {
+        "label": "Loans (car, personal)",
+        "note": "Actual monthly payment of repayment loans."
+      },
+      "groundLease": {
+        "label": "Leasehold ground rent",
+        "note": "The annual ground rent counts as a financial obligation for this property."
+      },
+      "alimony": {
+        "label": "Alimony",
+        "note": "Partner and child alimony that you pay."
+      },
+      "otherDebts": {
+        "label": "Other monthly obligations",
+        "note": "Other BKR-registered or fixed obligations."
+      }
+    },
+    "salary": {
+      "months": "12 × monthly salary",
+      "holiday": "Holiday allowance",
+      "holidayRate": "Holiday allowance (8%)",
+      "allowances": "Fixed allowances",
+      "thirteenth": "13th month",
+      "yearEnd": "Year-end payment",
+      "structuralBonus": "Structural bonus",
+      "variableBonus": "Variable bonus (3 years)"
+    },
+    "taxDisclaimer": "Mortgage interest deduction sketch {year}: maximum deduction rate {rate}%, including the imputed rental value (eigenwoningforfait). Net monthly payments are a year-1 indication. Not tax-filing advice.",
+    "market": {
+      "statutoryMinimum": "statutory minimum {floor}%",
+      "builtInIndication": "built-in indication",
+      "dnbEcbSource": "DNB/ECB new residential mortgages (banks)"
+    },
+    "workTypes": {
+      "permanent": "Employment",
+      "temporary": "Temporary",
+      "flex": "Flex",
+      "self_employed": "Self-employed",
+      "dga": "DGA",
+      "pension": "Pension",
+      "mix": "Mix"
+    },
+    "affordability": {
+      "fitLabels": {
+        "fits": "Fits",
+        "tight": "Tight",
+        "over": "Too expensive",
+        "unknown": "Unknown"
+      },
+      "emptyNoFinance": "Fill in your mortgage calculator to see whether this house fits.",
+      "emptyNoPrice": "Enter an asking price to see whether this house fits your budget.",
+      "noAskingPrice": "After buyer's closing costs you can spend about {budget} on a house. Enter an asking price for a fit check.",
+      "fitsBase": "This asking price fits, even after buyer's closing costs (budget {budget}).",
+      "headroom": "Room to bid: {value}.",
+      "renovationBuffer": "About {value} in own funds left for renovation or buffer.",
+      "energyExtra": "Plus {value} extra borrowing room solely for sustainability measures.",
+      "tight": "Tight: after buyer's closing costs you are about {gap} short of your budget of {budget}. Extra own funds or a lower offer can close the gap.",
+      "over": "Over your budget: this house costs {price}. After buyer's closing costs you can pay up to {budget} — {gap} short.",
+      "needOwnFunds": "You need about {gap} in extra own funds for buyer's closing costs and your contribution.",
+      "fallback": "What you can really spend according to your mortgage sketch: {budget}."
+    }
+  }
+}

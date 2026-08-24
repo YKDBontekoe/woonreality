@@ -1,4 +1,6 @@
 import { formatEuro } from "@/src/lib/purchase";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
 /**
  * Bodmemo: a printable one-pager a buyer can hand to the verkopend makelaar.
@@ -38,80 +40,81 @@ export type OfferMemo = {
   disclaimer: string;
 };
 
-const SCENARIO_TONE: Record<OfferMemoInput["scenarioKey"], string> = {
-  cautious: "Voorzichtig bod met beide voorwaarden; ruimte om te verhogen als er nieuwe informatie is.",
-  balanced: "Reëel bod dat past bij wat de openbare check laat zien.",
-  strong: "Serieuze intentie; beperkt aantal voorwaarden, mits documenten dit ondersteunen.",
-};
-
-export function offerMemoConditions(input: Pick<OfferMemoInput, "financingCondition" | "inspectionCondition">) {
+export function offerMemoConditions(
+  input: Pick<OfferMemoInput, "financingCondition" | "inspectionCondition">,
+  locale: Locale = "nl",
+) {
+  const t = getLibTranslator(locale, "lib-finance");
   return [
     input.financingCondition
-      ? "Financieringsvoorbehoud van toepassing."
-      : "Geen financieringsvoorbehoud; financiering staat (bijna) rond. Bankgarantie/waarborgsom wordt direct aangeboden.",
+      ? t("offerMemo.conditions.financingRequired")
+      : t("offerMemo.conditions.financingWaived"),
     input.inspectionCondition
-      ? "Voorbehoud bouwkundige keuring (verslag volgt binnen de afgesproken termijn)."
-      : "Geen bouwkundig voorbehoud; recente keuringsrapportage kan worden overlegd.",
+      ? t("offerMemo.conditions.inspectionRequired")
+      : t("offerMemo.conditions.inspectionWaived"),
   ];
 }
 
-export function buildOfferMemo(input: OfferMemoInput): OfferMemo {
-  const conditions = offerMemoConditions(input);
-  const generatedAtLabel = new Intl.DateTimeFormat("nl-NL", { dateStyle: "long" }).format(new Date(input.generatedAt));
+export function buildOfferMemo(input: OfferMemoInput, locale: Locale = "nl"): OfferMemo {
+  const t = getLibTranslator(locale, "lib-finance");
+  const intlTag = locale === "en" ? "en-IE" : "nl-NL";
+  const conditions = offerMemoConditions(input, locale);
+  const generatedAtLabel = new Intl.DateTimeFormat(intlTag, { dateStyle: "long" }).format(new Date(input.generatedAt));
+  const euro = (value: number) => formatEuro(value, locale);
   const financialLines = [
-    `Vraagprijs: ${input.askingPrice ? formatEuro(input.askingPrice) : "niet opgegeven"}.`,
-    `Bod: ${formatEuro(input.bidAmount)} (${input.scenarioLabel.toLowerCase()}).`,
+    t("offerMemo.askingPriceLine", { value: input.askingPrice ? euro(input.askingPrice) : t("offerMemo.notProvided") }),
+    t("offerMemo.bidLine", { amount: euro(input.bidAmount), scenario: input.scenarioLabel.toLowerCase() }),
   ];
-  if (input.budget && input.budget > 0) financialLines.push(`Eigen maximum: ${formatEuro(input.budget)}.`);
-  if (input.ownFunds != null && input.ownFunds > 0) financialLines.push(`Eigen geld beschikbaar: ${formatEuro(input.ownFunds)}.`);
-  if (input.costsTotal != null && input.costsTotal > 0) financialLines.push(`Kosten koper (indicatie): ${formatEuro(input.costsTotal)}.`);
-  if (input.ownFundsNeeded != null && input.ownFundsNeeded > 0) financialLines.push(`Totaal benodigd eigen geld bij deze koopsom (indicatie): ${formatEuro(input.ownFundsNeeded)}.`);
+  if (input.budget && input.budget > 0) financialLines.push(t("offerMemo.ownMaximumLine", { value: euro(input.budget) }));
+  if (input.ownFunds != null && input.ownFunds > 0) financialLines.push(t("offerMemo.ownFundsAvailableLine", { value: euro(input.ownFunds) }));
+  if (input.costsTotal != null && input.costsTotal > 0) financialLines.push(t("offerMemo.buyerCostsLine", { value: euro(input.costsTotal) }));
+  if (input.ownFundsNeeded != null && input.ownFundsNeeded > 0) financialLines.push(t("offerMemo.ownFundsNeededLine", { value: euro(input.ownFundsNeeded) }));
 
   const attention = (input.attentionPoints ?? []).slice(0, 5);
   return {
-    title: "Bodmemo",
+    title: t("offerMemo.title"),
     subtitle: `${input.addressLabel} — ${input.postcodeCity}`,
     generatedAtLabel,
-    bidAmountLabel: formatEuro(input.bidAmount),
+    bidAmountLabel: euro(input.bidAmount),
     sections: [
       {
-        title: "Dit bod",
+        title: t("offerMemo.sections.offer"),
         lines: [
-          `${formatEuro(input.bidAmount)} voor de woning op ${input.addressLabel}, opgesteld op ${generatedAtLabel}.`,
-          SCENARIO_TONE[input.scenarioKey],
+          t("offerMemo.offerLine", { amount: euro(input.bidAmount), address: input.addressLabel, date: generatedAtLabel }),
+          t(`offerMemo.tone.${input.scenarioKey}`),
         ],
       },
-      { title: "Financiële onderbouwing", lines: financialLines },
-      { title: "Voorwaarden", lines: conditions },
+      { title: t("offerMemo.sections.financials"), lines: financialLines },
+      { title: t("offerMemo.sections.conditions"), lines: conditions },
       ...(attention.length
         ? [{
-          title: "Aandachtspunten uit openbare data",
+          title: t("offerMemo.sections.attention"),
           lines: [
             ...attention,
-            "Deze punten komen uit openbare bronnen en zijn geen bouwkundig oordeel; een eigen keuring blijft nodig.",
+            t("offerMemo.attentionFooter"),
           ],
         }]
         : []),
       {
-        title: "Volgende stappen",
+        title: t("offerMemo.sections.nextSteps"),
         lines: [
-          "Bij akkoord ontvangt u graag zo snel mogelijk het concept-koopakkoord.",
-          "Bankgarantie of waarborgsom wordt binnen 2 werkdagen na mondeling akkoord geregeld.",
-          "Notaris en taxateur zijn al aangenomen voor deze woning.",
+          t("offerMemo.nextStep1"),
+          t("offerMemo.nextStep2"),
+          t("offerMemo.nextStep3"),
         ],
       },
     ],
-    disclaimer:
-      "Deze memo is door de koper zelf opgesteld met WoonReality en is geen advies, taxatie of garantie. Openbare data vervangt geen keuring, notaris of hypotheekadvies.",
+    disclaimer: t("offerMemo.disclaimer"),
   };
 }
 
-export function offerMemoMarkdown(memo: OfferMemo) {
+export function offerMemoMarkdown(memo: OfferMemo, locale: Locale = "nl") {
+  const t = getLibTranslator(locale, "lib-finance");
   const blocks = [
     `# ${memo.title}: ${memo.subtitle}`,
-    `_Opgesteld op ${memo.generatedAtLabel}_`,
+    `_${t("offerMemo.composedOn", { date: memo.generatedAtLabel })}_`,
     "",
-    `**Bod: ${memo.bidAmountLabel}**`,
+    t("offerMemo.bidMarkdown", { amount: memo.bidAmountLabel }),
     "",
     ...memo.sections.flatMap((section) => [`## ${section.title}`, ...section.lines.map((line) => `- ${line}`), ""]),
     "---",

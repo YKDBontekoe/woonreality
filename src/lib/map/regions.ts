@@ -1,8 +1,10 @@
 import {
-  NATIONAL_LAYERS,
+  nationalLayerSpec,
   regionScaleFromZoom,
 } from "@/src/lib/map/national-layers";
 import type { LayerLegend, NationalLayerId, RegionScale } from "@/src/lib/map/national-layers";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import {
   CBS_REGION_LIMIT,
   fetchCbsRegionsInBbox,
@@ -88,12 +90,16 @@ export function regionScaleForRequest(zoom: number | null, scaleParam: string | 
   return zoomScale;
 }
 
-function formatNumber(value: number, precision = 1) {
-  return value.toLocaleString("nl-NL", { maximumFractionDigits: precision, minimumFractionDigits: 0 });
+function localeTag(locale: Locale) {
+  return locale === "en" ? "en-IE" : "nl-NL";
 }
 
-function formatCurrency(value: number) {
-  return value.toLocaleString("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+function formatNumber(value: number, precision = 1, locale: Locale = "nl") {
+  return value.toLocaleString(localeTag(locale), { maximumFractionDigits: precision, minimumFractionDigits: 0 });
+}
+
+function formatCurrency(value: number, locale: Locale = "nl") {
+  return value.toLocaleString(localeTag(locale), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 }
 
 function wozEuros(thousands: number | undefined) {
@@ -106,7 +112,10 @@ export function choroplethValue(
   props: Record<string, unknown>,
   sesLookup: Map<string, import("@/src/lib/sources/ses").SesLookupEntry>,
   crimeLookup: Map<string, import("@/src/lib/sources/politie").CrimeLookupEntry>,
+  locale: Locale = "nl",
 ): { value: number | null; valueLabel: string; extras: Partial<RegionFeatureProperties> } {
+  const t = getLibTranslator(locale, "lib-domain");
+  const noData = t("map.noData");
   const regionCode = typeof props.regionCode === "string" ? props.regionCode : undefined;
   const inhabitants = typeof props.inhabitants === "number" ? props.inhabitants : undefined;
   const ses = lookupSesEntry(sesLookup, regionCode);
@@ -124,50 +133,52 @@ export function choroplethValue(
   switch (layer) {
     case "ses":
       return ses?.sesScore == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: ses.sesScore, valueLabel: ses.sesScore.toLocaleString("nl-NL", { signDisplay: "exceptZero", maximumFractionDigits: 3 }), extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: ses.sesScore, valueLabel: ses.sesScore.toLocaleString(localeTag(locale), { signDisplay: "exceptZero", maximumFractionDigits: 3 }), extras };
     case "education":
       return ses?.educationHighPct == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: ses.educationHighPct, valueLabel: `${formatNumber(ses.educationHighPct, 1)}%`, extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: ses.educationHighPct, valueLabel: `${formatNumber(ses.educationHighPct, 1, locale)}%`, extras };
     case "crime":
       return crimePer1000 == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: crimePer1000, valueLabel: `${formatNumber(crimePer1000, 1)} per 1.000`, extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: crimePer1000, valueLabel: `${formatNumber(crimePer1000, 1, locale)} ${t("map.regions.per1000")}`, extras };
     case "woz": {
       const averageWoz = typeof props.averageWoz === "number" ? props.averageWoz : undefined;
       const euros = wozEuros(averageWoz);
       return euros == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: euros, valueLabel: formatCurrency(euros), extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: euros, valueLabel: formatCurrency(euros, locale), extras };
     }
     case "schools": {
       const distance = typeof props.primarySchoolDistanceKm === "number"
         ? props.primarySchoolDistanceKm
         : undefined;
       return distance == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: distance, valueLabel: `${formatNumber(distance, 1)} km`, extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: distance, valueLabel: `${formatNumber(distance, 1, locale)} km`, extras };
     }
     case "children": {
       const share = typeof props.shareAge0to15Pct === "number" ? props.shareAge0to15Pct : undefined;
       return share == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: share, valueLabel: `${formatNumber(share, 0)}%`, extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: share, valueLabel: `${formatNumber(share, 0, locale)}%`, extras };
     }
     case "density": {
       const density = typeof props.populationDensity === "number" ? props.populationDensity : undefined;
       return density == null
-        ? { value: null, valueLabel: "Geen data", extras }
-        : { value: density, valueLabel: `${formatNumber(density, 0)} per km²`, extras };
+        ? { value: null, valueLabel: noData, extras }
+        : { value: density, valueLabel: `${formatNumber(density, 0, locale)} ${t("map.regions.perKm2")}`, extras };
     }
     default:
-      return { value: null, valueLabel: "Geen data", extras };
+      return { value: null, valueLabel: noData, extras };
   }
 }
 
-function legendForLayer(layer: NationalLayerId, values: number[]): LayerLegend {
-  const spec = NATIONAL_LAYERS[layer];
+function legendForLayer(layer: NationalLayerId, values: number[], locale: Locale = "nl"): LayerLegend {
+  const t = getLibTranslator(locale, "lib-domain");
+  const spec = nationalLayerSpec(layer, locale);
+  const nullLabel = t("map.noData");
   const finite = values.filter((value) => Number.isFinite(value));
   const defaults: Record<NationalLayerId, { min: number; max: number; stops: [number, string][] }> = {
     ses: { min: -0.5, max: 0.5, stops: [[-0.5, CHOROPLETH_COLORS.low], [0, CHOROPLETH_COLORS.mid], [0.5, CHOROPLETH_COLORS.high]] },
@@ -191,7 +202,7 @@ function legendForLayer(layer: NationalLayerId, values: number[]): LayerLegend {
       source: spec.source,
       sourceUrl: spec.sourceUrl,
       caveat: spec.caveat,
-      nullLabel: "Geen data",
+      nullLabel,
     };
   }
   const min = Math.min(...finite);
@@ -209,7 +220,7 @@ function legendForLayer(layer: NationalLayerId, values: number[]): LayerLegend {
     source: spec.source,
     sourceUrl: spec.sourceUrl,
     caveat: spec.caveat,
-    nullLabel: "Geen data",
+    nullLabel,
   };
 }
 
@@ -218,6 +229,7 @@ export async function buildRegionsPayload(
   layer: NationalLayerId,
   scale: RegionScale,
   lookupBudget = MAP_LOOKUP_BUDGET,
+  locale: Locale = "nl",
 ): Promise<RegionsPayload> {
   const rawRegions = await fetchCbsRegionsInBbox(bbox, scale);
   const regionCodes = rawRegions.features
@@ -247,7 +259,7 @@ export async function buildRegionsPayload(
     const props = slim.properties ?? {};
     const regionCode = (regionCodeFromProperties(feature.properties ?? {}, scale) ?? props.regionCode) as string | undefined;
     const enrichedProps = { ...props, regionCode };
-    const { value, valueLabel, extras } = choroplethValue(layer, enrichedProps, sesBundle.lookup, crimeBundle.lookup);
+    const { value, valueLabel, extras } = choroplethValue(layer, enrichedProps, sesBundle.lookup, crimeBundle.lookup, locale);
     if (value != null) values.push(value);
     return {
       type: "Feature",
@@ -269,7 +281,7 @@ export async function buildRegionsPayload(
     meta: {
       layer,
       scale,
-      legend: legendForLayer(layer, values),
+      legend: legendForLayer(layer, values, locale),
       periodYear,
       featureCount: features.length,
       truncated: features.length >= CBS_REGION_LIMIT,
@@ -277,27 +289,28 @@ export async function buildRegionsPayload(
   };
 }
 
-export function regionInspectSummary(props: RegionFeatureProperties) {
+export function regionInspectSummary(props: RegionFeatureProperties, locale: Locale = "nl") {
+  const t = getLibTranslator(locale, "lib-domain");
   const lines: { label: string; value: string }[] = [];
-  if (props.regionName) lines.push({ label: "Gebied", value: props.regionName });
-  if (props.municipalityName) lines.push({ label: "Gemeente", value: props.municipalityName });
-  if (props.inhabitants != null) lines.push({ label: "Inwoners", value: formatNumber(props.inhabitants, 0) });
+  if (props.regionName) lines.push({ label: t("map.regions.area"), value: props.regionName });
+  if (props.municipalityName) lines.push({ label: t("map.regions.municipality"), value: props.municipalityName });
+  if (props.inhabitants != null) lines.push({ label: t("map.regions.inhabitants"), value: formatNumber(props.inhabitants, 0, locale) });
   if (props.sesScore != null) {
     lines.push({
-      label: "SES-WOA",
-      value: props.sesScore.toLocaleString("nl-NL", { signDisplay: "exceptZero", maximumFractionDigits: 3 }),
+      label: t("map.regions.sesWoa"),
+      value: props.sesScore.toLocaleString(localeTag(locale), { signDisplay: "exceptZero", maximumFractionDigits: 3 }),
     });
   }
-  if (props.educationHighPct != null) lines.push({ label: "Hoogopgeleid", value: `${formatNumber(props.educationHighPct, 1)}%` });
-  if (props.crimePer1000 != null) lines.push({ label: "Misdrijven", value: `${formatNumber(props.crimePer1000, 1)} per 1.000` });
+  if (props.educationHighPct != null) lines.push({ label: t("map.regions.highlyEducated"), value: `${formatNumber(props.educationHighPct, 1, locale)}%` });
+  if (props.crimePer1000 != null) lines.push({ label: t("map.regions.offences"), value: `${formatNumber(props.crimePer1000, 1, locale)} ${t("map.regions.per1000")}` });
   if (props.averageWoz != null) {
     const euros = wozEuros(props.averageWoz);
-    if (euros != null) lines.push({ label: "Gem. WOZ", value: formatCurrency(euros) });
+    if (euros != null) lines.push({ label: t("map.regions.avgWoz"), value: formatCurrency(euros, locale) });
   }
   if (props.primarySchoolDistanceKm != null) {
-    lines.push({ label: "Basisschool", value: `${formatNumber(props.primarySchoolDistanceKm, 1)} km gemiddeld` });
+    lines.push({ label: t("map.regions.primarySchool"), value: t("map.regions.primarySchoolAvg", { km: formatNumber(props.primarySchoolDistanceKm, 1, locale) }) });
   }
-  if (props.shareAge0to15Pct != null) lines.push({ label: "0–15 jaar", value: `${formatNumber(props.shareAge0to15Pct, 0)}%` });
-  if (props.populationDensity != null) lines.push({ label: "Dichtheid", value: `${formatNumber(props.populationDensity, 0)} per km²` });
+  if (props.shareAge0to15Pct != null) lines.push({ label: t("map.regions.age0to15"), value: `${formatNumber(props.shareAge0to15Pct, 0, locale)}%` });
+  if (props.populationDensity != null) lines.push({ label: t("map.regions.density"), value: `${formatNumber(props.populationDensity, 0, locale)} ${t("map.regions.perKm2")}` });
   return lines;
 }

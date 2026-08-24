@@ -10,6 +10,9 @@ import {
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
 import { createSupabaseAdminClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 
 export const runtime = "nodejs";
 
@@ -22,8 +25,10 @@ function bearerToken(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Account is hier niet geconfigureerd." }, { status: 503, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionAccountNotConfigured") }, { status: 503, headers: PRIVATE });
   }
   const token = bearerToken(request);
   if (!token) {
@@ -31,7 +36,7 @@ export async function POST(request: Request) {
   }
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return NextResponse.json({ error: "Account is hier niet geconfigureerd." }, { status: 503, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionAccountNotConfigured") }, { status: 503, headers: PRIVATE });
   }
 
   const { data: tokenRow, error: tokenError } = await admin
@@ -40,7 +45,7 @@ export async function POST(request: Request) {
     .eq("token_hash", hashExtensionToken(token))
     .maybeSingle();
   if (tokenError) {
-    return NextResponse.json({ error: "Koppeling kon niet worden gecontroleerd." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionLinkCheckFailed") }, { status: 502, headers: PRIVATE });
   }
   if (!tokenRow || tokenRow.revoked_at) {
     return NextResponse.json({ error: "Deze koppeling is ongeldig of ingetrokken. Koppel de extensie opnieuw." }, { status: 401, headers: PRIVATE });
@@ -50,7 +55,7 @@ export async function POST(request: Request) {
   try {
     raw = await request.json();
   } catch {
-    return NextResponse.json({ error: "Ongeldige advertentiegegevens." }, { status: 400, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.listingDataInvalid") }, { status: 400, headers: PRIVATE });
   }
   const parsed = parseListingCaptureEnvelope(raw);
   if (!parsed.success) {
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
     .eq("user_id", tokenRow.user_id)
     .gte("created_at", hourAgo);
   if (countError) {
-    return NextResponse.json({ error: "Limiet kon niet worden gecontroleerd." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionLimitCheckFailed") }, { status: 502, headers: PRIVATE });
   }
   if ((count ?? 0) >= EXTENSION_INGEST_LIMIT_PER_HOUR) {
     return NextResponse.json({ error: "Je hebt te veel advertenties in het afgelopen uur opgeslagen. Probeer het later." }, { status: 429, headers: PRIVATE });
@@ -72,14 +77,14 @@ export async function POST(request: Request) {
 
   const query = addressQueryFromFacts(parsed.data.facts, parsed.data.sourceUrl)?.trim();
   if (!query) {
-    return NextResponse.json({ error: "We konden geen adres uit deze advertentie halen." }, { status: 422, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.noAddressInListing") }, { status: 422, headers: PRIVATE });
   }
 
   let results;
   try {
     results = await searchAddresses(query, 6);
   } catch {
-    return NextResponse.json({ error: "Het adres uit de advertentie kon nu niet worden opgezocht." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.addressLookupFailedShort") }, { status: 502, headers: PRIVATE });
   }
   const address = results[0];
   if (!address) {
@@ -97,7 +102,7 @@ export async function POST(request: Request) {
     .eq("bag_vbo_id", address.bagVboId)
     .maybeSingle();
   if (existingError) {
-    return NextResponse.json({ error: "Advertentie kon niet worden opgeslagen." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionListingSaveFailed") }, { status: 502, headers: PRIVATE });
   }
   const existingFacts = mergeListingFacts(
     factsFromUnknown(existing?.extracted_json),
@@ -116,7 +121,7 @@ export async function POST(request: Request) {
     updated_at: fetchedAt,
   }, { onConflict: "user_id,bag_vbo_id" });
   if (upsertError) {
-    return NextResponse.json({ error: "Advertentie kon niet worden opgeslagen." }, { status: 502, headers: PRIVATE });
+    return NextResponse.json({ error: t("errors.extensionListingSaveFailed") }, { status: 502, headers: PRIVATE });
   }
 
   await admin.from("listing_extension_ingest_log").insert({ user_id: tokenRow.user_id });

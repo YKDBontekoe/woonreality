@@ -1,9 +1,11 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { CaseDocument, CaseTask, DocumentFinding } from "@/src/lib/supabase/database.types";
 
 export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindings = [] }: { caseId: string; initialDocuments: CaseDocument[]; initialTasks: CaseTask[]; initialFindings?: DocumentFinding[] }) {
+  const t = useTranslations("mijn-aankoop");
   const [documents, setDocuments] = useState(initialDocuments);
   const [tasks, setTasks] = useState(initialTasks);
   const [findings, setFindings] = useState(initialFindings);
@@ -20,17 +22,17 @@ export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindi
     try {
       const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/documents`, { method: "POST", body: formData });
       const body = await response.json() as { document?: CaseDocument; findings?: DocumentFinding[]; error?: string };
-      if (!response.ok || !body.document) throw new Error(body.error ?? "Uploaden is niet gelukt.");
+      if (!response.ok || !body.document) throw new Error(body.error ?? t("uploadFailed"));
       setDocuments((current) => [body.document!, ...current]);
       if (body.findings?.length) setFindings((current) => [...body.findings!, ...current]);
-      setMessage(body.findings?.length ? `Gelezen: ${body.findings.length} aandachtspunt${body.findings.length === 1 ? "" : "en"} gevonden.` : "Document opgeslagen. Geen automatische aandachtspunten in de tekst.");
+      setMessage(body.findings?.length ? t("uploadFindings", { count: body.findings.length }) : t("uploadSavedNoFindings"));
       const tasksResponse = await fetch(`/api/cases/${encodeURIComponent(caseId)}/tasks`, { method: "POST" });
       if (tasksResponse.ok) {
         const tasksBody = await tasksResponse.json() as { tasks?: CaseTask[] };
         if (Array.isArray(tasksBody.tasks)) setTasks(tasksBody.tasks);
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Uploaden is niet gelukt.");
+      setMessage(error instanceof Error ? error.message : t("uploadFailed"));
     } finally {
       event.target.value = "";
       setUploading(false);
@@ -42,11 +44,11 @@ export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindi
     try {
       const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/tasks/${encodeURIComponent(task.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
       const body = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "De taak kon niet worden bijgewerkt.");
+      if (!response.ok) throw new Error(body.error ?? t("taskUpdateFailed"));
       setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status } : item));
       setMessage("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "De taak kon niet worden bijgewerkt.");
+      setMessage(error instanceof Error ? error.message : t("taskUpdateFailed"));
     }
   }
 
@@ -54,12 +56,12 @@ export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindi
     try {
       const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/documents/${encodeURIComponent(documentId)}`, { method: "DELETE" });
       const body = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Het document kon niet worden verwijderd.");
+      if (!response.ok) throw new Error(body.error ?? t("documentDeleteFailed"));
       setDocuments((current) => current.filter((item) => item.id !== documentId));
       setFindings((current) => current.filter((item) => item.document_id !== documentId));
       setMessage("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Het document kon niet worden verwijderd.");
+      setMessage(error instanceof Error ? error.message : t("documentDeleteFailed"));
     }
   }
 
@@ -68,19 +70,19 @@ export function CaseTools({ caseId, initialDocuments, initialTasks, initialFindi
     try {
       const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/findings/${encodeURIComponent(finding.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
       const body = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Het aandachtspunt kon niet worden bijgewerkt.");
+      if (!response.ok) throw new Error(body.error ?? t("findingUpdateFailed"));
       setFindings((current) => current.map((item) => item.id === finding.id ? { ...item, status } : item));
       setMessage("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Het aandachtspunt kon niet worden bijgewerkt.");
+      setMessage(error instanceof Error ? error.message : t("findingUpdateFailed"));
     }
   }
 
   const openFindings = findings.filter((item) => item.status === "open");
 
   return <div className="case-tools">
-    <section className="case-panel" id="documenten"><div className="section-inline-heading"><div><span className="section-kicker">Documenten</span><h2>Upload wat je al hebt</h2><p>Brochure, vragenlijst, VvE of koopakte. PDF, maximaal 20 MB. We lezen de tekst en markeren tegenstrijdigheden.</p></div><label className="secondary-button upload-button">{uploading ? "Lezen…" : "PDF kiezen"}<input type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} /></label></div>{message && <p className="form-message" role="status">{message}</p>}{documents.length ? <div className="document-list">{documents.map((document) => <div className="document-row" key={document.id}><span className="document-icon">PDF</span><span><strong>{document.filename}</strong><small>{document.document_type} · {document.status === "ready" ? "gelezen" : document.status}</small></span><button className="text-link" type="button" aria-label={`Verwijder ${document.filename} uit dit dossier`} onClick={() => { if (window.confirm(`Verwijder ${document.filename} uit dit dossier?`)) void removeDocument(document.id); }}>Verwijder</button></div>)}</div> : <p className="muted-copy">Nog geen documenten. Je kunt ook later verdergaan.</p>}</section>
-    <section className="case-panel" id="bevindingen"><span className="section-kicker">Tegenstrijdigheden</span><h2>{openFindings.length ? "Dit moet je nog checken" : "Nog geen open aandachtspunten"}</h2>{findings.length ? <div className="finding-list">{findings.map((finding) => <article className={`finding-card ${finding.severity} ${finding.status !== "open" ? "resolved" : ""}`} key={finding.id}><div><strong>{finding.title}</strong><p>{finding.summary}</p>{finding.action && <small>{finding.action}</small>}</div><button className="text-link" type="button" onClick={() => { void resolveFinding(finding); }}>{finding.status === "open" ? "Afvinken" : "Heropen"}</button></article>)}</div> : <p className="muted-copy">Upload een PDF om automatische aandachtspunten te zien. Dit vervangt geen notaris of keurder.</p>}</section>
-    <section className="case-panel"><span className="section-kicker">Je eerstvolgende acties</span><h2>Rustig stap voor stap</h2><div className="task-list">{tasks.length ? tasks.map((task) => <label className={`task-row ${task.status === "done" ? "done" : ""}`} key={task.id}><input type="checkbox" checked={task.status === "done"} onChange={() => toggleTask(task)} /><span><strong>{task.title}</strong>{task.description && <small>{task.description}</small>}</span></label>) : <p className="muted-copy">Geen open acties. Je loopt voor op schema.</p>}</div></section>
+    <section className="case-panel" id="documenten"><div className="section-inline-heading"><div><span className="section-kicker">{t("documentsKicker")}</span><h2>{t("documentsTitle")}</h2><p>{t("documentsCopy")}</p></div><label className="secondary-button upload-button">{uploading ? t("readingFile") : t("choosePdf")}<input type="file" accept="application/pdf,.pdf" onChange={upload} disabled={uploading} /></label></div>{message && <p className="form-message" role="status">{message}</p>}{documents.length ? <div className="document-list">{documents.map((document) => <div className="document-row" key={document.id}><span className="document-icon">PDF</span><span><strong>{document.filename}</strong><small>{document.document_type} · {document.status === "ready" ? t("statusRead") : document.status}</small></span><button className="text-link" type="button" aria-label={t("removeDocumentAria", { filename: document.filename })} onClick={() => { if (window.confirm(t("removeDocumentConfirm", { filename: document.filename }))) void removeDocument(document.id); }}>{t("remove")}</button></div>)}</div> : <p className="muted-copy">{t("noDocumentsYet")}</p>}</section>
+    <section className="case-panel" id="bevindingen"><span className="section-kicker">{t("findingsKicker")}</span><h2>{openFindings.length ? t("findingsTitleOpen") : t("findingsTitleNone")}</h2>{findings.length ? <div className="finding-list">{findings.map((finding) => <article className={`finding-card ${finding.severity} ${finding.status !== "open" ? "resolved" : ""}`} key={finding.id}><div><strong>{finding.title}</strong><p>{finding.summary}</p>{finding.action && <small>{finding.action}</small>}</div><button className="text-link" type="button" onClick={() => { void resolveFinding(finding); }}>{finding.status === "open" ? t("resolveFinding") : t("reopenFinding")}</button></article>)}</div> : <p className="muted-copy">{t("findingsEmptyHint")}</p>}</section>
+    <section className="case-panel"><span className="section-kicker">{t("nextActionsKicker")}</span><h2>{t("nextActionsTitle")}</h2><div className="task-list">{tasks.length ? tasks.map((task) => <label className={`task-row ${task.status === "done" ? "done" : ""}`} key={task.id}><input type="checkbox" checked={task.status === "done"} onChange={() => toggleTask(task)} /><span><strong>{task.title}</strong>{task.description && <small>{task.description}</small>}</span></label>) : <p className="muted-copy">{t("noOpenTasks")}</p>}</div></section>
   </div>;
 }

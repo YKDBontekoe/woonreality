@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { logError, logWarn } from "@/src/lib/logger";
 import { toUserMessage } from "@/src/lib/errors";
 import { aiInputFingerprint, aiReportVersions, generateAiPropertyReport } from "@/src/lib/analysis/research";
@@ -16,33 +19,34 @@ export const maxDuration = 60;
  * takes priority over a licensed feed for AI research. Fields the user's
  * listing doesn't have fall back to the licensed feed, if one is configured.
  */
-const STATUS_LOAD_FAILED = "AI-status kon niet worden geladen.";
-const GENERATION_FAILED = "De AI-analyse kon nu niet worden gemaakt. Probeer het later opnieuw.";
-
-export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
-  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
+export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
+  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: t("errors.aiNotConfigured") }, { status: 503 });
   const { bagId } = await context.params;
   try {
-    const { analysis, listing, userId } = await loadAiContext(bagId);
+    const { analysis, listing, userId } = await loadAiContext(bagId, locale);
     const fingerprint = aiInputFingerprint(analysis, listing);
     const row = await getAiReport(analysis.property.bagVboId, aiReportVersions.report, userId);
     const resolved = resolveReadyReport(row, fingerprint);
     return NextResponse.json(resolved);
   } catch (error) {
     logError("WoonReality AI report status failed", error);
-    return NextResponse.json({ status: "failed", message: toUserMessage(error, STATUS_LOAD_FAILED) }, { status: 502 });
+    return NextResponse.json({ status: "failed", message: toUserMessage(error, t("errors.aiStatusLoad")) }, { status: 502 });
   }
 }
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY en Supabase-configuratie zijn nodig voor AI-research." }, { status: 503 });
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
+  if (!process.env.AI_GATEWAY_API_KEY || !isSupabaseConfigured()) return NextResponse.json({ status: "unavailable", message: t("errors.aiNotConfigured") }, { status: 503 });
   const { bagId } = await context.params;
   let claimedBagVboId: string | null = null;
   let claimUserId: string | null = null;
   try {
-    const { analysis, listing, userId } = await loadAiContext(bagId);
+    const { analysis, listing, userId } = await loadAiContext(bagId, locale);
     if (!userId && !allowAnonymousLlmGeneration(request, `report:${bagId}`, false)) {
-      return NextResponse.json({ status: "failed", message: "Te veel verzoeken. Probeer het later opnieuw of log in." }, { status: 429 });
+      return NextResponse.json({ status: "failed", message: t("errors.tooManyRequests") }, { status: 429 });
     }
     const inputFingerprint = aiInputFingerprint(analysis, listing);
     const existing = await getAiReport(analysis.property.bagVboId, aiReportVersions.report, userId);
@@ -68,10 +72,10 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       claimUserId = userId;
     }
 
-    const report = await generateAiPropertyReport(analysis.property, analysis, listing);
+    const report = await generateAiPropertyReport(analysis.property, analysis, listing, locale);
     if (!report) {
       await persistFailureSafely(analysis, inputFingerprint, userId, "empty_report");
-      return NextResponse.json({ status: "failed", message: GENERATION_FAILED }, { status: 502 });
+      return NextResponse.json({ status: "failed", message: t("errors.aiGeneration") }, { status: 502 });
     }
     await persistAiReport(analysis, report, inputFingerprint, userId);
     claimedBagVboId = null;
@@ -79,7 +83,7 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
   } catch (error) {
     logError("WoonReality AI report failed", error);
     if (claimedBagVboId) await releaseAiReportClaim(claimedBagVboId, aiReportVersions.report, claimUserId);
-    return NextResponse.json({ status: "failed", message: toUserMessage(error, GENERATION_FAILED) }, { status: 502 });
+    return NextResponse.json({ status: "failed", message: toUserMessage(error, t("errors.aiGeneration")) }, { status: 502 });
   }
 }
 

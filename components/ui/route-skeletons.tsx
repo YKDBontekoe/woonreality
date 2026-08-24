@@ -1,5 +1,8 @@
+"use client";
+
 import { SiteHeader } from "@/components/site-header";
 import type { HeaderCurrent } from "@/components/ui/page-shell";
+import { useTranslations } from "next-intl";
 
 /**
  * Route-level loading skeletons. They reuse the shimmer primitives from
@@ -28,8 +31,9 @@ function SkeletonShell({ current, label, children }: { current: HeaderCurrent; l
 }
 
 export function ComparisonSkeleton() {
+  const t = useTranslations("common");
   return (
-    <SkeletonShell current="vergelijken" label="Vergelijking laden…">
+    <SkeletonShell current="vergelijken" label={t("loadingComparison")}>
       <div className="comparison-loading-cards" aria-hidden="true">
         <div className="comparison-loading-card">
           <span className="property-loading-shimmer" />
@@ -47,8 +51,9 @@ export function ComparisonSkeleton() {
 }
 
 export function PlaceSkeleton() {
+  const t = useTranslations("common");
   return (
-    <SkeletonShell current="home" label="Plek-analyse laden…">
+    <SkeletonShell current="home" label={t("loadingPlace")}>
       <div className="property-loading-grid" aria-hidden="true">
         <div className="property-loading-card">
           <span className="property-loading-shimmer" />
@@ -63,8 +68,9 @@ export function PlaceSkeleton() {
 }
 
 export function CockpitSkeleton() {
+  const t = useTranslations("common");
   return (
-    <SkeletonShell current="aankoop" label="Aankoopomgeving laden…">
+    <SkeletonShell current="aankoop" label={t("loadingCockpit")}>
       <div className="cockpit-loading-grid" aria-hidden="true">
         <div className="property-loading-card">
           <span className="property-loading-shimmer" />

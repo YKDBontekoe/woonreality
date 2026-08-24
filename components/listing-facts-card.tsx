@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { isFundaListingUrl } from "@/src/lib/listing-import";
 import { isHttpsUrl } from "@/src/lib/listing-intake";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
@@ -9,15 +10,6 @@ function formatDate(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium" }).format(date);
-}
-
-function listingStatusLabel(status: PropertyListing["status"]) {
-  return {
-    active: "Te koop",
-    sold: "Verkocht",
-    withdrawn: "Ingetrokken",
-    unknown: "Status onbekend",
-  }[status];
 }
 
 function sourceIsOpenable(url: string) {
@@ -34,9 +26,9 @@ function sourceIsOpenable(url: string) {
 export function ListingFactsCard({
   listing,
   status,
-  eyebrow = "gelicentieerde marktdata",
-  title = "Wat de advertentie zegt",
-  description = "Advertentiegegevens staan los van BAG en openbare registraties. Controleer wijzigingen bij de aanbieder.",
+  eyebrow,
+  title,
+  description,
   id = "advertentie",
 }: {
   listing: PropertyListing | null;
@@ -46,32 +38,36 @@ export function ListingFactsCard({
   description?: string;
   id?: string;
 }) {
+  const t = useTranslations("woning");
+  const resolvedEyebrow = eyebrow ?? t("factsCard.eyebrowDefault");
+  const resolvedTitle = title ?? t("factsCard.titleDefault");
+  const resolvedDescription = description ?? t("factsCard.descriptionDefault");
   if (status === "loading" || !listing) return null;
 
   const facts = [
-    ["Woonoppervlak", listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined],
-    ["Perceel", listing.plotAreaM2 != null ? `${listing.plotAreaM2} m²` : undefined],
-    ["Inhoud", listing.volumeM3 != null ? `${listing.volumeM3} m³` : undefined],
-    ["Kamers", listing.roomCount],
-    ["Slaapkamers", listing.bedroomCount],
-    ["Badkamers", listing.bathroomCount],
-    ["Type", listing.propertyType],
-    ["Bouwjaar", listing.constructionYear],
-    ["Energielabel", listing.energyLabel],
-    ["Isolatie", listing.insulation],
-    ["Verwarming", listing.heating],
-    ["Beglazing", listing.glazing],
-    ["Zonnepanelen", listing.solarPanelCount],
-    ["Buitenruimte", listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : undefined],
-    ["Tuinligging", listing.gardenOrientation],
-    ["Balkon", listing.balcony == null ? undefined : listing.balcony ? "Ja" : "Nee"],
-    ["Terras", listing.terrace == null ? undefined : listing.terrace ? "Ja" : "Nee"],
-    ["Parkeren", listing.parking],
-    ["Berging", listing.storage],
-    ["VvE-bijdrage", listing.vveContribution != null ? formatEuro(listing.vveContribution) : undefined],
-    ["VvE-reserve", listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund) : undefined],
-    ["Eigendomssituatie", listing.ownership],
-    ["Buurt", listing.neighborhood],
+    [t("factsCard.facts.livingArea"), listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined],
+    [t("factsCard.facts.plot"), listing.plotAreaM2 != null ? `${listing.plotAreaM2} m²` : undefined],
+    [t("factsCard.facts.volume"), listing.volumeM3 != null ? `${listing.volumeM3} m³` : undefined],
+    [t("factsCard.facts.rooms"), listing.roomCount],
+    [t("factsCard.facts.bedrooms"), listing.bedroomCount],
+    [t("factsCard.facts.bathrooms"), listing.bathroomCount],
+    [t("factsCard.facts.type"), listing.propertyType],
+    [t("factsCard.facts.yearBuilt"), listing.constructionYear],
+    [t("factsCard.facts.energyLabel"), listing.energyLabel],
+    [t("factsCard.facts.insulation"), listing.insulation],
+    [t("factsCard.facts.heating"), listing.heating],
+    [t("factsCard.facts.glazing"), listing.glazing],
+    [t("factsCard.facts.solarPanels"), listing.solarPanelCount],
+    [t("factsCard.facts.outdoorSpace"), listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : undefined],
+    [t("factsCard.facts.gardenOrientation"), listing.gardenOrientation],
+    [t("factsCard.facts.balcony"), listing.balcony == null ? undefined : listing.balcony ? t("factsCard.yes") : t("factsCard.no")],
+    [t("factsCard.facts.terrace"), listing.terrace == null ? undefined : listing.terrace ? t("factsCard.yes") : t("factsCard.no")],
+    [t("factsCard.facts.parking"), listing.parking],
+    [t("factsCard.facts.storage"), listing.storage],
+    [t("factsCard.facts.vveContribution"), listing.vveContribution != null ? formatEuro(listing.vveContribution) : undefined],
+    [t("factsCard.facts.vveReserve"), listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund) : undefined],
+    [t("factsCard.facts.ownership"), listing.ownership],
+    [t("factsCard.facts.neighborhood"), listing.neighborhood],
   ].filter(([, value]) => value !== undefined && value !== "—") as [string, string | number][];
 
   const riskFlags = listingRiskFlags(listing);
@@ -87,42 +83,42 @@ export function ListingFactsCard({
       <div className="section-inline-heading">
         <div>
           <div className="eyebrow">
-            <span className="eyebrow-dot" /> {eyebrow}
+            <span className="eyebrow-dot" /> {resolvedEyebrow}
           </div>
-          <h2>{title}</h2>
-          <p>{description}</p>
+          <h2>{resolvedTitle}</h2>
+          <p>{resolvedDescription}</p>
         </div>
-        <span className="coverage-pill">{listingStatusLabel(listing.status)}</span>
+        <span className="coverage-pill">{t(`factsCard.status.${listing.status}`)}</span>
       </div>
       <div className="listing-card">
         <div className="listing-price-row">
           <div>
-            <span className="listing-label">Vraagprijs</span>
+            <span className="listing-label">{t("factsCard.askingPrice")}</span>
             <strong>{formatEuro(listing.askingPrice)}</strong>
             {listing.pricePerM2 != null && (
-              <small>{formatEuro(listing.pricePerM2)} per m²</small>
+              <small>{formatEuro(listing.pricePerM2)} {t("factsCard.perM2")}</small>
             )}
           </div>
           <div className="listing-price-history">
             {listing.originalAskingPrice != null && (
-              <span>Oorspronkelijk {formatEuro(listing.originalAskingPrice)}</span>
+              <span>{t("factsCard.originalPrice", { amount: formatEuro(listing.originalAskingPrice) })}</span>
             )}
             {listing.priceChangeAmount != null && (
               <span>
-                Wijziging {formatEuro(listing.priceChangeAmount)}
+                {t("factsCard.priceChange", { amount: formatEuro(listing.priceChangeAmount) })}
                 {listing.priceChangePct != null ? ` (${listing.priceChangePct.toLocaleString("nl-NL")}%)` : ""}
               </span>
             )}
           </div>
         </div>
         <div className="listing-meta">
-          <span>Gepubliceerd {formatDate(listing.firstPublishedAt)}</span>
-          <span>Bijgewerkt {formatDate(listing.fetchedAt)}</span>
-          {listing.offerDeadline && <span>Bieden tot {formatDate(listing.offerDeadline)}</span>}
+          <span>{t("factsCard.publishedAt", { date: formatDate(listing.firstPublishedAt) })}</span>
+          <span>{t("factsCard.updatedAt", { date: formatDate(listing.fetchedAt) })}</span>
+          {listing.offerDeadline && <span>{t("factsCard.offerDeadlineUntil", { date: formatDate(listing.offerDeadline) })}</span>}
         </div>
         {riskFlags.length > 0 && (
           <div className="listing-risk-flags">
-            <span className="listing-label">Wat een aankoopmakelaar hier zou uitzoeken</span>
+            <span className="listing-label">{t("factsCard.riskHeading")}</span>
             <ul>
               {riskFlags.map((flag) => (
                 <li key={flag.key} className={`listing-risk-flag severity-${flag.severity}`}>
@@ -146,7 +142,7 @@ export function ListingFactsCard({
         )}
         {(extraKenmerken.length > 0 || facts.length > 12 || listing.description || listing.textSections?.length) ? (
           <details className="listing-more">
-            <summary>Meer kenmerken en tekst</summary>
+            <summary>{t("factsCard.moreDetails")}</summary>
             {facts.length > 12 && (
               <div className="listing-fact-grid listing-fact-grid-rest">
                 {facts.slice(12).map(([label, value]) => (
@@ -169,7 +165,7 @@ export function ListingFactsCard({
             )}
             {listing.description && (
               <div className="listing-description">
-                <span className="listing-label">Omschrijving</span>
+                <span className="listing-label">{t("factsCard.descriptionLabel")}</span>
                 <p>{listing.description}</p>
               </div>
             )}
@@ -188,10 +184,10 @@ export function ListingFactsCard({
         ) : null}
         <div className="listing-footer">
           <span>
-            Bron: {listing.provider} · opgehaald {formatDate(listing.fetchedAt)}
+            {t("factsCard.sourceFetched", { provider: listing.provider, date: formatDate(listing.fetchedAt) })}
           </span>
           {sourceIsOpenable(listing.sourceUrl) && (
-            <a href={listing.sourceUrl} target="_blank" rel="noreferrer">Open bron</a>
+            <a href={listing.sourceUrl} target="_blank" rel="noreferrer">{t("factsCard.openSource")}</a>
           )}
         </div>
       </div>

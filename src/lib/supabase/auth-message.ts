@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 type AuthErrorLike = {
   code?: unknown;
   message?: unknown;
@@ -22,45 +25,46 @@ function errorMessage(error: unknown) {
   return typeof message === "string" ? message : "";
 }
 
-export function authErrorMessage(error: unknown, fallback: string) {
+export function authErrorMessage(error: unknown, fallback: string, locale: Locale = "nl") {
+  const t = getLibTranslator(locale, "lib-domain");
   switch (errorCode(error)) {
     case "email_not_confirmed":
-      return "Bevestig eerst je e-mailadres via de link in je inbox.";
+      return t("auth.emailNotConfirmed");
     case "user_banned":
-      return "Dit account kan momenteel niet inloggen.";
+      return t("auth.userBanned");
     case "passkey_disabled":
-      return "Passkeys staan nog uit in dit project. Schakel ze in via Authentication → Passkeys in het Supabase Dashboard (RP ID: woonreality.vercel.app).";
+      return t("auth.passkeysDisabled");
     case "too_many_passkeys":
-      return "Je hebt het maximale aantal passkeys bereikt. Verwijder er eerst één.";
+      return t("auth.tooManyPasskeys");
     case "webauthn_credential_exists":
-      return "Deze passkey staat al op je account.";
+      return t("auth.passkeyAlreadyLinked");
     case "webauthn_credential_not_found":
-      return "Deze passkey is niet gekoppeld aan je account. Probeer e-mail.";
+      return t("auth.passkeyNotLinked");
     case "webauthn_challenge_not_found":
     case "webauthn_challenge_expired":
-      return "De passkey-controle is verlopen. Probeer het opnieuw.";
+      return t("auth.challengeExpired");
     case "webauthn_verification_failed":
-      return "Je passkey kon niet worden geverifieerd. Probeer het opnieuw of gebruik e-mail.";
+      return t("auth.verificationFailed");
     case "ERROR_CEREMONY_ABORTED":
-      return "Passkey-aanvraag geannuleerd. Probeer het opnieuw wanneer je klaar bent.";
+      return t("auth.ceremonyAborted");
     case "ERROR_INVALID_DOMAIN":
     case "ERROR_INVALID_RP_ID":
-      return "Deze website mist de juiste passkey-domeininstelling. Controleer de Relying Party ID en origins in Supabase.";
+      return t("auth.invalidDomain");
     case "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED":
-      return "Deze passkey staat al op je account.";
+      return t("auth.passkeyAlreadyLinked");
     case "ERROR_AUTHENTICATOR_GENERAL_ERROR":
     case "ERROR_AUTHENTICATOR_MISSING_DISCOVERABLE_CREDENTIAL_SUPPORT":
     case "ERROR_AUTHENTICATOR_MISSING_USER_VERIFICATION_SUPPORT":
     case "ERROR_AUTHENTICATOR_NO_SUPPORTED_PUBKEYCREDPARAMS_ALG":
     case "ERROR_AUTO_REGISTER_USER_VERIFICATION_FAILURE":
-      return "Je apparaat of wachtwoordmanager kon de passkey niet afronden. Probeer een andere browser of manager.";
+      return t("auth.deviceFailed");
     default:
       break;
   }
 
   const message = errorMessage(error).toLowerCase();
   if (message.includes("passkeys are disabled") || (message.includes("passkey") && message.includes("disabled"))) {
-    return "Passkeys staan nog uit in dit project. Schakel ze in via Authentication → Passkeys in het Supabase Dashboard (RP ID: woonreality.vercel.app).";
+    return t("auth.passkeysDisabled");
   }
 
   return fallback;

@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "title": "Funda-extensie — WoonReality",
+    "description": "Installeer de WoonReality-extensie voor Chrome, Edge of Firefox en bewaar Funda-kenmerken in je dossier."
+  },
+  "page": {
+    "backToSearch": "← Adres zoeken",
+    "eyebrow": "browser-extensie",
+    "title": "Bewaar Funda-feiten bij je woning.",
+    "heroCopy": "Installeer de extensie één keer. Open daarna een Funda-advertentie in je eigen browser en bewaar alleen de relevante kenmerken bij je woningcheck.",
+    "stepOne": "Stap 1",
+    "stepTwo": "Stap 2",
+    "chromeEdge": "Chrome of Edge",
+    "versionSuffix": "· versie {version}",
+    "downloadChrome": "Download voor Chrome / Edge (.zip)",
+    "extractArchive": "Pak het archief uit in een map die je bewaart.",
+    "devModePart1": "Ga naar",
+    "devModePart2": "(of",
+    "devModePart3": ") en zet ontwikkelaarsmodus aan.",
+    "loadUnpacked": "Kies “Uitgepakte extensie laden” en selecteer die map.",
+    "updateNote": "Bij een nieuwe versie download je de zip opnieuw en kies je “Vernieuwen” op de extensiepagina.",
+    "downloadFirefox": "Download voor Firefox (.xpi)",
+    "firefoxDevPart1": "Voor ontwikkeling:",
+    "firefoxDevPart2": "→ “Tijdelijke add-on laden” en kies het XPI of",
+    "tempAddonNote": "Tijdelijke add-ons verdwijnen na een herstart. Een ondertekende XPI of AMO-publicatie blijft staan.",
+    "connectHeading": "Koppel deze browser"
+  },
+  "setup": {
+    "pairedOk": "Deze browser is gekoppeld. Open een Funda-advertentie om kenmerken te bewaren.",
+    "pairFailed": "Koppelen is niet gelukt.",
+    "loginToPair": "Log in om de extensie te koppelen.",
+    "codeFailed": "Koppelcode kon niet worden aangemaakt.",
+    "revokeFailed": "Deze browserkoppeling kon niet worden ingetrokken.",
+    "revoked": "Browserkoppeling ingetrokken.",
+    "detected": "De WoonReality-extensie is in deze browser gevonden.",
+    "notDetected": "Installeer eerst de extensie. Daarna kun je deze browser koppelen aan je account.",
+    "serviceInactive": "Koppelen is in deze omgeving nog niet actief. Je kunt de extensie wel alvast installeren.",
+    "loginLink": "Log in",
+    "loginPurpose": "om kenmerken in je dossier te bewaren.",
+    "pairBrowser": "Koppel deze browser",
+    "oneTimeCodePrefix": "Koppelcode (eenmalig):",
+    "oneTimeCodeSuffix": ". Als de extensie niet automatisch koppelt, plak je deze code in de popup.",
+    "defaultTokenLabel": "Browser-extensie",
+    "since": "sinds {time}",
+    "lastUsed": " · laatst {time}",
+    "defaultBrowserRef": "deze browser",
+    "revokeAria": "Koppeling met {label} intrekken",
+    "revokeConfirm": "Trek de koppeling met {label} in?",
+    "revoke": "Intrekken"
+  }
+}

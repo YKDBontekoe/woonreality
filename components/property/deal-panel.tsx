@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/src/lib/i18n/navigation";
 import type { Route } from "next";
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import { computePropertyAffordability, fitLabel } from "@/src/lib/affordability";
@@ -24,6 +25,7 @@ export function PropertyDealPanel({
   energyLabel?: string;
   personalFit: number | null;
 }) {
+  const t = useTranslations("woning");
   const askingPrice = listing?.askingPrice ?? 0;
   const affordability = mortgageConfigured
     ? computePropertyAffordability({
@@ -51,49 +53,49 @@ export function PropertyDealPanel({
     <section className="dash-deal" id="deal">
       <div className="dash-deal-head">
         <div>
-          <div className="section-kicker">Jouw deal</div>
-          <h2>Past dit huis bij jou?</h2>
+          <div className="section-kicker">{t("deal.kicker")}</div>
+          <h2>{t("deal.heading")}</h2>
         </div>
         <span className={`fit-badge fit-${fit}`}>{fitLabel(fit)}</span>
       </div>
       <div className="dash-deal-stats">
         <div>
-          <small>Max hypotheek</small>
+          <small>{t("deal.maxMortgage")}</small>
           <strong>{affordability?.available ? formatEuro(affordability.maxLoanForPurchase) : "—"}</strong>
         </div>
         <div>
-          <small>Max ná k.k.</small>
+          <small>{t("deal.maxAfterCosts")}</small>
           <strong>{affordability?.available ? formatEuro(affordability.maxPurchasePriceAfterCosts) : "—"}</strong>
         </div>
         <div>
-          <small>Maandlast</small>
+          <small>{t("deal.monthlyPayment")}</small>
           <strong>{affordability?.available ? formatEuro(affordability.monthlyPayment) : "—"}</strong>
         </div>
         <div className={gap == null ? undefined : gap > 0 ? "is-short" : "is-ok"}>
-          <small>Eigen geld</small>
+          <small>{t("deal.ownFunds")}</small>
           <strong>{ownNeeded != null ? formatEuro(ownNeeded) : "—"}</strong>
           <span>
             {gap == null
-              ? "Vul eigen geld in"
+              ? t("deal.enterOwnFunds")
               : gap > 0
-                ? `tekort ${formatEuro(gap)}`
-                : `buffer ${formatEuro(Math.abs(gap))}`}
+                ? t("deal.shortfall", { amount: formatEuro(gap) })
+                : t("deal.buffer", { amount: formatEuro(Math.abs(gap)) })}
           </span>
         </div>
       </div>
       {chips.length > 0 && (
-        <div className="dash-wish-chips" aria-label="Wensen versus dit huis">
+        <div className="dash-wish-chips" aria-label={t("deal.wishesAria")}>
           {chips.map((chip) => (
             <span className={`wish-chip is-${chip.status}`} key={chip.key} title={chip.detail}>
               {chip.label}
             </span>
           ))}
           {personalFit != null && (
-            <span className="wish-chip is-pass">Fit {personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}</span>
+            <span className="wish-chip is-pass">{t("deal.fitChip", { score: personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) })}</span>
           )}
           {affordability?.available && buyerProfile.monthlyPayment > 0 && (
             <span className={`wish-chip is-${affordability.monthlyPayment <= buyerProfile.monthlyPayment ? "pass" : "fail"}`}>
-              Maand {formatEuro(affordability.monthlyPayment)}
+              {t("deal.monthChip", { amount: formatEuro(affordability.monthlyPayment) })}
             </span>
           )}
         </div>
@@ -101,7 +103,7 @@ export function PropertyDealPanel({
       {costs ? (
         <div className="dash-waterfall">
           <div className="dash-waterfall-row">
-            <span>Koopsom</span>
+            <span>{t("deal.purchasePrice")}</span>
             <i style={{ width: `${Math.round((askingPrice / maxBar) * 100)}%` }} />
             <strong>{formatEuro(askingPrice)}</strong>
           </div>
@@ -113,25 +115,25 @@ export function PropertyDealPanel({
             </div>
           ))}
           <div className="dash-waterfall-row is-total">
-            <span>Totaal rond</span>
+            <span>{t("deal.totalAllIn")}</span>
             <strong>{formatEuro(askingPrice + costs.total)}</strong>
           </div>
           {affordability?.available && affordability.energyMeasureExtra > 0 && (
             <div className="dash-waterfall-row is-cost">
-              <span>Extra verduurzaming</span>
+              <span>{t("deal.sustainabilityExtra")}</span>
               <i style={{ width: `${Math.max(4, Math.round((affordability.energyMeasureExtra / maxBar) * 100))}%` }} />
               <strong>{formatEuro(affordability.energyMeasureExtra)}</strong>
             </div>
           )}
         </div>
       ) : (
-        <p className="dash-deal-empty">Koppel de advertentie voor vraagprijs en kosten koper.</p>
+        <p className="dash-deal-empty">{t("deal.connectListing")}</p>
       )}
       {!mortgageConfigured && (
-        <Link className="primary-button" href={hypotheekHref}>Vul inkomen en eigen geld</Link>
+        <Link className="primary-button" href={hypotheekHref}>{t("deal.fillIncome")}</Link>
       )}
       {mortgageConfigured && (
-        <Link className="text-link" href={hypotheekHref}>Hypotheek aanpassen</Link>
+        <Link className="text-link" href={hypotheekHref}>{t("deal.adjustMortgage")}</Link>
       )}
     </section>
   );

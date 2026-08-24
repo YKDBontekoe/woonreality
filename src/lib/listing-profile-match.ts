@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type { BuyerProfile } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
 
@@ -70,24 +72,28 @@ function hasVve(listing: PropertyListing) {
 export function listingMatchesBuyerProfile(
   listing: PropertyListing | null | undefined,
   profile: BuyerProfile,
+  locale: Locale = "nl",
 ): ProfileMatchChip[] {
+  const t = getLibTranslator(locale, "lib-finance");
   const chips: ProfileMatchChip[] = [];
   if (!listing) {
     return [
-      { key: "listing", label: "Advertentie", status: "unknown", detail: "Nog geen Funda-kenmerken" },
+      { key: "listing", label: t("listingProfileMatch.listingLabel"), status: "unknown", detail: t("listingProfileMatch.noListingDetails") },
     ];
   }
 
   if (profile.bedrooms > 0) {
     if (listing.bedroomCount == null) {
-      chips.push({ key: "bedrooms", label: `${profile.bedrooms} slk`, status: "unknown", detail: "Niet in de advertentie" });
+      chips.push({ key: "bedrooms", label: `${profile.bedrooms} ${t("listingProfileMatch.bedrooms.unit")}`, status: "unknown", detail: t("listingProfileMatch.bedrooms.notListed") });
     } else {
       const ok = listing.bedroomCount >= profile.bedrooms;
       chips.push({
         key: "bedrooms",
-        label: `${listing.bedroomCount} slk`,
+        label: `${listing.bedroomCount} ${t("listingProfileMatch.bedrooms.unit")}`,
         status: ok ? "pass" : "fail",
-        detail: ok ? `≥ ${profile.bedrooms} gewenst` : `${listing.bedroomCount} van ${profile.bedrooms} gewenst`,
+        detail: ok
+          ? t("listingProfileMatch.bedrooms.matchDetail", { wanted: profile.bedrooms })
+          : t("listingProfileMatch.bedrooms.mismatchDetail", { have: listing.bedroomCount, wanted: profile.bedrooms }),
       });
     }
   }
@@ -96,11 +102,11 @@ export function listingMatchesBuyerProfile(
     const garden = hasGarden(listing);
     chips.push({
       key: "garden",
-      label: "Tuin",
+      label: t("listingProfileMatch.garden.label"),
       status: garden ? "pass" : listing.outdoorSpaceM2 == null && !listing.gardenOrientation ? "unknown" : "fail",
       detail: garden
-        ? listing.gardenOrientation || (listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : "Genoemd")
-        : "Niet genoemd",
+        ? listing.gardenOrientation || (listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : t("listingProfileMatch.garden.mentioned"))
+        : t("listingProfileMatch.garden.notMentioned"),
     });
   }
 
@@ -108,9 +114,9 @@ export function listingMatchesBuyerProfile(
     const parking = hasParking(listing);
     chips.push({
       key: "parking",
-      label: "Parkeren",
+      label: t("listingProfileMatch.parking.label"),
       status: listing.parking == null && !/parkeer/.test(haystack(listing)) ? "unknown" : parking ? "pass" : "fail",
-      detail: listing.parking || (parking ? "Genoemd" : "Niet genoemd"),
+      detail: listing.parking || (parking ? t("listingProfileMatch.parking.mentioned") : t("listingProfileMatch.parking.notMentioned")),
     });
   }
 
@@ -119,9 +125,9 @@ export function listingMatchesBuyerProfile(
     const ok = kind === profile.propertyType;
     chips.push({
       key: "type",
-      label: profile.propertyType === "house" ? "Huis" : "Appartement",
+      label: profile.propertyType === "house" ? t("listingProfileMatch.type.house") : t("listingProfileMatch.type.apartment"),
       status: kind === "unknown" ? "unknown" : ok ? "pass" : "fail",
-      detail: listing.propertyType || "Type onbekend",
+      detail: listing.propertyType || t("listingProfileMatch.type.unknown"),
     });
   }
 
@@ -130,16 +136,18 @@ export function listingMatchesBuyerProfile(
     const vve = hasVve(listing);
     chips.push({
       key: "vve",
-      label: "VvE",
+      label: t("listingProfileMatch.vve.label"),
       status: !mentioned ? "unknown" : vve ? "fail" : "pass",
-      detail: !mentioned ? "Niet in de advertentie" : vve ? "VvE in de advertentie" : "Geen VvE",
+      detail: !mentioned
+        ? t("listingProfileMatch.vve.notInListing")
+        : vve ? t("listingProfileMatch.vve.inListing") : t("listingProfileMatch.vve.none"),
     });
   } else if (hasVve(listing)) {
     chips.push({
       key: "vve",
-      label: "VvE",
+      label: t("listingProfileMatch.vve.label"),
       status: "pass",
-      detail: listing.vveContribution != null ? "Bijdrage genoemd" : "VvE genoemd",
+      detail: listing.vveContribution != null ? t("listingProfileMatch.vve.contributionListed") : t("listingProfileMatch.vve.mentioned"),
     });
   }
 
@@ -147,9 +155,9 @@ export function listingMatchesBuyerProfile(
     const ok = listing.askingPrice <= profile.budget;
     chips.push({
       key: "budget",
-      label: "Budget",
+      label: t("listingProfileMatch.budget.label"),
       status: ok ? "pass" : "fail",
-      detail: ok ? "Onder je budget" : "Boven je budget",
+      detail: ok ? t("listingProfileMatch.budget.within") : t("listingProfileMatch.budget.above"),
     });
   }
 

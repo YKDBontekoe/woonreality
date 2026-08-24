@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { logError } from "@/src/lib/logger";
 import {
   generateListingInsights,
@@ -21,9 +24,10 @@ function asInsights(value: unknown): ListingInsights | null {
   return record as ListingInsights;
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const t = getLibTranslator(getLocaleFromRequest(request), "lib-api");
   if (!process.env.AI_GATEWAY_API_KEY) {
-    return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY is nodig voor listing-extractie." }, { status: 503 });
+    return NextResponse.json({ status: "unavailable", message: t("errors.aiKeyRequired") }, { status: 503 });
   }
   const { bagId } = await context.params;
   try {
@@ -43,13 +47,15 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     });
   } catch (error) {
     console.error("WoonReality listing insights status failed", error);
-    return NextResponse.json({ status: "failed", message: "Listing-inzichten konden niet worden geladen" }, { status: 502 });
+    return NextResponse.json({ status: "failed", message: t("errors.listingInsightsLoadFailed") }, { status: 502 });
   }
 }
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   if (!process.env.AI_GATEWAY_API_KEY) {
-    return NextResponse.json({ status: "unavailable", message: "AI_GATEWAY_API_KEY is nodig voor listing-extractie." }, { status: 503 });
+    return NextResponse.json({ status: "unavailable", message: t("errors.aiKeyRequired") }, { status: 503 });
   }
   const { bagId } = await context.params;
   let analysis: Analysis | null = null;
@@ -82,12 +88,12 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       }
     }
     if (!signedIn && !allowAnonymousLlmGeneration(request, bagId, false)) {
-      return NextResponse.json({ status: "failed", message: "Te veel verzoeken. Probeer het later opnieuw of log in." }, { status: 429 });
+      return NextResponse.json({ status: "failed", message: t("errors.tooManyRequests") }, { status: 429 });
     }
-    const report = await generateListingInsights(listing);
+    const report = await generateListingInsights(listing, locale);
     if (!report) {
       await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, "empty_report", userId);
-      return NextResponse.json({ status: "failed", message: "Advertentietekst kon niet worden geëxtraheerd." }, { status: 502 });
+      return NextResponse.json({ status: "failed", message: t("errors.listingExtractFailed") }, { status: 502 });
     }
     await persistStructuredAiReport(analysis, {
       reportVersion: listingExtractVersions.report,
@@ -105,6 +111,6 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     if (analysis && fingerprint) {
       await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, "generate_failed", userId);
     }
-    return NextResponse.json({ status: "failed", message: "Listing-inzichten konden niet worden gemaakt" }, { status: 502 });
+    return NextResponse.json({ status: "failed", message: t("errors.listingInsightsFailed") }, { status: 502 });
   }
 }

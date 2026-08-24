@@ -1,5 +1,7 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { computePurchaseDeadlines } from "@/src/lib/deadlines";
-import { CASE_STAGE_LABELS, type CaseStage } from "@/src/lib/journey";
+import { caseStageLabel, type CaseStage } from "@/src/lib/journey";
 import { profileCompletion, type BuyerProfile } from "@/src/lib/purchase";
 
 export type TaskSuggestion = {
@@ -38,7 +40,8 @@ export function taskSource(key: string) {
   return `engine:${key}`;
 }
 
-export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
+export function suggestCaseTasks(input: TaskEngineInput, locale: Locale = "nl"): TaskSuggestion[] {
+  const t = getLibTranslator(locale, "lib-domain");
   const tasks: TaskSuggestion[] = [];
   const caseHref = `/mijn-aankoop/${input.caseId}`;
   const bagHref = input.bagVboId ? `/woning/${input.bagVboId}` : "/#zoek-adres";
@@ -47,8 +50,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (!input.profileConfigured || completion < 80) {
     tasks.push({
       key: "profile",
-      title: "Vul je woonprofiel in",
-      description: "Budget, huishouden en must-haves horen vast te staan voordat je een bod serieus maakt.",
+      title: t("tasks.profile.title"),
+      description: t("tasks.profile.description"),
       priority: "high",
       source: taskSource("profile"),
       href: "/mijn-aankoop#woonprofiel",
@@ -58,8 +61,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (!input.documentTypes.includes("brochure") && !input.documentTypes.includes("vragenlijst")) {
     tasks.push({
       key: "docs-core",
-      title: "Upload brochure of vragenlijst",
-      description: "Zonder verkoopstukken zie je alleen open data. De makelaar zou deze stukken nu opvragen.",
+      title: t("tasks.docsCore.title"),
+      description: t("tasks.docsCore.description"),
       priority: "high",
       source: taskSource("docs-core"),
       href: `${caseHref}#documenten`,
@@ -69,8 +72,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (input.documentTypes.some((type) => type === "brochure" || type === "overig") && !input.documentTypes.includes("vragenlijst")) {
     tasks.push({
       key: "docs-vragenlijst",
-      title: "Vraag de vragenlijst van de verkoper",
-      description: "Lekkage, geschillen en verbouwingen staan zelden in de brochure.",
+      title: t("tasks.docsQuestionnaire.title"),
+      description: t("tasks.docsQuestionnaire.description"),
       priority: "normal",
       source: taskSource("docs-vragenlijst"),
       href: `${caseHref}#documenten`,
@@ -80,8 +83,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (!input.documentTypes.includes("vve") && (input.profile?.propertyType === "apartment" || input.profile?.acceptVve)) {
     tasks.push({
       key: "docs-vve",
-      title: "Upload VvE-stukken",
-      description: "Notulen, MJOP, reservefonds en bijdrage horen in het dossier vóór je biedt.",
+      title: t("tasks.docsVve.title"),
+      description: t("tasks.docsVve.description"),
       priority: "high",
       source: taskSource("docs-vve"),
       href: `${caseHref}#documenten`,
@@ -92,7 +95,7 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
     tasks.push({
       key: `finding-${finding.title.slice(0, 40)}`,
       title: finding.title,
-      description: finding.action || "Bekijk dit aandachtspunt in je documentdossier.",
+      description: finding.action || t("tasks.findingFallback"),
       priority: "high",
       source: taskSource(`finding-${finding.title}`),
       href: `${caseHref}#bevindingen`,
@@ -102,7 +105,7 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (input.attentionActions?.length && (input.stage === "research" || input.stage === "viewing" || input.stage === "intake")) {
     tasks.push({
       key: "viewing-signals",
-      title: "Neem de aandachtspunten mee naar de bezichtiging",
+      title: t("tasks.viewingSignals.title"),
       description: input.attentionActions.slice(0, 2).join(" "),
       priority: "normal",
       source: taskSource("viewing-signals"),
@@ -113,8 +116,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (!input.hasAskingPrice && ["research", "viewing", "offer"].includes(input.stage)) {
     tasks.push({
       key: "asking-price",
-      title: "Vul de vraagprijs in",
-      description: "Zonder vraagprijs kunnen we geen bodconcept of kosten koper schetsen.",
+      title: t("tasks.askingPrice.title"),
+      description: t("tasks.askingPrice.description"),
       priority: "normal",
       source: taskSource("asking-price"),
       href: `${caseHref}#waarde-bod`,
@@ -124,8 +127,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (input.stage === "viewing" && input.checklistComplete === false) {
     tasks.push({
       key: "viewing-checklist",
-      title: "Werk de bezichtigingschecklist af",
-      description: "Vink af wat je gezien hebt en noteer twijfels voordat je een bod voorbereidt.",
+      title: t("tasks.viewingChecklist.title"),
+      description: t("tasks.viewingChecklist.description"),
       priority: "high",
       source: taskSource("viewing-checklist"),
       href: input.bagVboId ? `${bagHref}/bezichtiging` : bagHref,
@@ -135,8 +138,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (["offer", "negotiation"].includes(input.stage) && !input.hasOffer) {
     tasks.push({
       key: "bid-draft",
-      title: "Bewaar een bodconcept",
-      description: "Bedrag, voorwaarden en je maximum horen op papier — nog niet in een mail naar de makelaar.",
+      title: t("tasks.bidDraft.title"),
+      description: t("tasks.bidDraft.description"),
       priority: "high",
       source: taskSource("bid-draft"),
       href: `${caseHref}#waarde-bod`,
@@ -146,8 +149,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (input.stage === "contract" && !input.hasContractAmount) {
     tasks.push({
       key: "contract-check",
-      title: "Vergelijk koopsom met je bod",
-      description: "Een afwijkend bedrag in de akte is een stopteken, geen detail.",
+      title: t("tasks.contractCheck.title"),
+      description: t("tasks.contractCheck.description"),
       priority: "high",
       source: taskSource("contract-check"),
       href: `${caseHref}#koopakte`,
@@ -157,8 +160,8 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
   if (input.stage === "finance_inspection") {
     tasks.push({
       key: "inspection-book",
-      title: "Plan de bouwkundige keuring",
-      description: `Je zit in ${CASE_STAGE_LABELS.finance_inspection}. Zet de deadline van het voorbehoud in je agenda.`,
+      title: t("tasks.inspectionBook.title"),
+      description: t("tasks.inspectionBook.description", { stage: caseStageLabel("finance_inspection", locale) }),
       priority: "high",
       source: taskSource("inspection-book"),
       href: `${caseHref}#koopakte`,
@@ -177,28 +180,14 @@ export function suggestCaseTasks(input: TaskEngineInput): TaskSuggestion[] {
         financingWeeks: input.financingWeeks,
         inspectionWeeks: input.inspectionWeeks,
       });
-      const formatDate = (date: Date) => date.toLocaleDateString("nl-NL", { dateStyle: "long" });
+      const formatDate = (date: Date) => date.toLocaleDateString(locale === "en" ? "en-IE" : "nl-NL", { dateStyle: "long" });
       for (const deadline of deadlines) {
         const isPast = deadline.dueAt.getTime() < Date.now();
         if (isPast) continue;
-        const copy: Record<typeof deadline.key, { title: string; description: string }> = {
-          bedenktijd: {
-            title: "Bedenktijd loopt af",
-            description: `Tot en met ${formatDate(deadline.dueAt)} kun je nog kosteloos terugtreden (Art. 7:2 BW), zonder opgaaf van reden.`,
-          },
-          financing: {
-            title: "Voorbehoud van financiering vervalt",
-            description: `Regel je hypotheek (afwijzing of toezegging) vóór ${formatDate(deadline.dueAt)}, anders vervalt je ontbindende voorwaarde.`,
-          },
-          inspection: {
-            title: "Voorbehoud van bouwkundige keuring vervalt",
-            description: `Plan en verwerk de bouwkundige keuring vóór ${formatDate(deadline.dueAt)} om nog kosteloos te kunnen ontbinden.`,
-          },
-        };
         tasks.push({
           key: `deadline-${deadline.key}`,
-          title: copy[deadline.key].title,
-          description: copy[deadline.key].description,
+          title: t(`tasks.deadlines.${deadline.key}.title`),
+          description: t(`tasks.deadlines.${deadline.key}.description`, { date: formatDate(deadline.dueAt) }),
           priority: "high",
           source: taskSource(`deadline-${deadline.key}`),
           href: `${caseHref}#koopakte`,
@@ -228,9 +217,9 @@ export function hrefForTask(task: { source?: string | null; title?: string | nul
     return fallback.bagVboId ? `/woning/${fallback.bagVboId}/bezichtiging` : caseHref;
   }
   if (source === "engine:asking-price" || source === "engine:bid-draft") return `${caseHref}#waarde-bod`;
-  if (/profiel/i.test(task.title ?? "")) return "/mijn-aankoop#woonprofiel";
-  if (/bezichtig/i.test(task.title ?? "") && fallback.bagVboId) return `/woning/${fallback.bagVboId}/bezichtiging`;
-  if (/document|upload|vve|vragenlijst|brochure/i.test(task.title ?? "")) return `${caseHref}#documenten`;
-  if (/bod|vraagprijs/i.test(task.title ?? "")) return `${caseHref}#waarde-bod`;
+  if (/profiel|profile/i.test(task.title ?? "")) return "/mijn-aankoop#woonprofiel";
+  if (/bezichtig|viewing/i.test(task.title ?? "") && fallback.bagVboId) return `/woning/${fallback.bagVboId}/bezichtiging`;
+  if (/document|upload|vve|vragenlijst|brochure|questionnaire/i.test(task.title ?? "")) return `${caseHref}#documenten`;
+  if (/bod|vraagprijs|offer|bid|asking price/i.test(task.title ?? "")) return `${caseHref}#waarde-bod`;
   return caseHref;
 }

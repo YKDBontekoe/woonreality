@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type { WorkspaceData } from "@/src/lib/workspace";
 
 export const ONBOARDING_STEPS = ["mortgage", "wishes", "priorities", "done"] as const;
@@ -34,25 +36,25 @@ export function parseOnboardingDismissed(preferencesJson: unknown): boolean {
   return typeof dismissedAt === "string" && dismissedAt.length > 0;
 }
 
-export const ONBOARDING_STEP_META: Record<OnboardingStepId, { number: string; title: string; lead: string }> = {
-  mortgage: {
-    number: "01",
-    title: "Koopkracht",
-    lead: "Bereken wat je kunt lenen. Budget en maandlast vullen we daarna automatisch in je woonprofiel.",
-  },
-  wishes: {
-    number: "02",
-    title: "Woonwensen",
-    lead: "Zoekgebied, huishouden en must-haves — de harde grenzen voor je woningcheck.",
-  },
-  priorities: {
-    number: "03",
-    title: "Prioriteiten",
-    lead: "Wat weegt het zwaarst mee in je persoonlijke fit-score?",
-  },
-  done: {
-    number: "04",
-    title: "Klaar",
-    lead: "Je aankoopomgeving staat klaar. Zoek een adres of open je dashboard.",
-  },
+export type OnboardingStepMeta = { number: string; title: string; lead: string };
+
+export function onboardingStepMeta(step: OnboardingStepId, locale: Locale = "nl"): OnboardingStepMeta {
+  const t = getLibTranslator(locale, "lib-domain");
+  return {
+    number: STEP_NUMBERS[step],
+    title: t(`onboarding.steps.${step}.title`),
+    lead: t(`onboarding.steps.${step}.lead`),
+  };
+}
+
+const STEP_NUMBERS: Record<OnboardingStepId, string> = {
+  mortgage: "01",
+  wishes: "02",
+  priorities: "03",
+  done: "04",
 };
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer onboardingStepMeta(step, locale). */
+export const ONBOARDING_STEP_META: Record<OnboardingStepId, OnboardingStepMeta> = Object.fromEntries(
+  ONBOARDING_STEPS.map((step) => [step, onboardingStepMeta(step)]),
+) as Record<OnboardingStepId, OnboardingStepMeta>;

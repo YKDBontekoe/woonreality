@@ -1,8 +1,11 @@
 import type { Evidence, NearbyProperty, Property, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
 import { pdokUrls } from "@/src/lib/sources/pdok/bgt";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export function identityEvidence(property: Property): Evidence {
+export function identityEvidence(property: Property, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: `bag-${property.bagVboId}`,
     source: "PDOK / BAG",
@@ -10,23 +13,24 @@ export function identityEvidence(property: Property): Evidence {
     sourceRecordId: property.bagVboId,
     confidence: "high",
     spatialResolution: "BAG-object",
-    caveat: "BAG is de objectidentiteit; een adreslabel kan in de tijd wijzigen.",
+    caveat: t("property.identity.caveat"),
   });
 }
 
-export function contextSignal(input: { property: Property; evidence: Evidence }): Signal {
+export function contextSignal(input: { property: Property; evidence: Evidence }, locale: Locale = "nl"): Signal {
   const { property, evidence } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   return {
     key: "context",
-    label: "BAG-context",
+    label: t("property.context.label"),
     category: "woning",
-    value: property.buildingYear ? String(property.buildingYear) : "bekend",
-    unit: property.buildingYear ? "bouwjaar" : undefined,
+    value: property.buildingYear ? String(property.buildingYear) : t("property.context.valueKnown"),
+    unit: property.buildingYear ? t("property.context.unitYear") : undefined,
     severity: "neutral",
     summary: property.areaM2
-      ? `BAG koppelt dit adres aan een verblijfsobject van ${property.areaM2} m².`
-      : "BAG koppelt dit adres aan een verblijfsobject.",
-    action: "Gebruik dit als startpunt; een bouwkundige keuring blijft nodig voor de staat van het gebouw.",
+      ? t("property.context.summaryArea", { area: property.areaM2 })
+      : t("property.context.summaryPlain"),
+    action: t("property.context.action"),
     confidence: "high",
     spatialScale: "BAG-verblijfsobject",
     evidence: [evidence],
@@ -34,21 +38,22 @@ export function contextSignal(input: { property: Property; evidence: Evidence })
   };
 }
 
-export function usageSignal(input: { property: Property; evidence: Evidence }): Signal {
+export function usageSignal(input: { property: Property; evidence: Evidence }, locale: Locale = "nl"): Signal {
   const { property, evidence } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const nonResidential = property.isResidential === false;
   return {
     key: "usage",
-    label: "Gebruiksdoel",
+    label: t("property.usage.label"),
     category: "woning",
-    value: nonResidential ? (property.usagePurposes?.join(", ") || "Geen woonfunctie") : "Woonfunctie",
+    value: nonResidential ? (property.usagePurposes?.join(", ") || t("property.usage.valueNotResidential")) : t("property.usage.valueResidential"),
     severity: nonResidential ? "attention" : "neutral",
     summary: nonResidential
-      ? `BAG registreert dit object niet als woonfunctie (${property.usagePurposes?.join(", ") || "onbekend gebruiksdoel"}). Deze woningcheck is gebouwd voor woningen; de scores hierboven zijn mogelijk niet zinvol voor dit gebruik.`
-      : "BAG registreert dit object als woonfunctie.",
+      ? t("property.usage.summaryNonResidential", { purposes: property.usagePurposes?.join(", ") || t("property.usage.purposesUnknown") })
+      : t("property.usage.summaryResidential"),
     action: nonResidential
-      ? "Controleer of dit pand daadwerkelijk te koop staat als woning en of woonbestemming/vergunning aanwezig is voordat je verdergaat."
-      : "Geen actie nodig; controleer bij twijfel de vergunde bestemming bij de gemeente.",
+      ? t("property.usage.actionNonResidential")
+      : t("property.usage.actionResidential"),
     confidence: "high",
     spatialScale: "BAG-verblijfsobject",
     evidence: [evidence],
@@ -56,20 +61,21 @@ export function usageSignal(input: { property: Property; evidence: Evidence }): 
   };
 }
 
-export function vveSignal(input: { siblings: NearbyProperty[]; evidence: Evidence; nearbyAvailable: boolean }): Signal {
+export function vveSignal(input: { siblings: NearbyProperty[]; evidence: Evidence; nearbyAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { siblings, evidence, nearbyAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const likelyApartmentOrVve = siblings.length >= 1;
   return {
     key: "vve",
-    label: "Appartement & VvE",
-    value: likelyApartmentOrVve ? `${siblings.length} andere woonadres(sen) in hetzelfde pand` : "Vermoedelijk zelfstandig pand",
+    label: t("property.vve.label"),
+    value: likelyApartmentOrVve ? t("property.vve.valueSiblings", { count: siblings.length }) : t("property.vve.valueStandalone"),
     severity: likelyApartmentOrVve ? "attention" : "neutral",
     summary: likelyApartmentOrVve
-      ? `BAG registreert ${siblings.length} andere woonfunctie-verblijfsobject(en) in hetzelfde pand. Dit wijst op een appartement(encomplex); controleer VvE-status, reservefonds, splitsingsakte en erfpacht.`
-      : "BAG registreert geen andere woonfunctie-verblijfsobjecten in hetzelfde pand; een VvE is dan minder waarschijnlijk, maar niet uitgesloten.",
+      ? t("property.vve.summarySiblings", { count: siblings.length })
+      : t("property.vve.summaryStandalone"),
     action: likelyApartmentOrVve
-      ? "Vraag de VvE-jaarstukken, notulen, meerjarenonderhoudsplan (MJOP) en reservefonds op vóór je een bod doet."
-      : "Vraag bij twijfel na of het pand is gesplitst in appartementsrechten.",
+      ? t("property.vve.actionSiblings")
+      : t("property.vve.actionStandalone"),
     category: "woning",
     confidence: "low",
     spatialScale: "BAG-pand",
@@ -81,21 +87,22 @@ export function vveSignal(input: { siblings: NearbyProperty[]; evidence: Evidenc
 /** BAG has no foundation registration; pre-1945 buildings get an explicit research flag instead of a fake score. */
 const FOUNDATION_RESEARCH_BUILD_YEAR = 1945;
 
-export function foundationSignal(input: { property: Property; evidence: Evidence }): Signal {
+export function foundationSignal(input: { property: Property; evidence: Evidence }, locale: Locale = "nl"): Signal {
   const { property, evidence } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const olderBuilding = property.buildingYear != null && property.buildingYear < FOUNDATION_RESEARCH_BUILD_YEAR;
   return {
     key: "foundation",
-    label: "Fundering & constructie",
+    label: t("property.foundation.label"),
     category: "woning",
-    value: olderBuilding ? "Onderzoeken" : "Niet beoordeeld",
+    value: olderBuilding ? t("property.foundation.valueResearch") : t("property.foundation.valueNotAssessed"),
     severity: olderBuilding ? "attention" : "neutral",
     summary: olderBuilding
-      ? `Dit pand heeft een BAG-bouwjaar van ${property.buildingYear}. BAG zegt niets over fundering, verzakking of eerder herstel; onderzoek dit vóór je bod.`
-      : "Openbare adresdata bevat geen informatie over fundering, constructieve staat of eerder herstel.",
+      ? t("property.foundation.summaryOld", { year: property.buildingYear })
+      : t("property.foundation.summaryModern"),
     action: olderBuilding
-      ? "Vraag naar funderingsonderzoek, herstel, scheurvorming, peilmetingen en verzekerbaarheid; laat dit beoordelen in een bouwkundige keuring."
-      : "Vraag naar constructieve gebreken, eerdere herstelwerkzaamheden en keuringsrapporten.",
+      ? t("property.foundation.actionOld")
+      : t("property.foundation.actionModern"),
     confidence: "low",
     spatialScale: "BAG-pand (geen funderingsregistratie)",
     evidence: [evidence],

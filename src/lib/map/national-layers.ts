@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 export type NationalLayerId =
   | "ses"
   | "education"
@@ -25,66 +28,55 @@ export type NationalLayerSpec = {
   group: "buurt" | "scholen" | "wonen" | "verkeer";
 };
 
-export const NATIONAL_LAYERS: Record<NationalLayerId, NationalLayerSpec> = {
+const LAYER_IDS: NationalLayerId[] = ["ses", "education", "schools", "crime", "woz", "children", "density"];
+
+const LAYERS_WITH_CAVEAT: NationalLayerId[] = ["ses", "education", "schools", "crime", "woz"];
+
+type NationalLayerBase = Omit<NationalLayerSpec, "label" | "hint" | "caveat">;
+
+const LAYER_BASE: Record<NationalLayerId, NationalLayerBase> = {
   ses: {
     id: "ses",
-    label: "SES-WOA",
-    hint: "Welvaart, opleiding en werk in de buurt",
     unit: "score",
     source: "CBS SES-WOA",
     sourceUrl: "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED",
-    caveat: "Buurtgemiddelde; geen oordeel over huishoudens of de woning.",
     direction: "neutral",
     group: "buurt",
   },
   education: {
     id: "education",
-    label: "Opleidingsniveau",
-    hint: "Aandeel hoogopgeleid (SES-WOA)",
     unit: "%",
     source: "CBS SES-WOA",
     sourceUrl: "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED",
-    caveat: "Geen schoolkwaliteit of Cito-scores; alleen opleidingsmix in de buurt.",
     direction: "higher-is-better",
     group: "scholen",
   },
   schools: {
     id: "schools",
-    label: "Scholen dichtbij",
-    hint: "Gemiddelde afstand basisonderwijs",
     unit: "km",
     source: "CBS Wijk- en Buurtkaart 2024",
     sourceUrl: "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1",
-    caveat: "Afstand, geen inspectieresultaten. Kwaliteit: scholenopdekaart.nl.",
     direction: "lower-is-better",
     group: "scholen",
   },
   crime: {
     id: "crime",
-    label: "Misdrijven",
-    hint: "Geregistreerde misdrijven per 1.000 inwoners",
     unit: "per 1.000",
     source: "Politie/CBS",
     sourceUrl: "https://data.politie.nl/#/Politie/nl/dataset/47018NED/table",
-    caveat: "Registratiecijfers; niet alle incidenten worden gemeld.",
     direction: "lower-is-better",
     group: "buurt",
   },
   woz: {
     id: "woz",
-    label: "Gem. WOZ-waarde",
-    hint: "CBS gemiddelde woningwaarde",
     unit: "€",
     source: "CBS Wijk- en Buurtkaart 2024",
     sourceUrl: "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1",
-    caveat: "WOZ-gemiddelde in de buurt, geen vraagprijs of €/m² uit advertenties.",
     direction: "neutral",
     group: "wonen",
   },
   children: {
     id: "children",
-    label: "Kinderen",
-    hint: "Aandeel 0–15 jaar",
     unit: "%",
     source: "CBS Wijk- en Buurtkaart 2024",
     sourceUrl: "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1",
@@ -93,8 +85,6 @@ export const NATIONAL_LAYERS: Record<NationalLayerId, NationalLayerSpec> = {
   },
   density: {
     id: "density",
-    label: "Bevolkingsdichtheid",
-    hint: "Inwoners per km²",
     unit: "per km²",
     source: "CBS Wijk- en Buurtkaart 2024",
     sourceUrl: "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1",
@@ -103,20 +93,58 @@ export const NATIONAL_LAYERS: Record<NationalLayerId, NationalLayerSpec> = {
   },
 };
 
-export const NATIONAL_RASTERS: Record<NationalRasterId, { label: string; hint: string }> = {
-  noise: { label: "Wegverkeersgeluid", hint: "RIVM Lden wegverkeer" },
-  no2: { label: "NO₂", hint: "RIVM luchtkwaliteit" },
-  pm25: { label: "PM2.5", hint: "RIVM luchtkwaliteit" },
-};
+export function nationalLayerSpec(layer: NationalLayerId, locale: Locale = "nl"): NationalLayerSpec {
+  const t = getLibTranslator(locale, "lib-domain");
+  const base = LAYER_BASE[layer];
+  return {
+    ...base,
+    label: t(`map.layers.${layer}.label`),
+    hint: t(`map.layers.${layer}.hint`),
+    ...(LAYERS_WITH_CAVEAT.includes(layer) ? { caveat: t(`map.layers.${layer}.caveat`) } : {}),
+  };
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer nationalLayerSpec(layer, locale). */
+export const NATIONAL_LAYERS: Record<NationalLayerId, NationalLayerSpec> = Object.fromEntries(
+  LAYER_IDS.map((layer) => [layer, nationalLayerSpec(layer)]),
+) as Record<NationalLayerId, NationalLayerSpec>;
+
+const RASTER_IDS: NationalRasterId[] = ["noise", "no2", "pm25"];
+
+export function nationalRasterSpec(raster: NationalRasterId, locale: Locale = "nl"): { label: string; hint: string } {
+  const t = getLibTranslator(locale, "lib-domain");
+  return { label: t(`map.rasters.${raster}.label`), hint: t(`map.rasters.${raster}.hint`) };
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer nationalRasterSpec(raster, locale). */
+export const NATIONAL_RASTERS: Record<NationalRasterId, { label: string; hint: string }> = Object.fromEntries(
+  RASTER_IDS.map((raster) => [raster, nationalRasterSpec(raster)]),
+) as Record<NationalRasterId, { label: string; hint: string }>;
 
 export type NationalSceneId = "buurt" | "scholen" | "wonen" | "verkeer";
 
-export const NATIONAL_SCENES: { id: NationalSceneId; label: string; hint: string; layer: NationalLayerId; rasters: NationalRasterId[] }[] = [
-  { id: "buurt", label: "Buurt", hint: "SES, misdaad en demografie", layer: "ses", rasters: [] },
-  { id: "scholen", label: "Scholen", hint: "Opleiding en schoolafstand", layer: "education", rasters: [] },
-  { id: "wonen", label: "Wonen", hint: "Gemiddelde WOZ-waarde", layer: "woz", rasters: [] },
-  { id: "verkeer", label: "Verkeer", hint: "Geluid en lucht", layer: "density", rasters: ["noise"] },
-];
+const SCENE_IDS: NationalSceneId[] = ["buurt", "scholen", "wonen", "verkeer"];
+
+const SCENE_DATA: Record<NationalSceneId, { layer: NationalLayerId; rasters: NationalRasterId[] }> = {
+  buurt: { layer: "ses", rasters: [] },
+  scholen: { layer: "education", rasters: [] },
+  wonen: { layer: "woz", rasters: [] },
+  verkeer: { layer: "density", rasters: ["noise"] },
+};
+
+export function nationalSceneSpec(scene: NationalSceneId, locale: Locale = "nl"): { id: NationalSceneId; label: string; hint: string; layer: NationalLayerId; rasters: NationalRasterId[] } {
+  const t = getLibTranslator(locale, "lib-domain");
+  return {
+    id: scene,
+    label: t(`map.scenes.${scene}.label`),
+    hint: t(`map.scenes.${scene}.hint`),
+    layer: SCENE_DATA[scene].layer,
+    rasters: SCENE_DATA[scene].rasters,
+  };
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer nationalSceneSpec(scene, locale). */
+export const NATIONAL_SCENES: { id: NationalSceneId; label: string; hint: string; layer: NationalLayerId; rasters: NationalRasterId[] }[] = SCENE_IDS.map((scene) => nationalSceneSpec(scene));
 
 export type LayerLegend = {
   layer: NationalLayerId;

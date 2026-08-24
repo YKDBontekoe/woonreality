@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type { PropertyListing } from "@/src/lib/types";
 
 export type ListingRiskFlag = {
@@ -14,74 +16,45 @@ export type ListingRiskFlag = {
  * aankoopmakelaar reads a listing for: it does not touch the Reality Score,
  * which stays limited to open government data, and it does not need AI.
  */
-export function listingRiskFlags(listing: PropertyListing | null | undefined): ListingRiskFlag[] {
+export function listingRiskFlags(listing: PropertyListing | null | undefined, locale: Locale = "nl"): ListingRiskFlag[] {
   if (!listing) return [];
+  const t = getLibTranslator(locale, "lib-finance");
   const flags: ListingRiskFlag[] = [];
+  const flag = (key: string, copyKey: string, severity: ListingRiskFlag["severity"]): ListingRiskFlag => ({
+    key,
+    title: t(`listingRisk.${copyKey}.title`),
+    summary: t(`listingRisk.${copyKey}.summary`),
+    severity,
+    action: t(`listingRisk.${copyKey}.action`),
+  });
   const ownership = listing.ownership?.toLowerCase() ?? "";
   const description = [listing.description, ...(listing.textSections?.map((section) => section.text) ?? [])].join(" ").toLowerCase();
   const extraValues = Object.values(listing.extraKenmerken ?? {}).join(" ").toLowerCase();
   const haystack = `${ownership} ${description} ${extraValues}`;
 
   if (/erfpacht/.test(haystack) && !/geen erfpacht|eeuwigdurend afgekocht|volledig afgekocht/.test(haystack)) {
-    flags.push({
-      key: "erfpacht",
-      title: "Erfpacht: check de canon en looptijd",
-      summary: "De advertentie noemt erfpacht. Dat betekent een aparte, vaak jaarlijkse canon bovenop je hypotheeklasten, en kan de financierbaarheid en waardeontwikkeling raken.",
-      severity: "high",
-      action: "Vraag de erfpachtvoorwaarden op: resterende looptijd, canon, herzieningsdatum en of afkoop mogelijk of al gedaan is. Neem dit mee in je hypotheekaanvraag.",
-    });
+    flags.push(flag("erfpacht", "erfpacht", "high"));
   }
 
   if (listing.vveContribution != null && listing.vveContribution > 0 && listing.vveReserveFund == null) {
-    flags.push({
-      key: "vve-reserve-onbekend",
-      title: "VvE-reserve niet vermeld",
-      summary: "Er is een VvE-bijdrage, maar geen reservefonds genoemd. Zonder reserve loop je risico op een onverwachte bijzondere bijdrage.",
-      severity: "low",
-      action: "Vraag de VvE-stukken (MJOP, reservefonds, notulen) op via de makelaar of notaris.",
-    });
+    flags.push(flag("vve-reserve-onbekend", "vveReserveUnknown", "low"));
   }
 
   if (/bijzondere bijdrage|achterstallig onderhoud|inhaal(?:onderhoud)?/.test(haystack)) {
-    flags.push({
-      key: "vve-bijzondere-bijdrage",
-      title: "Bijzondere bijdrage of achterstallig onderhoud genoemd",
-      summary: "De tekst noemt een bijzondere bijdrage of achterstallig onderhoud. Dit kan een aanzienlijke extra kostenpost zijn bovenop de koopsom.",
-      severity: "high",
-      action: "Vraag het bedrag, de reden en of het al is geïnd of nog gaat komen.",
-    });
+    flags.push(flag("vve-bijzondere-bijdrage", "vveSpecialLevy", "high"));
   }
 
   if (/ouderdomsclausule/.test(haystack)) {
-    flags.push({
-      key: "ouderdomsclausule",
-      title: "Ouderdomsclausule genoemd",
-      summary: "Een ouderdomsclausule beperkt wat je later kunt verhalen op de verkoper voor gebreken die passen bij de leeftijd van de woning.",
-      severity: "medium",
-      action: "Laat de notaris de exacte clausuletekst beoordelen voordat je tekent.",
-    });
+    flags.push(flag("ouderdomsclausule", "ouderdomsclausule", "medium"));
   }
 
   if (/asbest/.test(haystack)) {
-    flags.push({
-      key: "asbest",
-      title: "Asbest genoemd in de advertentie",
-      summary: "Asbest wordt genoemd. Vooral bij bouw voor 1994 is dit relevant voor je bouwkundige keuring.",
-      severity: "medium",
-      action: "Vraag of er een asbestinventarisatie is en overweeg een asbestclausule te bespreken met de notaris.",
-    });
+    flags.push(flag("asbest", "asbest", "medium"));
   }
 
   if (/(vocht|schimmel|lekkage)/.test(haystack)) {
-    flags.push({
-      key: "vocht-lekkage",
-      title: "Vocht, schimmel of lekkage genoemd",
-      summary: "De advertentietekst noemt vocht, schimmel of lekkage. Dit is een concreet keuringspunt.",
-      severity: "medium",
-      action: "Laat de bouwkundig keurder dit gericht controleren en vraag de verkoper naar de herstelhistorie.",
-    });
+    flags.push(flag("vocht-lekkage", "vochtLekkage", "medium"));
   }
 
   return flags;
 }
-

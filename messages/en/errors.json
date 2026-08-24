@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Error",
+  "title": "Something went wrong",
+  "routeCopy": "This page could not be loaded. Try again — your data stays saved. If that doesn't work, head back to the home page.",
+  "globalCopy": "The application could not be loaded. Please try again.",
+  "retry": "Try again",
+  "home": "Go to the home page",
+  "errorCode": "Error code:",
+  "notFoundTitle": "This page does not exist",
+  "notFoundCopy": "The address may have been mistyped, or the property may have been taken off the market. Search again below by address, neighbourhood or place."
+}

@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type {
   Analysis,
   EverydayInsight,
@@ -37,7 +39,8 @@ export function scoreBand(score: number | null | undefined): VerdictTone {
   return "attention";
 }
 
-export function buildVerdict(analysis: Analysis): Verdict {
+export function buildVerdict(analysis: Analysis, locale: Locale = "nl"): Verdict {
+  const t = getLibTranslator(locale, "lib-domain");
   const attentionHighlights = (analysis.highlights ?? []).filter(
     (item) => item.type === "attention",
   );
@@ -49,19 +52,24 @@ export function buildVerdict(analysis: Analysis): Verdict {
         ? "neutral"
         : scoreTone;
 
+  const score = analysis.overallScore.toLocaleString(locale === "en" ? "en-IE" : "nl-NL", { maximumFractionDigits: 1 });
   const headline =
     tone === "good"
-      ? "De omgeving oogt overwegend gunstig"
+      ? t("reportSummary.verdict.good.headline")
       : tone === "attention"
-        ? "Er zijn aandachtspunten in de omgeving"
-        : "Gemengd beeld — check de details";
+        ? t("reportSummary.verdict.attention.headline")
+        : t("reportSummary.verdict.mixed.headline");
 
   const summary =
     tone === "good"
-      ? `Omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10. ${analysis.dataCoverage.label}.`
+      ? t("reportSummary.verdict.good.summary", { score, coverage: analysis.dataCoverage.label })
       : tone === "attention"
-        ? `${attentionHighlights.length} punt${attentionHighlights.length === 1 ? "" : "en"} vragen extra aandacht naast de omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10.`
-        : `Omgevingsscore ${analysis.overallScore.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10 met zowel pluspunten als aandachtspunten. ${analysis.dataCoverage.label}.`;
+        ? t("reportSummary.verdict.attention.summary", {
+            count: attentionHighlights.length,
+            plural: attentionHighlights.length === 1 ? "" : locale === "en" ? "s" : "en",
+            score,
+          })
+        : t("reportSummary.verdict.mixed.summary", { score, coverage: analysis.dataCoverage.label });
 
   return { tone, headline, summary };
 }

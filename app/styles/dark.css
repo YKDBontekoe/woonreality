@@ -1,0 +1,96 @@
+/* ---------------------------------------------------------------------------
+   Dark theme. Loaded last so these declarations win the cascade.
+
+   Contract: every rule here either
+   1. overrides a token from :root, or
+   2. fixes a component whose light styling assumed a dark `--ink`
+      (ink-filled controls keep their fill but need dark text once --ink
+      flips to near-white).
+
+   Nothing else belongs in this file: new components should compose tokens
+   so they adapt automatically.
+--------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    /* Text */
+    --ink: #f2f2f7;
+    --ink-soft: #b8b8c0;
+    --muted: #9a9aa3;
+    /* Surfaces */
+    --paper: #0d0f13;
+    --card: #16181e;
+    --canvas: #0b0d11;
+    --surface: #15171c;
+    --surface-soft: #1c1f26;
+    --surface-accent: #14243a;
+    --line: #262a32;
+    --border-subtle: #23272e;
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    --shadow-xs: 0 3px 10px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 10px 28px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 20px 48px rgba(0, 0, 0, 0.55);
+    /* Interactive */
+    --accent: #0a84ff;
+    --accent-hover: #3395ff;
+    --accent-soft: #12263c;
+    --accent-focus: #6db2ff;
+    /* accent-deep is used as text on tinted surfaces; lighten it instead of
+       darkening it. */
+    --accent-deep: #79b8ff;
+    --accent-border: #2c4a6e;
+    --ink-hover: #dcdce2;
+    --inverse: #101216;
+    /* Semantic */
+    --ok: #45c78a;
+    --ok-soft: #14251d;
+    --ok-border: #274435;
+    --warn: #ffd60a;
+    --warn-soft: #2b2411;
+    --warn-deep: #f0c75a;
+    --warn-border: #57491f;
+    --attention: #ff9f0a;
+    --attention-soft: #2e2118;
+    --attention-deep: #ffb267;
+    --attention-border: #55382a;
+    --danger: #ff7a66;
+    /* Frosted overlays */
+    --glass: rgba(18, 20, 25, 0.72);
+    --glass-strong: rgba(18, 20, 25, 0.92);
+    /* Static map placeholders */
+    --map-bg: #1b2027;
+    --map-line: #333c48;
+    --map-line-soft: #2a323d;
+  }
+
+  color-scheme: dark;
+
+  /* Ink-filled controls keep their high-contrast fill but must switch to
+     dark label text now that --ink is near-white. */
+  .brand-mark,
+  .search-mode-tab.selected,
+  .werkwijze-step-number,
+  .feature-card-icon,
+  .dash-point-filters button.is-on,
+  .dash-decision-action.is-primary,
+  .map-scenes button.selected,
+  .map-tools > button.selected,
+  .map-reach-modes button.selected,
+  .decision-bar,
+  .decision-bar-actions .secondary-button,
+  .mortgage-mobile-dock {
+    color: var(--inverse);
+  }
+
+  .decision-bar-actions .secondary-button {
+    border-color: color-mix(in srgb, var(--inverse) 35%, transparent);
+  }
+
+  /* Frosted chrome picks up a hairline so it separates from content. */
+  .search-box,
+  .dash-dock,
+  .floating-tag {
+    border-color: var(--line);
+  }
+  ::selection { background: rgba(10, 132, 255, 0.4); }
+}

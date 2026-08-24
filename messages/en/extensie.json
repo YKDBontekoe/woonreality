@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "title": "Funda extension — WoonReality",
+    "description": "Install the WoonReality extension for Chrome, Edge or Firefox and save Funda features to your file."
+  },
+  "page": {
+    "backToSearch": "← Search address",
+    "eyebrow": "browser extension",
+    "title": "Store Funda facts with your home.",
+    "heroCopy": "Install the extension once. Then open a Funda listing in your own browser and save only the relevant features with your home check.",
+    "stepOne": "Step 1",
+    "stepTwo": "Step 2",
+    "chromeEdge": "Chrome or Edge",
+    "versionSuffix": "· version {version}",
+    "downloadChrome": "Download for Chrome / Edge (.zip)",
+    "extractArchive": "Unpack the archive into a folder you keep.",
+    "devModePart1": "Go to",
+    "devModePart2": "(or",
+    "devModePart3": ") and enable developer mode.",
+    "loadUnpacked": "Choose “Load unpacked” and select that folder.",
+    "updateNote": "With a new version, download the zip again and choose “Refresh” on the extensions page.",
+    "downloadFirefox": "Download for Firefox (.xpi)",
+    "firefoxDevPart1": "For development:",
+    "firefoxDevPart2": "→ “Load Temporary Add-on” and choose the XPI or",
+    "tempAddonNote": "Temporary add-ons disappear after a restart. A signed XPI or AMO publication persists.",
+    "connectHeading": "Connect this browser"
+  },
+  "setup": {
+    "pairedOk": "This browser is connected. Open a Funda listing to save features.",
+    "pairFailed": "Connecting failed.",
+    "loginToPair": "Log in to connect the extension.",
+    "codeFailed": "Could not create a pairing code.",
+    "revokeFailed": "This browser connection could not be revoked.",
+    "revoked": "Browser connection revoked.",
+    "detected": "The WoonReality extension was found in this browser.",
+    "notDetected": "Install the extension first. You can then connect this browser to your account.",
+    "serviceInactive": "Connecting is not yet active in this environment. You can already install the extension.",
+    "loginLink": "Log in",
+    "loginPurpose": "to save property features in your file.",
+    "pairBrowser": "Connect this browser",
+    "oneTimeCodePrefix": "Pairing code (one-time):",
+    "oneTimeCodeSuffix": ". If the extension doesn't connect automatically, paste this code into the popup.",
+    "defaultTokenLabel": "Browser extension",
+    "since": "since {time}",
+    "lastUsed": " · last used {time}",
+    "defaultBrowserRef": "this browser",
+    "revokeAria": "Revoke the connection with {label}",
+    "revokeConfirm": "Revoke the connection with {label}?",
+    "revoke": "Revoke"
+  }
+}

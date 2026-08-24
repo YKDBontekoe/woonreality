@@ -1,67 +1,69 @@
 "use client";
 
 import { CheckCircle2, FileCheck2, Leaf, LocateFixed, Map, ShieldCheck, Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { AddressSearch } from "@/components/address-search";
 import { SiteHeader } from "@/components/site-header";
 import { Card } from "@/components/ui/card";
 
 export function LandingPage() {
+  const t = useTranslations("landing");
   return (
     <main className="site-shell landing-shell">
       <div className="container"><SiteHeader current="home" /></div>
       <section className="container hero">
         <div>
-          <div className="eyebrow"><span className="eyebrow-dot" /> Gratis woningcheck</div>
-          <h1>Weet waar je <em>écht</em> gaat wonen.</h1>
+          <div className="eyebrow"><span className="eyebrow-dot" /> {t("eyebrow")}</div>
+          <h1>{t("h1Start")} <em>{t("h1Emphasis")}</em> {t("h1End")}</h1>
           <p className="hero-copy">
-            Typ een adres, buurt of plaats — of kies <strong>Funda-link</strong> in het zoekvak. Kenmerken komen via de browser-extensie. Een account is niet nodig voor je eerste woningcheck.
+            {t("heroCopyStart")} <strong>{t("heroCopyStrong")}</strong> {t("heroCopyEnd")}
           </p>
           <AddressSearch />
-          <div className="hero-note"><ShieldCheck size={15} /> Geen verborgen score. Wel uitleg met bronnen die je zelf kunt checken.</div>
+          <div className="hero-note"><ShieldCheck size={15} /> {t("heroNote")}</div>
         </div>
-        <div className="hero-visual" aria-label="Voorbeeld van een WoonReality analyse">
+        <div className="hero-visual" aria-label={t("heroVisualAria")}>
           <div className="visual-card">
             <div className="visual-grid" />
             <div className="visual-map" />
             <div className="visual-top">
-              <span className="visual-label"><Sparkles size={11} /> Eerste indruk</span>
-              <span className="visual-time">Open data</span>
+              <span className="visual-label"><Sparkles size={11} /> {t("visualLabel")}</span>
+              <span className="visual-time">{t("visualTime")}</span>
             </div>
             <div className="visual-building" />
             <div className="visual-pin"><MapPinIcon /></div>
             <div className="visual-score">
-              <div className="visual-score-label">Eerste indruk</div>
+              <div className="visual-score-label">{t("visualLabel")}</div>
               <div className="visual-score-number">7,8<span>/ 10</span></div>
-              <div className="visual-score-meta"><span /> sterke basis, let op geluid</div>
+              <div className="visual-score-meta"><span /> {t("visualScoreMeta")}</div>
             </div>
-            <div className="visual-source"><CheckCircle2 size={13} /> 12 signalen met bron</div>
+            <div className="visual-source"><CheckCircle2 size={13} /> {t("visualSource")}</div>
           </div>
           <div className="floating-tag">
             <span className="tag-icon"><Leaf size={15} /></span>
-            <span><strong>Groen 8,7</strong>binnen 250 m</span>
+            <span><strong>{t("tagGreenStrong")}</strong>{t("tagGreenText")}</span>
           </div>
         </div>
       </section>
       <Card className="container proof-strip" id="bronnen">
-        <Proof icon={<LocateFixed size={17} />} title="Officieel adres" text="We zoeken op het echte woonadres" />
-        <Proof icon={<FileCheck2 size={17} />} title="Elk punt met bron" text="Je ziet waar een signaal vandaan komt" />
-        <Proof icon={<Map size={17} />} title="Jij belt en biedt" text="Wij versturen niets zonder jouw actie" />
+        <Proof icon={<LocateFixed size={17} />} title={t("proofAddressTitle")} text={t("proofAddressText")} />
+        <Proof icon={<FileCheck2 size={17} />} title={t("proofSourceTitle")} text={t("proofSourceText")} />
+        <Proof icon={<Map size={17} />} title={t("proofControlTitle")} text={t("proofControlText")} />
       </Card>
       <section className="container section" id="werkwijze">
         <div className="section-heading">
-          <div className="eyebrow"><span className="eyebrow-dot" /> zo werkt het</div>
-          <h2>Drie stappen. Meer niet.</h2>
-          <p>Eerst kijken of de plek klopt. Daarna beslis je: bezichtigen, bewaren of laten vallen. De rest komt pas als je het huis serieus neemt.</p>
+          <div className="eyebrow"><span className="eyebrow-dot" /> {t("sectionEyebrow")}</div>
+          <h2>{t("sectionTitle")}</h2>
+          <p>{t("sectionLead")}</p>
         </div>
         <div className="werkwijze-steps">
-          <Step number="1" title="Zoek een plek of adres" text="Plaats, buurt of straat + huisnummer. Wij zoeken het officiële gebied of adres op." />
-          <Step number="2" title="Lees je eerste indruk" text="Gewone taal over straat, energie en je dagelijkse route — met bron erbij." />
-          <Step number="3" title="Kies wat je doet" text="Bezichtigen, bewaren of laten vallen. Hypotheek en bod komen later." />
+          <Step number="1" title={t("step1Title")} text={t("step1Text")} />
+          <Step number="2" title={t("step2Title")} text={t("step2Text")} />
+          <Step number="3" title={t("step3Title")} text={t("step3Text")} />
         </div>
       </section>
       <footer className="container footer">
-        <span><strong>WoonReality</strong> · weet waar je écht gaat wonen</span>
-        <span>Open data, menselijke uitleg, jij tekent.</span>
+        <span><strong>WoonReality</strong> · {t("footerBrandTagline")}</span>
+        <span>{t("footerLine2")}</span>
       </footer>
     </main>
   );

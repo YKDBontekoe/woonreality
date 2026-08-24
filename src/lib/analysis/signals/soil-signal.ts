@@ -1,7 +1,10 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
 import type { BodemContext } from "@/src/lib/sources/bodem";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
+/** Layer-key descriptors of the regional WFS registers; provider data, not display copy. */
 const BODEM_LAYER_LABELS: Record<string, string> = {
   verontreinigd: "verontreinigingen",
   verdacht: "verdachte locaties",
@@ -35,20 +38,22 @@ function hitsByLayerLabel(bodem: BodemContext) {
 }
 
 /** WFS bbox screening only; a hit list is an indication, never proof of contamination. */
-export function soilSignal(input: { bodem: BodemContext; evidence: Evidence }): Signal | null {
+export function soilSignal(input: { bodem: BodemContext; evidence: Evidence }, locale: Locale = "nl"): Signal | null {
   const { bodem, evidence } = input;
   if (bodem.totalMatches <= 0) return null;
+  const t = getLibTranslator(locale, "lib-analysis");
   const labels = hitsByLayerLabel(bodem);
   return {
     key: "soil-contamination",
-    label: "Bodemverontreiniging (indicatie)",
+    label: t("soil.label"),
     category: "klimaat",
-    value: bodem.totalMatches > 99 ? "99+ locaties" : `${bodem.totalMatches} locatie(s)`,
+    value: bodem.totalMatches > 99 ? t("soil.valueMax") : t("soil.valueCount", { count: bodem.totalMatches }),
     severity: "attention",
-    summary: `In beschikbare regionale bodemregister-lagen zijn indicaties gevonden bij dit adres: ${labels.slice(0, 3).join("; ")}.${
-      labels.length > 3 ? " (meer hits mogelijk)" : ""
-    } Dit is screening op basis van WFS-bbox-hits; voor zekerheid check je het provinciaal/gemeentelijk bodemloket via Bodemloket.`,
-    action: "Check Bodemloket.nl en vraag bij de bevoegde omgevingsdienst naar de relevante bodemrapportage/dossierstatus.",
+    summary: t("soil.summary", {
+      hits: labels.slice(0, 3).join("; "),
+      more: labels.length > 3 ? t("soil.moreHitsSuffix") : "",
+    }),
+    action: t("soil.action"),
     confidence: "medium",
     spatialScale: "circa 200 m bbox rond dit adres",
     raw: {

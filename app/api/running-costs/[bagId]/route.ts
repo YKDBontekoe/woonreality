@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { fetchLatestEnergyTariffs, fetchEnergyConsumption } from "@/src/lib/sources/cbs-energy";
 import { estimateRunningCosts } from "@/src/lib/running-costs";
@@ -8,6 +11,8 @@ export const runtime = "nodejs";
 export const maxDuration = 15;
 
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { bagId } = await context.params;
   const url = new URL(request.url);
   const vveParam = url.searchParams.get("vveContribution");
@@ -27,7 +32,7 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
 
     const parsedVve = parseVveContribution(vveParam);
     if (parsedVve === null) {
-      return NextResponse.json({ error: "Ongeldige VvE-bijdrage." }, { status: 400 });
+      return NextResponse.json({ error: t("errors.invalidVveContribution") }, { status: 400 });
     }
 
     const property = await getPropertyById(decodeURIComponent(bagId));
@@ -47,15 +52,15 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
       areaM2: property.areaM2,
       vveContribution: parsedVve ?? undefined,
       gasConnection: gasParam === "false" ? false : undefined,
-    });
+    }, locale);
 
     return NextResponse.json(estimate, {
-      headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" },
+      headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800", Vary: "Cookie" },
     });
   } catch (error) {
     console.error("Running costs estimation failed", redactError(error));
     return NextResponse.json(
-      { error: toUserMessage(error, "De woonlastenschatting kon niet worden gemaakt.") },
+      { error: toUserMessage(error, t("errors.runningCosts")) },
       { status: 502 },
     );
   }

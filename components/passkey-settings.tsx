@@ -2,6 +2,7 @@
 
 import { KeyRound, MailCheck, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { createSupabaseBrowserClient } from "@/src/lib/supabase/browser";
 import { authErrorMessage } from "@/src/lib/supabase/auth-message";
 import { fetchPasskeyAvailability } from "@/src/lib/supabase/passkey-availability";
@@ -19,6 +20,7 @@ type PasskeyState =
   | { kind: "error"; message: string };
 
 export function PasskeySettings({ email, emailConfirmed, suggestEnrollment = false }: PasskeySettingsProps) {
+  const t = useTranslations("mijn-aankoop");
   const [state, setState] = useState<PasskeyState>({ kind: "loading" });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,29 +49,29 @@ export function PasskeySettings({ email, emailConfirmed, suggestEnrollment = fal
         }
         setState({
           kind: "error",
-          message: authErrorMessage(error, "Passkeys konden niet worden geladen."),
+          message: authErrorMessage(error, t("passkeysLoadFailed")),
         });
       }
     }
     void load();
     return () => { active = false; };
-  }, []);
+  }, [t]);
 
   async function addPasskey() {
     if (!emailConfirmed) {
-      setMessage("Bevestig eerst je e-mailadres via de link in je inbox.");
+      setMessage(t("confirmEmailFirst"));
       return;
     }
     if (state.kind === "disabled") {
-      setMessage(authErrorMessage({ code: "passkey_disabled" }, "Passkeys staan nog uit in dit project."));
+      setMessage(authErrorMessage({ code: "passkey_disabled" }, t("passkeysDisabledProject")));
       return;
     }
     if (!window.PublicKeyCredential) {
-      setMessage("Deze browser ondersteunt geen passkeys. Gebruik een recente browser of je wachtwoordmanager.");
+      setMessage(t("browserNoPasskeys"));
       return;
     }
     if (!window.isSecureContext) {
-      setMessage("Passkeys werken alleen via HTTPS of localhost.");
+      setMessage(t("passkeysNeedSecureContext"));
       return;
     }
     setBusy(true);
@@ -80,37 +82,37 @@ export function PasskeySettings({ email, emailConfirmed, suggestEnrollment = fal
       const { data, error: listError } = await createSupabaseBrowserClient().auth.passkey.list();
       if (listError) throw listError;
       setState({ kind: "ready", count: data?.length ?? 0 });
-      setMessage("Je passkey is toegevoegd. Volgende keer kun je hiermee direct inloggen.");
+      setMessage(t("passkeyAdded"));
     } catch (error) {
-      setMessage(authErrorMessage(error, "Je passkey kon niet worden toegevoegd."));
+      setMessage(authErrorMessage(error, t("passkeyAddFailed")));
     } finally {
       setBusy(false);
     }
   }
 
   const helperText = state.kind === "disabled"
-    ? "Passkeys staan nog uit in Supabase. Schakel ze in via Authentication → Passkeys met RP ID woonreality.vercel.app."
+    ? t("passkeysDisabledAdmin")
     : state.kind === "error"
       ? state.message
       : state.kind === "ready"
         ? state.count === 0
-          ? "Nog geen passkey toegevoegd."
-          : `${state.count} passkey${state.count === 1 ? "" : "s"} actief op je account.`
-        : "Voeg een passkey toe voor inloggen met Face ID, Touch ID of je wachtwoordmanager.";
+          ? t("noPasskeysYet")
+          : t("passkeyCount", { count: state.count })
+        : t("passkeyHelper");
 
   const canAdd = emailConfirmed && state.kind !== "disabled" && state.kind !== "loading" && state.kind !== "error";
 
   return <section className={`passkey-panel ${suggestEnrollment ? "suggested" : ""}`} aria-labelledby="passkey-heading">
     <span className="passkey-icon"><KeyRound size={18} /></span>
     <div className="passkey-copy">
-      <div className="section-kicker">Accountbeveiliging</div>
-      <h2 id="passkey-heading">Inloggen met passkey</h2>
-      <p><MailCheck size={14} /> {emailConfirmed ? `${email} is bevestigd.` : "Je e-mailadres is nog niet bevestigd."}</p>
+      <div className="section-kicker">{t("securityKicker")}</div>
+      <h2 id="passkey-heading">{t("passkeyTitle")}</h2>
+      <p><MailCheck size={14} /> {emailConfirmed ? t("emailConfirmed", { email }) : t("emailUnconfirmed")}</p>
       <small>{helperText}</small>
     </div>
     <button className="secondary-button" type="button" onClick={addPasskey} disabled={busy || !canAdd}>
       <Plus size={15} />
-      {busy ? "Passkey wordt toegevoegd…" : state.kind === "ready" && state.count > 0 ? "Nog een passkey" : "Passkey toevoegen"}
+      {busy ? t("addingPasskey") : state.kind === "ready" && state.count > 0 ? t("addAnotherPasskey") : t("addPasskey")}
     </button>
     {message && <p className="passkey-message" role="status">{message}</p>}
   </section>;

@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 export type DocumentFindingDraft = {
   title: string;
   summary: string;
@@ -15,14 +18,14 @@ export type DocumentAnalysisInput = {
   buildingYear?: number | null;
 };
 
-const RISK_PATTERNS: Array<{ re: RegExp; title: string; summary: string; severity: DocumentFindingDraft["severity"]; action: string }> = [
-  { re: /lekkage|daklekkage|vochtplek|schimmel/i, title: "Vocht of lekkage genoemd", summary: "In de stukken staat vocht, schimmel of lekkage. Dat is een keuringspunt, geen reden om het te negeren.", severity: "high", action: "Vraag foto’s, herstelhistorie en laat de keurder hier gericht naar kijken." },
-  { re: /funder|paalrot|palenpest|zetting/i, title: "Funderingsrisico in de tekst", summary: "Fundering of zetting wordt benoemd. Open data is geen funderingsonderzoek.", severity: "high", action: "Vraag om funderingsrapport of een specialistische inspectie." },
-  { re: /asbest/i, title: "Asbest genoemd", summary: "Asbest in de stukken vraagt om een rapport of gerichte keuring, vooral bij bouw voor 1994.", severity: "medium", action: "Vraag of er een asbestinventarisatie is en of er een asbestclausule in de akte staat." },
-  { re: /geschil|rechtszaak|procedure|handhaving/i, title: "Juridisch conflict genoemd", summary: "Er lijkt een geschil, procedure of handhaving in de stukken te staan.", severity: "high", action: "Laat de notaris of een jurist de passage duiden voordat je biedt." },
-  { re: /bijzondere bijdrage|extra bijdrage|inhaal|achterstallig onderhoud/i, title: "Extra VvE-kosten of achterstallig onderhoud", summary: "De tekst wijst op extra bijdragen of onderhoud dat is blijven liggen.", severity: "high", action: "Vraag MJOP, reservefonds en of er een bijzondere bijdrage is vastgesteld." },
-  { re: /ouderdomsclausule/i, title: "Ouderdomsclausule", summary: "Een ouderdomsclausule beperkt de aansprakelijkheid van de verkoper voor gebreken die bij de leeftijd passen.", severity: "medium", action: "Laat de notaris uitleggen wat je wél en niet kunt verhalen." },
-  { re: /erfpacht|canon/i, title: "Erfpacht of canon", summary: "Erfpacht verandert de maandlast en de verkoopbaarheid. BAG zegt niet of de grond in erfpacht is.", severity: "medium", action: "Vraag resterende looptijd, canon en of afkoop mogelijk is." },
+const RISK_PATTERNS: Array<{ re: RegExp; copyKey: string; severity: DocumentFindingDraft["severity"] }> = [
+  { re: /lekkage|daklekkage|vochtplek|schimmel/i, copyKey: "moisture", severity: "high" },
+  { re: /funder|paalrot|palenpest|zetting/i, copyKey: "foundation", severity: "high" },
+  { re: /asbest/i, copyKey: "asbestos", severity: "medium" },
+  { re: /geschil|rechtszaak|procedure|handhaving/i, copyKey: "legalConflict", severity: "high" },
+  { re: /bijzondere bijdrage|extra bijdrage|inhaal|achterstallig onderhoud/i, copyKey: "vveExtraCosts", severity: "high" },
+  { re: /ouderdomsclausule/i, copyKey: "ageClause", severity: "medium" },
+  { re: /erfpacht|canon/i, copyKey: "leasehold", severity: "medium" },
 ];
 
 function parseLivingAreas(text: string) {
@@ -41,10 +44,18 @@ function parsePrices(text: string) {
   return matches.map((match) => Number(match[1].replace(/[.\s]/g, ""))).filter((value) => Number.isFinite(value) && value >= 10_000 && value <= 8_000_000);
 }
 
-export function analyzeDocumentText(input: DocumentAnalysisInput): DocumentFindingDraft[] {
+export function analyzeDocumentText(input: DocumentAnalysisInput, locale: Locale = "nl"): DocumentFindingDraft[] {
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = locale === "en" ? "en-IE" : "nl-NL";
+  const finding = (subKey: string, severity: DocumentFindingDraft["severity"], params?: Record<string, unknown>): DocumentFindingDraft => ({
+    title: t(`documents.${subKey}.title`),
+    summary: t(`documents.${subKey}.summary`, params),
+    severity,
+    action: t(`documents.${subKey}.action`),
+  });
   const text = input.text.replace(/\s+/g, " ").trim();
   if (text.length < 40) {
-    return [{ title: "Document nauwelijks leesbaar", summary: "We konden bijna geen tekst uit deze PDF halen. Scans zonder tekstlaag moeten handmatig.", severity: "medium", action: "Upload een doorzoekbare PDF of neem de kernpunten zelf over in je notities." }];
+    return [finding("unreadable", "medium")];
   }
 
   const findings: DocumentFindingDraft[] = [];
@@ -54,12 +65,7 @@ export function analyzeDocumentText(input: DocumentAnalysisInput): DocumentFindi
   if (input.bagAreaM2 && areas.length) {
     const advertised = areas.find((value) => Math.abs(value - input.bagAreaM2!) / input.bagAreaM2! > 0.08);
     if (advertised) {
-      findings.push({
-        title: "Oppervlakte wijkt af van BAG",
-        summary: `In het document staat ongeveer ${advertised} m², BAG registreert ${input.bagAreaM2} m². Dat is geen meetfout die we stil mogen wegstrepen.`,
-        severity: "medium",
-        action: "Vraag welke meetinstructie de advertentie gebruikt (NEN 2580) en of berging/zolder is meegerekend.",
-      });
+      findings.push(finding("areaMismatch", "medium", { advertised: advertised.toLocaleString(numTag), registered: input.bagAreaM2!.toLocaleString(numTag) }));
     }
   }
 
@@ -67,42 +73,32 @@ export function analyzeDocumentText(input: DocumentAnalysisInput): DocumentFindi
     const contractPrice = prices.find((value) => Math.abs(value - input.offerAmount!) >= 500);
     const matching = prices.find((value) => Math.abs(value - input.offerAmount!) < 500);
     if (contractPrice && !matching) {
-      findings.push({
-        title: "Koopsom wijkt af van je bod",
-        summary: `In de akte staat een bedrag rond € ${contractPrice.toLocaleString("nl-NL")}, je conceptbod is € ${input.offerAmount.toLocaleString("nl-NL")}.`,
-        severity: "high",
-        action: "Zet de akte naast je bieding en vraag de notaris of makelaar om de afwijking.",
-      });
+      findings.push(finding("priceMismatch", "high", { contract: contractPrice.toLocaleString(numTag), offer: input.offerAmount.toLocaleString(numTag) }));
     }
   }
 
   if (input.documentType === "vve") {
     if (!/mjop|meerjaren/i.test(text)) {
-      findings.push({ title: "MJOP niet duidelijk genoemd", summary: "In deze VvE-stukken is geen duidelijk meerjarenonderhoudsplan herkend.", severity: "medium", action: "Vraag het actuele MJOP en de laatste Algemene Ledenvergadering-notulen." });
+      findings.push(finding("mjopMissing", "medium"));
     }
     if (!/reservefonds|reserve fonds/i.test(text)) {
-      findings.push({ title: "Reservefonds onduidelijk", summary: "Het reservefonds is niet herkend. Dat zegt nog niet dat het ontbreekt, wel dat je het moet nazoeken.", severity: "medium", action: "Vraag de stand van het reservefonds en of er een bijzondere bijdrage aankomt." });
+      findings.push(finding("reserveFundUnclear", "medium"));
     }
   }
 
   if (input.documentType === "vragenlijst" || /vragenlijst/i.test(input.filename)) {
     if (!/lekkage|vocht|dak|cv|fundering/i.test(text)) {
-      findings.push({ title: "Vragenlijst lijkt incompleet", summary: "Kenmerkende onderhoudsvragen (dak, vocht, CV, fundering) zijn niet herkend.", severity: "low", action: "Loop de vragenlijst zelf na en markeer lege of ontwijkende antwoorden." });
+      findings.push(finding("questionnaireIncomplete", "low"));
     }
   }
 
   if (input.buildingYear && input.buildingYear < 1945 && !/funder/i.test(text) && (input.documentType === "brochure" || input.documentType === "vragenlijst")) {
-    findings.push({
-      title: "Fundering niet toegelicht bij vooroorlogse bouw",
-      summary: `BAG-bouwjaar ${input.buildingYear} en de stukken noemen fundering niet. Dat is een gat, geen groene vlag.`,
-      severity: "medium",
-      action: "Vraag de verkoper naar funderingsonderzoek of bekende zetting.",
-    });
+    findings.push(finding("prewarFoundation", "medium", { year: input.buildingYear }));
   }
 
   for (const pattern of RISK_PATTERNS) {
     if (pattern.re.test(text)) {
-      findings.push({ title: pattern.title, summary: pattern.summary, severity: pattern.severity, action: pattern.action });
+      findings.push(finding(`patterns.${pattern.copyKey}`, pattern.severity));
     }
   }
 

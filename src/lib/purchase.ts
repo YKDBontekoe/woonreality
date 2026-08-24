@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 export type PropertyStage =
   | "saved"
   | "research"
@@ -76,36 +79,44 @@ export const EMPTY_BUYER_PROFILE: BuyerProfile = {
   maxCommuteMinutes: 0,
 };
 
-export const PROPERTY_STAGE_LABELS: Record<PropertyStage, string> = {
-  saved: "Opgeslagen",
-  research: "Onderzoeken",
-  viewing: "Bezichtiging gepland",
-  visited: "Bezichtigd",
-  offer: "Bod voorbereiden",
-  offered: "Bod uitgebracht",
-  negotiation: "Onderhandeling",
-  accepted: "Geaccepteerd",
-  dropped: "Afgevallen",
-  bought: "Gekocht",
-};
+const ALL_PROPERTY_STAGES: PropertyStage[] = ["saved", "research", "viewing", "visited", "offer", "offered", "negotiation", "accepted", "dropped", "bought"];
+
+export function propertyStageLabel(stage: PropertyStage, locale: Locale = "nl"): string {
+  return getLibTranslator(locale, "lib-domain")(`purchase.propertyStages.${stage}`);
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer propertyStageLabel(stage, locale). */
+export const PROPERTY_STAGE_LABELS: Record<PropertyStage, string> = Object.fromEntries(
+  ALL_PROPERTY_STAGES.map((stage) => [stage, propertyStageLabel(stage)]),
+) as Record<PropertyStage, string>;
 
 export const PROPERTY_STAGE_ORDER: PropertyStage[] = ["saved", "research", "viewing", "visited", "offer", "offered", "negotiation", "accepted", "bought"];
 
-export const HOUSEHOLD_LABELS: Record<HouseholdType, string> = {
-  single: "Alleen",
-  couple: "Samen",
-  family: "Gezin",
-};
+const HOUSEHOLD_TYPES: HouseholdType[] = ["single", "couple", "family"];
 
-export const PROPERTY_TYPE_LABELS: Record<SoughtPropertyType, string> = {
-  any: "Maakt niet uit",
-  house: "Grondgebonden",
-  apartment: "Appartement",
-};
+export function householdLabel(household: HouseholdType, locale: Locale = "nl"): string {
+  return getLibTranslator(locale, "lib-domain")(`purchase.households.${household}`);
+}
 
-export function formatEuro(value: number | null | undefined) {
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer householdLabel(household, locale). */
+export const HOUSEHOLD_LABELS: Record<HouseholdType, string> = Object.fromEntries(
+  HOUSEHOLD_TYPES.map((key) => [key, householdLabel(key)]),
+) as Record<HouseholdType, string>;
+
+const SOUGHT_PROPERTY_TYPES: SoughtPropertyType[] = ["any", "house", "apartment"];
+
+export function propertyTypeLabel(type: SoughtPropertyType, locale: Locale = "nl"): string {
+  return getLibTranslator(locale, "lib-domain")(`purchase.propertyTypes.${type}`);
+}
+
+/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer propertyTypeLabel(type, locale). */
+export const PROPERTY_TYPE_LABELS: Record<SoughtPropertyType, string> = Object.fromEntries(
+  SOUGHT_PROPERTY_TYPES.map((key) => [key, propertyTypeLabel(key)]),
+) as Record<SoughtPropertyType, string>;
+
+export function formatEuro(value: number | null | undefined, locale: Locale = "nl") {
   if (value == null || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat(locale === "en" ? "en-IE" : "nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { scoreBand } from "@/src/lib/report-summary";
 
 export function ScoreDonut({
@@ -7,6 +8,7 @@ export function ScoreDonut({
   score: number;
   size?: "md" | "lg";
 }) {
+  const t = useTranslations("woning");
   const clamped = Math.max(0, Math.min(10, score));
   const radius = size === "lg" ? 46 : 36;
   const view = size === "lg" ? 120 : 96;
@@ -22,7 +24,7 @@ export function ScoreDonut({
       className={`dash-donut is-${size}`}
       viewBox={`0 0 ${view} ${view}`}
       role="img"
-      aria-label={`Score ${clamped.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} van 10`}
+      aria-label={t("donut.aria", { score: clamped.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) })}
       style={{ "--donut-circ": circ, "--donut-offset": offset } as React.CSSProperties}
     >
       <circle cx={cx} cy={cx} r={radius} fill="none" stroke="var(--line)" strokeWidth={size === "lg" ? 10 : 8} aria-hidden="true" />

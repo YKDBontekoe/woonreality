@@ -2,6 +2,7 @@
 
 import { Layers3, Locate, MapPinned, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
@@ -128,11 +129,11 @@ function parseInitialNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function scaleLabel(scale: string | undefined) {
-  if (scale === "gemeente") return "Gemeente";
-  if (scale === "wijk") return "Wijk";
-  if (scale === "buurt") return "Buurt";
-  return "Gebied";
+function scaleLabel(scale: string | undefined, t: ReturnType<typeof useTranslations>) {
+  if (scale === "gemeente") return t("scaleGemeente");
+  if (scale === "wijk") return t("scaleWijk");
+  if (scale === "buurt") return t("scaleBuurt");
+  return t("scaleArea");
 }
 
 function activeSceneHint(scene: NationalSceneId | "custom", layer: NationalLayerId) {
@@ -171,6 +172,7 @@ export function NetherlandsMap({
   const [selected, setSelected] = useState<RegionFeatureProperties | null>(null);
   const [pendingAddress, setPendingAddress] = useState<AddressSearchResult | null>(null);
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
+  const t = useTranslations("kaart");
 
   useEffect(() => {
     layerRef.current = layer;
@@ -195,7 +197,7 @@ export function NetherlandsMap({
         { signal: controller.signal },
       );
       const body = await response.json() as RegionsResponse & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Kaartlaag laden mislukt");
+      if (!response.ok) throw new Error(body.error ?? t("layerLoadFailed"));
       if (controller.signal.aborted || mapInstance.current !== map) return;
       const source = map.getSource("regions") as mapboxgl.GeoJSONSource | undefined;
       source?.setData(body);
@@ -216,11 +218,11 @@ export function NetherlandsMap({
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") return;
       if (mapInstance.current !== map) return;
-      setError(caught instanceof Error ? caught.message : "Kaartlaag laden mislukt");
+      setError(caught instanceof Error ? caught.message : t("layerLoadFailed"));
     } finally {
       if (fetchAbortRef.current === controller) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const scheduleRefresh = useCallback((map: mapboxgl.Map) => {
     if (moveTimerRef.current) window.clearTimeout(moveTimerRef.current);
@@ -381,9 +383,9 @@ export function NetherlandsMap({
       <div className="map-card map-empty kaart-map-shell">
         <div className="map-empty-copy">
           <div className="map-empty-pin" aria-hidden="true"><MapPinned size={18} /></div>
-          <span className="section-kicker">Nederlandkaart</span>
-          <strong>Kaart niet beschikbaar</strong>
-          <p>Stel <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> in om de buurtverkenner te gebruiken.</p>
+          <span className="section-kicker">{t("mapEmptyKicker")}</span>
+          <strong>{t("mapEmptyTitle")}</strong>
+          <p>{t("mapTokenHintBefore")} <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> {t("mapTokenHintAfter")}</p>
         </div>
       </div>
     );
@@ -395,7 +397,7 @@ export function NetherlandsMap({
     <div className="map-card interactive-map is-studio kaart-map-shell">
       <div ref={mapRef} className="map-canvas" />
       <div className="map-chrome kaart-map-chrome">
-        <div className="map-scenes" role="group" aria-label="Thema&apos;s">
+        <div className="map-scenes" role="group" aria-label={t("themesAria")}>
           {NATIONAL_SCENES.map((item) => (
             <button
               key={item.id}
@@ -408,7 +410,7 @@ export function NetherlandsMap({
               {item.label}
             </button>
           ))}
-          {scene === "custom" ? <span className="kaart-scene-custom">Aangepast</span> : null}
+          {scene === "custom" ? <span className="kaart-scene-custom">{t("customScene")}</span> : null}
         </div>
         <div className="map-tools kaart-map-tools">
           <button type="button" onClick={() => {
@@ -417,10 +419,10 @@ export function NetherlandsMap({
             map.fitBounds(NL_MAP_BOUNDS, { padding: 40, pitch: 0, duration: 700 });
             selectRegion(null);
           }}>
-            <Locate size={13} /> Heel NL
+            <Locate size={13} /> {t("wholeNl")}
           </button>
           <button type="button" className={layersOpen ? "selected" : undefined} aria-pressed={layersOpen} onClick={() => setLayersOpen((value) => !value)}>
-            <Layers3 size={13} /> Lagen
+            <Layers3 size={13} /> {t("layersToggle")}
           </button>
         </div>
       </div>
@@ -428,7 +430,7 @@ export function NetherlandsMap({
       {layersOpen && (
         <div className="map-layers-panel kaart-layer-panel">
           <div className="map-layers-group">
-            <small>Buurtdata</small>
+            <small>{t("groupNeighborhood")}</small>
             {(["ses", "education", "crime", "children", "density"] as NationalLayerId[]).map((id) => (
               <label key={id}>
                 <input type="radio" name="kaart-layer" checked={layer === id} onChange={() => toggleLayer(id)} />
@@ -438,7 +440,7 @@ export function NetherlandsMap({
             ))}
           </div>
           <div className="map-layers-group">
-            <small>Scholen & wonen</small>
+            <small>{t("groupSchools")}</small>
             {(["schools", "woz"] as NationalLayerId[]).map((id) => (
               <label key={id}>
                 <input type="radio" name="kaart-layer" checked={layer === id} onChange={() => toggleLayer(id)} />
@@ -448,7 +450,7 @@ export function NetherlandsMap({
             ))}
           </div>
           <div className="map-layers-group">
-            <small>Rasters</small>
+            <small>{t("groupRasters")}</small>
             {(Object.keys(NATIONAL_RASTERS) as NationalRasterId[]).map((id) => (
               <label key={id}>
                 <input type="checkbox" checked={rasters[id]} onChange={() => toggleRaster(id)} />
@@ -466,9 +468,9 @@ export function NetherlandsMap({
             <span>{sceneHint}</span>
           </div>
           <div className="kaart-legend-badges">
-            <span className="kaart-badge">{scaleLabel(meta.scale)}</span>
+            <span className="kaart-badge">{scaleLabel(meta.scale, t)}</span>
             {meta.periodYear ? <span className="kaart-badge kaart-badge-muted">{meta.periodYear}</span> : null}
-            {loading ? <span className="kaart-badge kaart-badge-live">Laden…</span> : null}
+            {loading ? <span className="kaart-badge kaart-badge-live">{t("loadingBadge")}</span> : null}
           </div>
         </div>
         <div className="kaart-legend-bar" aria-hidden="true">
@@ -481,7 +483,7 @@ export function NetherlandsMap({
           <span>{legend.max.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} {legend.unit}</span>
         </div>
         {legend.caveat ? <p className="kaart-legend-note">{legend.caveat}</p> : null}
-        {meta.truncated ? <p className="kaart-legend-note">Zoom verder in voor meer buurten in dit venster.</p> : null}
+        {meta.truncated ? <p className="kaart-legend-note">{t("truncatedNote")}</p> : null}
         {error ? <p className="kaart-legend-error" role="alert">{error}</p> : null}
       </div>
 
@@ -491,31 +493,31 @@ export function NetherlandsMap({
             <>
               <div className="kaart-inspect-header">
                 <div>
-                  <span className="kaart-badge">{scaleLabel(selected.scale)}</span>
-                  <h2>{selected.regionName ?? "Gebied"}</h2>
+                  <span className="kaart-badge">{scaleLabel(selected.scale, t)}</span>
+                  <h2>{selected.regionName ?? t("scaleArea")}</h2>
                   {selected.municipalityName ? <p className="kaart-inspect-meta">{selected.municipalityName}</p> : null}
                 </div>
-                <button type="button" className="kaart-inspect-close" aria-label="Paneel sluiten" onClick={() => { selectRegion(null); setPendingAddress(null); }}>
+                <button type="button" className="kaart-inspect-close" aria-label={t("closePanelAria")} onClick={() => { selectRegion(null); setPendingAddress(null); }}>
                   <X size={16} />
                 </button>
               </div>
               <div className="kaart-inspect-highlight">
                 <span>{legend.label}</span>
-                <strong>{selected.valueLabel ?? "Geen data"}</strong>
+                <strong>{selected.valueLabel ?? t("noData")}</strong>
               </div>
               <dl className="kaart-inspect-list">
                 {inspectLines.filter((line) => line.label !== "Gebied").map((line) => (
                   <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>
                 ))}
               </dl>
-              <a className="text-link" href={legend.sourceUrl} target="_blank" rel="noreferrer">Bron: {legend.source}</a>
+              <a className="text-link" href={legend.sourceUrl} target="_blank" rel="noreferrer">{t("sourceLink", { source: legend.source })}</a>
             </>
           ) : null}
           {pendingAddress ? (
             <div className="kaart-inspect-address">
-              <span className="section-kicker">Gevonden adres</span>
+              <span className="section-kicker">{t("foundAddress")}</span>
               <strong>{pendingAddress.displayName}</strong>
-              <a className="primary-button" href={`/woning/${encodeURIComponent(pendingAddress.bagVboId)}`}>Open woningcheck</a>
+              <a className="primary-button" href={`/woning/${encodeURIComponent(pendingAddress.bagVboId)}`}>{t("openPropertyCheck")}</a>
             </div>
           ) : null}
         </aside>

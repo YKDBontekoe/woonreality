@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowLeft, GitCompare, Heart, X } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
@@ -22,22 +23,23 @@ const EMPTY_LISTING: ComparisonListingFacts = {
 };
 
 function ComparisonEmptyState({ error }: { error: string }) {
+  const t = useTranslations("vergelijken");
   return (
     <main className="site-shell comparison-shell">
       <div className="container">
         <SiteHeader current="vergelijken" />
         <section className="comparison-empty" aria-labelledby="comparison-empty-title">
-          <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> Adres zoeken</Link>
-          <div className="eyebrow"><GitCompare size={13} /> vergelijken</div>
-          <h1 id="comparison-empty-title">Zie het verschil tussen woningen.</h1>
-          <p className="hero-copy">Vergelijk pas nadat je twee woningchecks hebt opgeslagen. Wij zetten score, feiten en jouw persoonlijke fit naast elkaar.</p>
+          <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
+          <div className="eyebrow"><GitCompare size={13} /> {t("eyebrow")}</div>
+          <h1 id="comparison-empty-title">{t("emptyTitle")}</h1>
+          <p className="hero-copy">{t("emptyCopy")}</p>
           {error ? <p className="compare-alert" role="alert">{error}</p> : null}
           <ol className="comparison-empty-steps">
-            <li><span>1</span><div><strong>Check een adres</strong><small>Open een woningcheck die je wilt onthouden.</small></div></li>
-            <li><span>2</span><div><strong>Kies Vergelijk</strong><small>Voeg daarna nog één woning toe.</small></div></li>
-            <li><span>3</span><div><strong>Kom hier terug</strong><small>Dan zie je de verschillen op één plek.</small></div></li>
+            <li><span>1</span><div><strong>{t("step1Title")}</strong><small>{t("step1Text")}</small></div></li>
+            <li><span>2</span><div><strong>{t("step2Title")}</strong><small>{t("step2Text")}</small></div></li>
+            <li><span>3</span><div><strong>{t("step3Title")}</strong><small>{t("step3Text")}</small></div></li>
           </ol>
-          <Link className="primary-button" href="/#zoek-adres">Check eerste adres</Link>
+          <Link className="primary-button" href="/#zoek-adres">{t("emptyCta")}</Link>
         </section>
       </div>
     </main>
@@ -45,6 +47,7 @@ function ComparisonEmptyState({ error }: { error: string }) {
 }
 
 export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
+  const t = useTranslations("vergelijken");
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [listings, setListings] = useState<Record<string, ComparisonListing>>({});
   const [loading, setLoading] = useState(true);
@@ -85,7 +88,7 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
         const available = items.filter((item): item is Analysis => Boolean(item));
         if (active) {
           setAnalyses(available);
-          if (available.length !== items.length) setLoadError("Een of meer woninganalyses zijn tijdelijk niet beschikbaar. Probeer het straks opnieuw.");
+          if (available.length !== items.length) setLoadError(t("errorPartial"));
         }
         // Vraagprijzen zijn optioneel (login vereist voor bewaarde advertentiegegevens);
         // ontbrekende data mag de vergelijking zelf niet blokkeren.
@@ -106,7 +109,7 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
         }));
         if (active) setListings(Object.fromEntries(listingEntries));
       } catch {
-        if (active) setLoadError("De vergelijking kon niet volledig worden geladen. Probeer het opnieuw.");
+        if (active) setLoadError(t("errorLoadFailed"));
       } finally {
         window.clearTimeout(timeout);
         if (active) setLoading(false);
@@ -115,7 +118,7 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
 
     void loadAnalyses();
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
-  }, [bagIds.length, selectedBagIdsKey, workspaceReady]);
+  }, [bagIds.length, selectedBagIdsKey, workspaceReady, t]);
 
   if (loading) return <ComparisonSkeleton />;
   if (analyses.length < 2) return <ComparisonEmptyState error={loadError} />;
@@ -144,50 +147,50 @@ export function ComparisonDashboard({ bagIds }: { bagIds: string[] }) {
   const signalFor = (analysis: Analysis, key: string) => analysis.signals?.find((item) => item.key === key);
   const roomsFor = (analysis: Analysis) => {
     const listing = listingFor(analysis);
-    if (listing.roomCount != null) return `${listing.roomCount} kamers`;
-    if (listing.bedroomCount != null) return `${listing.bedroomCount} slaapkamers`;
-    return "Onbekend";
+    if (listing.roomCount != null) return t("roomsCount", { count: listing.roomCount });
+    if (listing.bedroomCount != null) return t("bedroomsCount", { count: listing.bedroomCount });
+    return t("unknown");
   };
   const factRows: { key: string; label: string; render: (analysis: Analysis) => string; best?: (analysis: Analysis) => boolean }[] = [
     {
       key: "asking-price",
-      label: "Vraagprijs",
-      render: (analysis) => { const value = askingPriceFor(analysis); return value != null ? formatEuro(value) : "Onbekend"; },
+      label: t("factAskingPrice"),
+      render: (analysis) => { const value = askingPriceFor(analysis); return value != null ? formatEuro(value) : t("unknown"); },
       best: (analysis) => { const value = askingPriceFor(analysis); return value != null && analyses.every((other) => { const otherValue = askingPriceFor(other); return otherValue == null || otherValue >= value; }); },
     },
     {
       key: "price-per-m2",
-      label: "Prijs per m²",
-      render: (analysis) => { const value = pricePerM2For(analysis); return value != null ? `${formatEuro(value)} / m²` : "Onbekend"; },
+      label: t("factPricePerM2"),
+      render: (analysis) => { const value = pricePerM2For(analysis); return value != null ? t("pricePerM2Value", { value: formatEuro(value) }) : t("unknown"); },
       best: (analysis) => { const value = pricePerM2For(analysis); return value != null && analyses.every((other) => { const otherValue = pricePerM2For(other); return otherValue == null || otherValue >= value; }); },
     },
-    { key: "area", label: "Woonoppervlak (BAG)", render: (analysis) => analysis.property.areaM2 ? `${analysis.property.areaM2} m²` : "Onbekend" },
+    { key: "area", label: t("factAreaBag"), render: (analysis) => analysis.property.areaM2 ? `${analysis.property.areaM2} m²` : t("unknown") },
     {
       key: "listing-area",
-      label: "Woonoppervlak advertentie",
-      render: (analysis) => { const value = listingFor(analysis).livingAreaM2; return value != null ? `${value} m²` : "Onbekend"; },
+      label: t("factAreaListing"),
+      render: (analysis) => { const value = listingFor(analysis).livingAreaM2; return value != null ? `${value} m²` : t("unknown"); },
       best: (analysis) => { const value = listingFor(analysis).livingAreaM2; return value != null && analyses.every((other) => { const otherValue = listingFor(other).livingAreaM2; return otherValue == null || otherValue <= value; }); },
     },
-    { key: "rooms", label: "Kamers", render: roomsFor },
-    { key: "building-year", label: "Bouwjaar", render: (analysis) => analysis.property.buildingYear ? String(analysis.property.buildingYear) : "Onbekend" },
-    { key: "energy", label: "Energielabel (EP-Online)", render: (analysis) => String(signalFor(analysis, "energy")?.value ?? "Geen data") },
+    { key: "rooms", label: t("factRooms"), render: roomsFor },
+    { key: "building-year", label: t("factBuildingYear"), render: (analysis) => analysis.property.buildingYear ? String(analysis.property.buildingYear) : t("unknown") },
+    { key: "energy", label: t("factEnergyEpOnline"), render: (analysis) => String(signalFor(analysis, "energy")?.value ?? t("noData")) },
     {
       key: "listing-energy",
-      label: "Energielabel advertentie",
-      render: (analysis) => listingFor(analysis).energyLabel ?? "Onbekend",
+      label: t("factEnergyListing"),
+      render: (analysis) => listingFor(analysis).energyLabel ?? t("unknown"),
     },
     {
       key: "vve-contribution",
-      label: "VvE-bijdrage",
-      render: (analysis) => { const value = listingFor(analysis).vveContribution; return value != null ? `${formatEuro(value)} / mnd` : "Onbekend"; },
+      label: t("factVveContribution"),
+      render: (analysis) => { const value = listingFor(analysis).vveContribution; return value != null ? t("vveMonthlyValue", { value: formatEuro(value) }) : t("unknown"); },
       best: (analysis) => { const value = listingFor(analysis).vveContribution; return value != null && analyses.every((other) => { const otherValue = listingFor(other).vveContribution; return otherValue == null || otherValue >= value; }); },
     },
     {
       key: "vve",
-      label: "Appartement / VvE-signaal",
-      render: (analysis) => signalFor(analysis, "vve")?.severity === "attention" ? "Waarschijnlijk (controleer VvE)" : "Onwaarschijnlijk",
+      label: t("factVveSignal"),
+      render: (analysis) => signalFor(analysis, "vve")?.severity === "attention" ? t("vveLikely") : t("vveUnlikely"),
     },
   ];
-  const comparisonStorageLabel = authStatus === "authenticated" ? "in je aankoopomgeving bewaard" : "in deze browsersessie bewaard";
-  return <main className="site-shell"><div className="container comparison-page"><SiteHeader current="vergelijken" /><Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> Terug naar zoeken</Link><div className="eyebrow"><GitCompare size={13} /> vergelijking</div><h1>Welke plek past het best?</h1><p className="hero-copy">De vaste Reality Score blijft vergelijkbaar; jouw persoonlijke fit gebruikt je opgeslagen voorkeuren.</p>{loadError && <p className="compare-alert" role="alert">{loadError}</p>}<section className="comparison-cards">{analyses.map((analysis) => { const selected = workspace.compare.includes(analysis.property.bagVboId); return <article className="comparison-card" key={analysis.property.bagVboId}><div className="comparison-card-top"><div><h2>{analysis.property.street} {analysis.property.houseNumber}</h2><span>{analysis.property.postcode} {analysis.property.city}</span></div><button className="icon-button" type="button" aria-label="Verwijder uit vergelijking" onClick={async () => { await toggleCompare(analysis.property.bagVboId); }}><X size={15} /></button></div><div className="comparison-scores"><div><small>Reality score</small><strong>{formatScore(analysis.overallScore)}</strong></div><div><small>Jouw fit</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div></div><div className="comparison-card-footer"><span><Heart size={13} /> {comparisonStorageLabel}</span>{selected && <span className="selected-label">geselecteerd</span>}</div></article>; })}</section><section className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>Kenmerk</th>{analyses.map((analysis) => <th key={analysis.property.bagVboId}>{analysis.property.street} {analysis.property.houseNumber}</th>)}</tr></thead><tbody>{factRows.map((row) => <tr key={row.key}><th>{row.label}</th>{analyses.map((analysis) => <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>)}</tr>)}{domains.map((domain) => <tr key={domain.key}><th>{domain.label}</th>{analyses.map((analysis) => { const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score; const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value); return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? "Geen data" : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>; })}</tr>)}</tbody></table><p className="muted-copy">Vraagprijs, kamers, advertentie-m², label en VvE-bijdrage komen uit je vastgelegde Funda-kenmerken (inloggen vereist); zonder listing tonen we &quot;Onbekend&quot;.</p></section></div></main>;
+  const comparisonStorageLabel = authStatus === "authenticated" ? t("storedInAccount") : t("storedInSession");
+  return <main className="site-shell"><div className="container comparison-page"><SiteHeader current="vergelijken" /><Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link><div className="eyebrow"><GitCompare size={13} /> {t("dashboardEyebrow")}</div><h1>{t("dashboardTitle")}</h1><p className="hero-copy">{t("dashboardCopy")}</p>{loadError && <p className="compare-alert" role="alert">{loadError}</p>}<section className="comparison-cards">{analyses.map((analysis) => { const selected = workspace.compare.includes(analysis.property.bagVboId); return <article className="comparison-card" key={analysis.property.bagVboId}><div className="comparison-card-top"><div><h2>{analysis.property.street} {analysis.property.houseNumber}</h2><span>{analysis.property.postcode} {analysis.property.city}</span></div><button className="icon-button" type="button" aria-label={t("removeFromCompareAria")} onClick={async () => { await toggleCompare(analysis.property.bagVboId); }}><X size={15} /></button></div><div className="comparison-scores"><div><small>{t("realityScore")}</small><strong>{formatScore(analysis.overallScore)}</strong></div><div><small>{t("yourFit")}</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div></div><div className="comparison-card-footer"><span><Heart size={13} /> {comparisonStorageLabel}</span>{selected && <span className="selected-label">{t("selectedLabel")}</span>}</div></article>; })}</section><section className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>{t("colFeature")}</th>{analyses.map((analysis) => <th key={analysis.property.bagVboId}>{analysis.property.street} {analysis.property.houseNumber}</th>)}</tr></thead><tbody>{factRows.map((row) => <tr key={row.key}><th>{row.label}</th>{analyses.map((analysis) => <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>)}</tr>)}{domains.map((domain) => <tr key={domain.key}><th>{domain.label}</th>{analyses.map((analysis) => { const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score; const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value); return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? t("noData") : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>; })}</tr>)}</tbody></table><p className="muted-copy">{t("footnote")}</p></section></div></main>;
 }

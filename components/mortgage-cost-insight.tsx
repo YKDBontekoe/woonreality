@@ -2,6 +2,7 @@
 
 import { ChevronDown, CircleHelp, Receipt, Scale } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { BuyerCostEstimate, BuyerCostLine } from "@/src/lib/costs";
 import type { HousingTaxSummary } from "@/src/lib/mortgage/tax";
 import type { MortgageMarketSnapshot, MortgageSchedule, RepaymentType } from "@/src/lib/mortgage";
@@ -33,10 +34,10 @@ type PanelId = "costs" | "tax" | "compare" | "rates";
 
 const CATEGORY_ORDER = ["tax", "deed", "finance", "optional"] as const;
 const CATEGORY_LABEL: Record<(typeof CATEGORY_ORDER)[number], string> = {
-  tax: "Belasting",
-  deed: "Aktes & kadaster",
-  finance: "Financiering",
-  optional: "Optioneel",
+  tax: "costCatTax",
+  deed: "costCatDeed",
+  finance: "costCatFinance",
+  optional: "costCatOptional",
 };
 
 type Props = {
@@ -101,24 +102,25 @@ function CostLineRow({
   onToggle: () => void;
   refund: number | null;
 }) {
+  const t = useTranslations("hypotheek");
   return (
     <li className={expanded ? "is-open" : undefined}>
       <button type="button" onClick={onToggle} aria-expanded={expanded}>
         <span>
           {line.label}
           <em className={line.deductible ? "is-deductible" : "is-not-deductible"}>
-            {line.deductible ? "aftrekbaar" : "niet"}
+            {line.deductible ? t("lineDeductible") : t("lineNotDeductible")}
           </em>
         </span>
         <span className="mortgage-cost-amounts">
           <strong>{formatEuro(line.amount)}</strong>
-          {line.deductible && refund != null && refund > 0 && <b>terug {formatEuro(refund)}</b>}
+          {line.deductible && refund != null && refund > 0 && <b>{t("lineRefund", { refund: formatEuro(refund) })}</b>}
         </span>
       </button>
       {expanded && (
         <small>
           {line.note}
-          {line.deductible && refund != null ? ` Via de aangifte krijg je hiervan ongeveer ${formatEuro(refund)} terug.` : ""}
+          {line.deductible && refund != null ? t("lineRefundNote", { refund: formatEuro(refund) }) : ""}
         </small>
       )}
     </li>
@@ -144,6 +146,7 @@ export function MortgageCostInsight({
   maxDeductionRate,
   referenceSources,
 }: Props) {
+  const t = useTranslations("hypotheek");
   const [open, setOpen] = useState<PanelId | null>(null);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
   const [showImpactTable, setShowImpactTable] = useState(false);
@@ -171,60 +174,60 @@ export function MortgageCostInsight({
     <section className="mortgage-insight" id="kosten-inzicht" aria-labelledby="kosten-inzicht-title">
       <div className="mortgage-insight-head">
         <div>
-          <div className="section-kicker"><Receipt size={13} /> in één oogopslag · {referenceYear}</div>
-          <h2 id="kosten-inzicht-title">Wat gaat dit kosten?</h2>
+          <div className="section-kicker"><Receipt size={13} /> {t("insightKicker", { year: referenceYear })}</div>
+          <h2 id="kosten-inzicht-title">{t("insightTitle")}</h2>
         </div>
         <div className="mortgage-insight-meta">
-          <span className="coverage-pill"><Scale size={12} /> geldend {referenceYear}</span>
-          {market?.indicativeRates.live && <span className="coverage-pill">rente {market.indicativeRates.asOf}</span>}
+          <span className="coverage-pill"><Scale size={12} /> {t("validPill", { year: referenceYear })}</span>
+          {market?.indicativeRates.live && <span className="coverage-pill">{t("ratePill", { asOf: market.indicativeRates.asOf })}</span>}
         </div>
       </div>
 
       <div className="mortgage-snapshot">
         <article className="mortgage-indicator">
-          <small>Eenmalig bij overdracht</small>
+          <small>{t("oneOffAtTransfer")}</small>
           <strong>{costs ? formatEuro(costs.total) : "—"}</strong>
           {costs ? (
             <em>
-              {formatEuro(costs.deductibleTotal)} aftrekbaar
-              {costsRefund > 0 ? ` · ${refundKnown ? "" : "tot "}${formatEuro(costsRefund)} terug` : ""}
+              {t("deductibleAmount", { amount: formatEuro(costs.deductibleTotal) })}
+              {costsRefund > 0 ? (refundKnown ? t("refundPart", { amount: formatEuro(costsRefund) }) : t("refundPartMax", { amount: formatEuro(costsRefund) })) : ""}
             </em>
-          ) : <em>Vul een vraagprijs in</em>}
+          ) : <em>{t("enterAskingPrice")}</em>}
         </article>
         <article className={`mortgage-indicator ${fundsTone ? `is-${fundsTone}` : ""}`}>
-          <small>Eigen geld nodig</small>
+          <small>{t("ownFundsNeeded")}</small>
           <strong>{costs ? formatEuro(Math.round(costs.ownFundsNeeded)) : "—"}</strong>
           {costs ? (
             <>
               <em>
                 {costs.cashForPrice > 0
-                  ? `${formatEuro(costs.total)} kosten koper + ${formatEuro(Math.round(costs.cashForPrice))} inleg koopsom`
-                  : `${formatEuro(costs.total)} kosten koper · koopsom in de hypotheek`}
+                  ? t("ownFundsWithCash", { kk: formatEuro(costs.total), cash: formatEuro(Math.round(costs.cashForPrice)) })
+                  : t("ownFundsInMortgage", { kk: formatEuro(costs.total) })}
               </em>
               <FundsMeter needed={costs.ownFundsNeeded} available={ownFunds} />
             </>
           ) : (
-            <em>Vooral kosten koper; de koopsom mag je tot 100% lenen</em>
+            <em>{t("ownFundsExplain")}</em>
           )}
         </article>
         <article className="mortgage-indicator is-hero">
-          <small>Netto maandlast</small>
+          <small>{t("netMonthly")}</small>
           <strong>{tax ? formatEuro(tax.ongoingMonthlyNet) : hasLoan && chosen ? formatEuro(Math.round(chosen.firstPayment)) : "—"}</strong>
           {tax
-            ? <em>Bruto {formatEuro(tax.ongoingMonthlyGross)} · aftrek {formatDeductionRate(tax.deductionRate)}</em>
-            : <em>{repayment === "linear" ? "Eerste maand, bruto" : "Bruto, tot je inkomen invult"}</em>}
+            ? <em>{t("netBreakdown", { gross: formatEuro(tax.ongoingMonthlyGross), rate: formatDeductionRate(tax.deductionRate) })}</em>
+            : <em>{repayment === "linear" ? t("firstMonthOnlyLinear") : t("grossUntilIncome")}</em>}
         </article>
         <article className="mortgage-indicator">
-          <small>Annuïteit vs lineair</small>
+          <small>{t("annuityVsLinear")}</small>
           {showSchedules ? (
             <>
               <strong>{formatEuro(Math.round(interestDelta))}</strong>
-              <em>minder rente bij lineair over {loanTermYears} jaar</em>
+              <em>{t("lessInterestLinear", { years: loanTermYears })}</em>
             </>
           ) : (
             <>
               <strong>—</strong>
-              <em>Verschijnt bij een hypotheekbedrag</em>
+              <em>{t("appearsWithLoan")}</em>
             </>
           )}
         </article>
@@ -235,11 +238,11 @@ export function MortgageCostInsight({
       {market && market.history.length > 0 && (
         <div className="mortgage-rate-glance">
           <div>
-            <small>Marktrente {activePeriod} jaar vast</small>
+            <small>{t("marketGlance", { period: activePeriod })}</small>
             <RateSparkline history={market.history} activePeriod={activePeriod} />
           </div>
           <button type="button" className="text-link" onClick={() => toggle("rates")}>
-            {open === "rates" ? "Verberg historie" : "Toon historie"}
+            {open === "rates" ? t("hideHistory") : t("showHistory")}
           </button>
         </div>
       )}
@@ -247,31 +250,34 @@ export function MortgageCostInsight({
       <div className="mortgage-panels">
         <InsightPanel
           id="costs"
-          title="Kostenposten"
+          title={t("panelCostsTitle")}
           summary={costs
-            ? `${formatEuro(costs.total)} · ${costsRefund > 0 ? `${formatEuro(costsRefund)} terug` : `${formatEuro(costs.deductibleTotal)} aftrekbaar`}`
-            : "Vul een vraagprijs in voor de uitsplitsing"}
+            ? t("panelCostsSummary", {
+              total: formatEuro(costs.total),
+              detail: costsRefund > 0 ? t("costsSummaryRefund", { amount: formatEuro(costsRefund) }) : t("deductibleAmount", { amount: formatEuro(costs.deductibleTotal) }),
+            })
+            : t("costsSummaryEmpty")}
           tone={fundsTone}
           open={open === "costs"}
           onToggle={() => toggle("costs")}
         >
           <div className="mortgage-insight-toggles">
-            <div className="work-chips" role="group" aria-label="Type woning">
-              <button type="button" className={!options.newBuild ? "active" : undefined} aria-pressed={!options.newBuild} onClick={() => onOptionsChange({ newBuild: false })}>Bestaande bouw</button>
-              <button type="button" className={options.newBuild ? "active" : undefined} aria-pressed={options.newBuild} onClick={() => onOptionsChange({ newBuild: true })}>Nieuwbouw v.o.n.</button>
+            <div className="work-chips" role="group" aria-label={t("propertyTypeAria")}>
+              <button type="button" className={!options.newBuild ? "active" : undefined} aria-pressed={!options.newBuild} onClick={() => onOptionsChange({ newBuild: false })}>{t("existingBuild")}</button>
+              <button type="button" className={options.newBuild ? "active" : undefined} aria-pressed={options.newBuild} onClick={() => onOptionsChange({ newBuild: true })}>{t("newBuild")}</button>
             </div>
-            <div className="work-chips" role="group" aria-label="Gebruik">
-              <button type="button" className={!options.investment ? "active" : undefined} aria-pressed={!options.investment} onClick={() => onOptionsChange({ investment: false })}>Hoofdverblijf</button>
-              <button type="button" className={options.investment ? "active" : undefined} aria-pressed={options.investment} onClick={() => onOptionsChange({ investment: true })}>Belegging</button>
+            <div className="work-chips" role="group" aria-label={t("usageAria")}>
+              <button type="button" className={!options.investment ? "active" : undefined} aria-pressed={!options.investment} onClick={() => onOptionsChange({ investment: false })}>{t("mainResidence")}</button>
+              <button type="button" className={options.investment ? "active" : undefined} aria-pressed={options.investment} onClick={() => onOptionsChange({ investment: true })}>{t("investment")}</button>
             </div>
           </div>
           {!costs ? (
-            <p className="mortgage-hint">Zonder vraagprijs kunnen we overdrachtsbelasting en aktes niet rekenen. Grafieken hieronder gebruiken je maximale hypotheek.</p>
+            <p className="mortgage-hint">{t("noAskingPriceHint")}</p>
           ) : (
             <>
               {groupedLines.map((group) => (
                 <div className="mortgage-cost-group" key={group.category}>
-                  <h3>{CATEGORY_LABEL[group.category]}</h3>
+                  <h3>{t(CATEGORY_LABEL[group.category])}</h3>
                   <ul className="mortgage-cost-lines">
                     {group.lines.map((line) => (
                       <CostLineRow
@@ -288,23 +294,22 @@ export function MortgageCostInsight({
               {costsRefund > 0 && (
                 <div className="mortgage-refund-total">
                   <span>
-                    Terug van aftrekbare posten
+                    {t("refundTotalLabel")}
                     <small>
-                      {formatDeductionRate(deductionRate)}
-                      {refundKnown ? " op jouw inkomen" : " max-tarief tot je inkomen bekend is"}
-                      . Via de aangifte in het jaar van betaling.
+                      {refundKnown ? t("refundRateKnown", { rate: formatDeductionRate(deductionRate) }) : t("refundRateUnknown", { rate: formatDeductionRate(deductionRate) })}
+                      {t("refundViaReturn")}
                     </small>
                   </span>
-                  <strong>{refundKnown ? "" : "tot "}{formatEuro(costsRefund)}</strong>
+                  <strong>{refundKnown ? "" : t("refundMaxPrefix")}{formatEuro(costsRefund)}</strong>
                 </div>
               )}
               <div className="mortgage-cost-extras">
-                <p className="mortgage-hint">Optionele posten</p>
-                <label className="mortgage-check"><input type="checkbox" checked={options.includeAdvice} onChange={(event) => onOptionsChange({ includeAdvice: event.target.checked })} /> Hypotheekadvies</label>
-                <label className="mortgage-check"><input type="checkbox" checked={options.includeInspection} onChange={(event) => onOptionsChange({ includeInspection: event.target.checked })} /> Bouwkundige keuring</label>
-                <label className="mortgage-check"><input type="checkbox" checked={options.includeBankGuarantee} onChange={(event) => onOptionsChange({ includeBankGuarantee: event.target.checked })} /> Bankgarantie</label>
-                <label className="mortgage-check"><input type="checkbox" checked={options.includeBuyingAgent} onChange={(event) => onOptionsChange({ includeBuyingAgent: event.target.checked })} /> Aankoopmakelaar</label>
-                <label className="mortgage-check"><input type="checkbox" checked={options.includeMoving} onChange={(event) => onOptionsChange({ includeMoving: event.target.checked })} /> Verhuiskosten</label>
+                <p className="mortgage-hint">{t("optionalItems")}</p>
+                <label className="mortgage-check"><input type="checkbox" checked={options.includeAdvice} onChange={(event) => onOptionsChange({ includeAdvice: event.target.checked })} /> {t("optAdvice")}</label>
+                <label className="mortgage-check"><input type="checkbox" checked={options.includeInspection} onChange={(event) => onOptionsChange({ includeInspection: event.target.checked })} /> {t("optInspection")}</label>
+                <label className="mortgage-check"><input type="checkbox" checked={options.includeBankGuarantee} onChange={(event) => onOptionsChange({ includeBankGuarantee: event.target.checked })} /> {t("optBankGuarantee")}</label>
+                <label className="mortgage-check"><input type="checkbox" checked={options.includeBuyingAgent} onChange={(event) => onOptionsChange({ includeBuyingAgent: event.target.checked })} /> {t("optBuyingAgent")}</label>
+                <label className="mortgage-check"><input type="checkbox" checked={options.includeMoving} onChange={(event) => onOptionsChange({ includeMoving: event.target.checked })} /> {t("optMoving")}</label>
               </div>
               <p className="mortgage-disclaimer"><CircleHelp size={14} /> {costs.disclaimer}</p>
             </>
@@ -313,27 +318,31 @@ export function MortgageCostInsight({
 
         <InsightPanel
           id="tax"
-          title="Hypotheekrenteaftrek"
+          title={t("panelTaxTitle")}
           summary={tax
-            ? `Netto ${formatEuro(tax.ongoingMonthlyNet)} / maand${tax.oneOffRefund > 0 ? ` · ${formatEuro(tax.oneOffRefund)} terug van kk` : ""}`
-            : "Vul inkomen in voor de nettorekening"}
+            ? `${t("taxSummaryFilled", { net: formatEuro(tax.ongoingMonthlyNet) })}${tax.oneOffRefund > 0 ? t("taxOneOffPart", { amount: formatEuro(tax.oneOffRefund) }) : ""}`
+            : t("taxSummaryEmpty")}
           open={open === "tax"}
           onToggle={() => toggle("tax")}
         >
           {tax && hasLoan ? (
             <>
               <div className="mortgage-result-grid">
-                <div className="is-hero"><small>Bruto</small><strong>{formatEuro(tax.ongoingMonthlyGross)}</strong></div>
-                <div className="is-hero"><small>Netto doorlopend</small><strong>{formatEuro(tax.ongoingMonthlyNet)}</strong></div>
-                <div><small>Terug eenmalige posten</small><strong>{formatEuro(tax.oneOffRefund)}</strong></div>
-                <div><small>Voordeel jaar 1 totaal</small><strong>{formatEuro(tax.year1.taxBenefit)}</strong></div>
+                <div className="is-hero"><small>{t("colGross")}</small><strong>{formatEuro(tax.ongoingMonthlyGross)}</strong></div>
+                <div className="is-hero"><small>{t("colNetOngoing")}</small><strong>{formatEuro(tax.ongoingMonthlyNet)}</strong></div>
+                <div><small>{t("colOneOffBack")}</small><strong>{formatEuro(tax.oneOffRefund)}</strong></div>
+                <div><small>{t("colYear1Benefit")}</small><strong>{formatEuro(tax.year1.taxBenefit)}</strong></div>
               </div>
               <p className="mortgage-hint">
-                Aftrektarief {formatDeductionRate(tax.deductionRate)}. Van {formatEuro(tax.year1.oneOffDeductible)} aftrekbare aankoopkosten krijg je ongeveer {formatEuro(tax.oneOffRefund)} terug.
-                Daarbij komt het rentevoordeel; eigenwoningforfait {formatEuro(tax.eigenwoningforfait)}/jaar telt daar weer bij.
+                {t("taxExplanation", {
+                  rate: formatDeductionRate(tax.deductionRate),
+                  costs: formatEuro(tax.year1.oneOffDeductible),
+                  refund: formatEuro(tax.oneOffRefund),
+                  ewf: formatEuro(tax.eigenwoningforfait),
+                })}
               </p>
               <div className="form-grid mortgage-woz-row">
-                <label>WOZ-waarde
+                <label>{t("wozLabel")}
                   <input
                     type="number" inputMode="numeric"
                     min="0"
@@ -346,16 +355,19 @@ export function MortgageCostInsight({
               <p className="mortgage-disclaimer"><CircleHelp size={14} /> {tax.disclaimer}</p>
             </>
           ) : (
-            <p className="mortgage-hint">Met inkomen rekenen we het maximale aftrektarief, forfait en netto maandlast.</p>
+            <p className="mortgage-hint">{t("taxEmptyHint")}</p>
           )}
         </InsightPanel>
 
         <InsightPanel
           id="compare"
-          title="Annuïteit vs lineair"
+          title={t("panelCompareTitle")}
           summary={showSchedules
-            ? `${repayment === "linear" ? "Lineair" : "Annuïteit"} gekozen · ${formatEuro(Math.round(Math.abs(interestDelta)))} renteverschil`
-            : "Zelfde lening, twee aflosvormen"}
+            ? t("compareChosen", {
+              chosen: repayment === "linear" ? t("linear") : t("annuity"),
+              delta: formatEuro(Math.round(Math.abs(interestDelta))),
+            })
+            : t("compareEmpty")}
           open={open === "compare"}
           onToggle={() => toggle("compare")}
         >
@@ -363,19 +375,22 @@ export function MortgageCostInsight({
             <>
               <div className="mortgage-compare-strip">
                 <div className={repayment === "annuity" ? "is-active" : undefined}>
-                  <small>Annuïteit</small>
+                  <small>{t("annuity")}</small>
                   <strong>{formatEuro(Math.round(annuity.firstPayment))}</strong>
-                  <em>vast / mnd · rente {formatEuro(Math.round(annuity.totalInterest))}</em>
+                  <em>{t("compareAnnuityFixed", { interest: formatEuro(Math.round(annuity.totalInterest)) })}</em>
                 </div>
                 <div className={repayment === "linear" ? "is-active" : undefined}>
-                  <small>Lineair</small>
+                  <small>{t("linear")}</small>
                   <strong>{formatEuro(Math.round(linear.firstPayment))}</strong>
-                  <em>start / mnd · rente {formatEuro(Math.round(linear.totalInterest))}</em>
+                  <em>{t("compareLinearStart", { interest: formatEuro(Math.round(linear.totalInterest)) })}</em>
                 </div>
               </div>
               <p className="mortgage-hint">
-                Lineair start hoger ({formatEuro(Math.round(linear.firstPayment))} vs {formatEuro(Math.round(annuity.firstPayment))})
-                maar je betaalt {formatEuro(Math.round(interestDelta))} minder rente.
+                {t("linearHigher", {
+                  linearPayment: formatEuro(Math.round(linear.firstPayment)),
+                  annuityPayment: formatEuro(Math.round(annuity.firstPayment)),
+                  delta: formatEuro(Math.round(interestDelta)),
+                })}
               </p>
               <div className="mortgage-charts-grid">
                 <PaymentComparisonChart annuity={annuity} linear={linear} />
@@ -384,14 +399,14 @@ export function MortgageCostInsight({
               </div>
             </>
           ) : (
-            <p className="mortgage-hint">Vul inkomen of een vraagprijs in om de aflosvormen te vergelijken.</p>
+            <p className="mortgage-hint">{t("compareEmptyHint")}</p>
           )}
         </InsightPanel>
 
         <InsightPanel
           id="rates"
-          title="Rente: historie en impact"
-          summary={market?.indicativeRates.live ? `Live ${market.indicativeRates.asOf}` : "Indicatie tot marktdata binnen is"}
+          title={t("panelRatesTitle")}
+          summary={market?.indicativeRates.live ? t("ratesLive", { asOf: market.indicativeRates.asOf }) : t("ratesIndication")}
           open={open === "rates"}
           onToggle={() => toggle("rates")}
         >
@@ -403,7 +418,7 @@ export function MortgageCostInsight({
               <div>
                 <RateImpactChart rows={impactRows} showTable={showImpactTable} />
                 <button type="button" className="text-link mortgage-toggle" onClick={() => setShowImpactTable((value) => !value)}>
-                  {showImpactTable ? "Verberg cijfertabel" : "Toon cijfertabel"}
+                  {showImpactTable ? t("hideImpactTable") : t("showImpactTable")}
                 </button>
               </div>
             )}
@@ -413,7 +428,7 @@ export function MortgageCostInsight({
 
       {referenceSources.length > 0 && (
         <p className="mortgage-sources">
-          Bronnen {referenceYear}:{" "}
+          {t("sourcesLabel", { year: referenceYear })}{" "}
           {referenceSources.map((source, index) => (
             <span key={source.url}>
               {index > 0 ? " · " : ""}
@@ -421,7 +436,7 @@ export function MortgageCostInsight({
             </span>
           ))}
           {market?.indicativeRates.live ? (
-            <> · Marktrente: <a href={market.indicativeRates.sourceUrl} target="_blank" rel="noreferrer">{market.indicativeRates.source}</a></>
+            <>{" · "}{t("marketRateLabel")}: <a href={market.indicativeRates.sourceUrl} target="_blank" rel="noreferrer">{market.indicativeRates.source}</a></>
           ) : null}
         </p>
       )}

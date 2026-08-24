@@ -5,6 +5,8 @@ import { clamp, round1 } from "@/src/lib/math";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import { pdokUrls, type BgtContext } from "@/src/lib/sources/pdok/bgt";
 import type { Coordinates } from "@/src/lib/types";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator, type LibTranslator } from "@/src/lib/i18n/lib-translator";
 
 /** getBgtFeatures queries a square bbox of ±250 m (500 m side), not a circle. */
 export const BGT_SEARCH_RADIUS_M = 250;
@@ -42,14 +44,15 @@ export function bgtMetrics(bgt: BgtContext, origin: Coordinates): BgtMetrics {
   };
 }
 
-export function formatDistance(distance: number) {
-  if (!Number.isFinite(distance)) return "meer dan 250 m";
+export function formatDistance(distance: number, locale: Locale = "nl") {
+  if (!Number.isFinite(distance)) return getLibTranslator(locale, "lib-analysis")("bgt.over250m");
   return distance < 1000
     ? `${Math.round(distance / 10) * 10} m`
     : `${(distance / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
-export function bgtRoadEvidence(fetchedAt: string): Evidence {
+export function bgtRoadEvidence(fetchedAt: string, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "bgt-roads",
     source: "PDOK / BGT",
@@ -57,11 +60,12 @@ export function bgtRoadEvidence(fetchedAt: string): Evidence {
     confidence: "medium",
     fetchedAt,
     spatialResolution: "lokale topografie",
-    caveat: "De BGT-proxy zegt iets over lokale wegstructuur, niet over een officiële gevelmeting of verkeersmodel.",
+    caveat: t("bgt.roadCaveat"),
   });
 }
 
-export function bgtGreenEvidence(fetchedAt: string): Evidence {
+export function bgtGreenEvidence(fetchedAt: string, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "bgt-green",
     source: "PDOK / BGT",
@@ -69,11 +73,12 @@ export function bgtGreenEvidence(fetchedAt: string): Evidence {
     confidence: "medium",
     fetchedAt,
     spatialResolution: "lokale topografie",
-    caveat: "Groenpercentage is een eerste geometrische indicatie binnen circa 250 meter.",
+    caveat: t("bgt.greenCaveat"),
   });
 }
 
-export function bgtWaterEvidence(fetchedAt: string): Evidence {
+export function bgtWaterEvidence(fetchedAt: string, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "bgt-water",
     source: "PDOK / BGT",
@@ -81,7 +86,7 @@ export function bgtWaterEvidence(fetchedAt: string): Evidence {
     confidence: "medium",
     fetchedAt,
     spatialResolution: "lokale topografie",
-    caveat: "Dit is alleen de aanwezigheid van geregistreerd oppervlaktewater, geen overstromings- of wateroverlastmodel.",
+    caveat: t("bgt.waterCaveat"),
   });
 }
 
@@ -89,27 +94,26 @@ export function noiseFallbackScore(nearestRoadM: number) {
   return clamp(nearestRoadM === Infinity ? 8 : 8 - Math.max(0, 120 - nearestRoadM) / 25);
 }
 
-function noiseFallbackSummary(nearestRoadM: number) {
+function noiseFallbackSummary(t: LibTranslator, nearestRoadM: number) {
   return nearestRoadM === Infinity
-    ? "Binnen de eerste zoekbuffer is geen BGT-wegdeel gevonden."
-    : `Dichtstbijzijnde BGT-wegdeel ligt op ongeveer ${formatDistance(nearestRoadM)}.`;
+    ? t("bgt.noiseFallback.noRoad")
+    : t("bgt.noiseFallback.nearest", { distance: formatDistance(nearestRoadM) });
 }
 
-export function greenSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }): Signal {
+export function greenSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { metrics, evidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const score = clamp(4 + metrics.greenPercent / 8);
-  const truncatedNote = metrics.greenTruncated
-    ? " Let op: de BGT-bevraging is afgekapt op 100 vlakken; in dicht bebouwd gebied kan het werkelijke groenpercentage hierdoor afwijken."
-    : "";
+  const truncatedNote = metrics.greenTruncated ? t("bgt.green.truncatedNote") : "";
   return {
     key: "green",
-    label: "Groen",
+    label: t("bgt.green.label"),
     category: "klimaat",
     value: `${Math.round(metrics.greenPercent)}%`,
     score,
     severity: scoreSeverity(score),
-    summary: `Ongeveer ${Math.round(metrics.greenPercent)}% van de lokale BGT-oppervlakken is als begroeid terrein geregistreerd.${truncatedNote}`,
-    action: "Check bij een bezichtiging ook de boomkroon, privacy en het groen dat je daadwerkelijk vanuit de woning ziet.",
+    summary: t("bgt.green.summary", { pct: Math.round(metrics.greenPercent), note: truncatedNote }),
+    action: t("bgt.green.action"),
     raw: { value: Math.round(metrics.greenPercent), unit: "%", metric: "BGT-begroeid terrein binnen circa 250 m" },
     confidence: metrics.greenTruncated ? "low" : "medium",
     spatialScale: "circa 250 m zoekbuffer",
@@ -118,22 +122,21 @@ export function greenSignal(input: { metrics: BgtMetrics; evidence: Evidence; bg
   };
 }
 
-export function heatSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }): Signal {
+export function heatSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { metrics, evidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const score = clamp(9 - (100 - metrics.greenPercent) / 18);
-  const truncatedNote = metrics.greenTruncated
-    ? " De BGT-bevraging is afgekapt op 100 vlakken, dus deze proxy is minder betrouwbaar in dicht bebouwd gebied."
-    : "";
+  const truncatedNote = metrics.greenTruncated ? t("bgt.heat.truncatedNote") : "";
   return {
     key: "heat",
-    label: "Verstening & hitte",
+    label: t("bgt.heat.label"),
     category: "klimaat",
     value: round1(score),
     unit: "/ 10",
     score,
     severity: scoreSeverity(score),
-    summary: `De eerste groen/verharding-proxy komt uit op ${Math.round(metrics.greenPercent)}% groen in de zoekbuffer.${truncatedNote}`,
-    action: "Kijk op een hete dag naar schaduw, geveloriëntatie en de hoeveelheid verharding rond tuin en straat.",
+    summary: t("bgt.heat.summary", { pct: Math.round(metrics.greenPercent), note: truncatedNote }),
+    action: t("bgt.heat.action"),
     raw: { value: Math.round(100 - metrics.greenPercent), unit: "% verhardingsproxy", metric: "afgeleid uit BGT" },
     confidence: "low",
     spatialScale: "circa 250 m zoekbuffer",
@@ -142,23 +145,24 @@ export function heatSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgt
   };
 }
 
-export function waterSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }): Signal {
+export function waterSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { metrics, evidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const nearWater = metrics.nearestWaterM < 30;
   return {
     key: "water",
-    label: "Oppervlaktewater",
+    label: t("bgt.water.label"),
     category: "klimaat",
-    value: Number.isFinite(metrics.nearestWaterM) ? formatDistance(metrics.nearestWaterM) : "Geen water gevonden",
+    value: Number.isFinite(metrics.nearestWaterM) ? formatDistance(metrics.nearestWaterM) : t("bgt.water.noneFound"),
     severity: nearWater ? "attention" : Number.isFinite(metrics.nearestWaterM) ? "good" : "neutral",
     summary: nearWater
-      ? `BGT registreert oppervlaktewater op circa ${formatDistance(metrics.nearestWaterM)}. Zo dicht op open water is het grondwaterpeil vaak hoger, wat kruipruimte- en funderingsvocht kan beïnvloeden.`
+      ? t("bgt.water.summaryClose", { distance: formatDistance(metrics.nearestWaterM) })
       : Number.isFinite(metrics.nearestWaterM)
-        ? `BGT registreert oppervlaktewater op circa ${formatDistance(metrics.nearestWaterM)} (${Math.round(metrics.waterPercent)}% van de zoekbuffer).`
-        : "BGT registreert geen oppervlaktewater binnen de zoekbuffer van circa 250 m.",
+        ? t("bgt.water.summaryFar", { distance: formatDistance(metrics.nearestWaterM), pct: Math.round(metrics.waterPercent) })
+        : t("bgt.water.summaryNone"),
     action: nearWater
-      ? "Vraag naar het grondwaterpeil, de kruipruimte en vochtwering; laat dit meenemen in de bouwkundige keuring."
-      : "Dit zegt niets over overstromings- of wateroverlastrisico. Check risicokaart.nl (Overstroming) voor een officiële inschatting.",
+      ? t("bgt.water.actionClose")
+      : t("bgt.water.actionDefault"),
     confidence: "low",
     spatialScale: "circa 250 m zoekbuffer",
     evidence: [evidence],
@@ -166,16 +170,17 @@ export function waterSignal(input: { metrics: BgtMetrics; evidence: Evidence; bg
   };
 }
 
-export function accessSignal(input: { roadCount: number; truncated: boolean; evidence: Evidence; bgtAvailable: boolean }): Signal {
+export function accessSignal(input: { roadCount: number; truncated: boolean; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { roadCount, truncated, evidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   return {
     key: "access",
-    label: "Lokale wegstructuur",
+    label: t("bgt.access.label"),
     category: "mobiliteit",
-    value: `${roadCount} wegdelen`,
+    value: t("bgt.access.valueRoadParts", { count: roadCount }),
     severity: "neutral",
-    summary: `${roadCount} BGT-wegdelen zijn in de eerste zoekbuffer aangetroffen; dit beschrijft de straatstructuur, geen bereikbaarheid.${truncated ? " De telling is afgekapt op 100 wegdelen; het werkelijke aantal kan hoger liggen." : ""}`,
-    action: "Controleer looproutes, scholen, OV en dagelijkse voorzieningen; deze eerste indicatie meet die niet.",
+    summary: t("bgt.access.summary", { count: roadCount, note: truncated ? t("bgt.access.truncatedNote") : "" }),
+    action: t("bgt.access.action"),
     confidence: "medium",
     spatialScale: "circa 250 m zoekbuffer",
     evidence: [evidence],
@@ -187,14 +192,15 @@ export function noiseFallbackParts(input: {
   nearestRoadM: number;
   roadEvidence: Evidence;
   bgtAvailable: boolean;
-}): Pick<Signal, "value" | "score" | "severity" | "summary" | "raw" | "spatialScale" | "evidence" | "availability"> {
+}, locale: Locale = "nl"): Pick<Signal, "value" | "score" | "severity" | "summary" | "raw" | "spatialScale" | "evidence" | "availability"> {
   const { nearestRoadM, roadEvidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const score = noiseFallbackScore(nearestRoadM);
   return {
     value: round1(score),
     score,
     severity: scoreSeverity(score),
-    summary: noiseFallbackSummary(nearestRoadM),
+    summary: noiseFallbackSummary(t, nearestRoadM),
     raw: { value: Math.round(nearestRoadM), unit: "m", metric: "afstand tot dichtstbijzijnde BGT-wegdeel" },
     spatialScale: "circa 250 m zoekbuffer",
     evidence: [roadEvidence],

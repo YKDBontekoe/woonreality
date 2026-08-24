@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { ListingHistoryItem } from "@/src/lib/listing-history";
 import type { PersonalPreferences, Property } from "@/src/lib/types";
 import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
@@ -59,6 +60,7 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("common");
   const [workspace, setWorkspace] = useState<WorkspaceData>(() => emptyWorkspace());
   const [workspaceError, setWorkspaceError] = useState("");
   const [workspaceReady, setWorkspaceReady] = useState(false);
@@ -79,19 +81,19 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       }
       if (response.status === 503) {
         setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
-        setWorkspaceError("De aankoopomgeving is nu niet beschikbaar. Je kunt de woningcheck wel gewoon gebruiken.");
+        setWorkspaceError(t("workspaceUnavailable"));
         return;
       }
-      if (!response.ok || !body.workspace) throw new Error(body.error ?? "Aankoopomgeving kon niet worden geladen.");
+      if (!response.ok || !body.workspace) throw new Error(body.error ?? t("workspaceLoadFailed"));
       setWorkspace(body.workspace);
       setAuthStatus("authenticated");
       setWorkspaceError("");
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Aankoopomgeving kon niet worden geladen.");
+      setWorkspaceError(error instanceof Error ? error.message : t("workspaceLoadFailed"));
     } finally {
       setWorkspaceReady(true);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -104,25 +106,25 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const compare = payload.compare.filter(isBagId).slice(0, 4);
         saveSessionCompare(compare);
         setWorkspace((current) => ({ ...current, compare }));
-        setWorkspaceError("Je vergelijking blijft in deze browsersessie bewaard. Log in om die aan je aankoopomgeving te koppelen.");
+        setWorkspaceError(t("compareSessionNotice"));
         return { ok: true };
       }
       if (response.status === 401) {
         setAuthStatus("anonymous");
         window.location.href = loginHref();
-        return { ok: false, error: "Log in om wijzigingen te bewaren." };
+        return { ok: false, error: t("loginToSaveChanges") };
       }
-      if (!response.ok || !body.workspace) throw new Error(body.error ?? "Wijziging kon niet worden opgeslagen.");
+      if (!response.ok || !body.workspace) throw new Error(body.error ?? t("saveChangeFailed"));
       setWorkspace(body.workspace);
       setAuthStatus("authenticated");
       setWorkspaceError("");
       return { ok: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Wijziging kon niet worden opgeslagen.";
+      const message = error instanceof Error ? error.message : t("saveChangeFailed");
       setWorkspaceError(message);
       return { ok: false, error: message };
     }
-  }, [authStatus]);
+  }, [authStatus, t]);
 
   const toggleSaved = useCallback(async (property: Property, askingPrice?: number | null) => {
     const exists = workspace.saved.some((item) => item.bagVboId === property.bagVboId);
@@ -150,11 +152,11 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       action: "save",
       bagVboId: item.bagVboId,
       addressLabel: item.addressLabel,
-      city: item.city || "Onbekend",
-      postcode: item.postcode || "onbekend",
+      city: item.city || t("unknownCity"),
+      postcode: item.postcode || t("unknownPostcode"),
       ...(item.askingPrice && item.askingPrice > 0 ? { askingPrice: item.askingPrice } : {}),
     });
-  }, [mutate, workspace.saved]);
+  }, [mutate, t, workspace.saved]);
 
   const removeListingHistory = useCallback(async (bagVboId: string): Promise<WorkspaceMutationResult> => {
     try {
@@ -163,20 +165,20 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (response.status === 401) {
         setAuthStatus("anonymous");
         window.location.href = loginHref();
-        return { ok: false, error: "Log in om wijzigingen te bewaren." };
+        return { ok: false, error: t("loginToSaveChanges") };
       }
-      if (!response.ok) throw new Error(body.error ?? "Advertentie kon niet uit de geschiedenis worden gehaald.");
+      if (!response.ok) throw new Error(body.error ?? t("removeHistoryFailed"));
       // Without this the session draft would resurrect the deleted advert on
       // the next property-page visit.
       try { window.sessionStorage.removeItem(listingStorageKey(bagVboId)); } catch { /* ignore */ }
       await refresh();
       return { ok: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Advertentie kon niet uit de geschiedenis worden gehaald.";
+      const message = error instanceof Error ? error.message : t("removeHistoryFailed");
       setWorkspaceError(message);
       return { ok: false, error: message };
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   const setPreferences = useCallback(async (preferences: PersonalPreferences) => mutate({ action: "profile", preferences }), [mutate]);
 

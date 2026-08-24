@@ -1,6 +1,7 @@
 import { ANALYSIS_VERSION, analyzeProperty } from "@/src/lib/analysis/analyze";
 import { analyzePlace } from "@/src/lib/analysis/analyze-place";
 import { SCORING_VERSION } from "@/src/lib/scoring/score";
+import type { Locale } from "@/src/lib/i18n/config";
 import { getSourceCache, persistAnalysis, putSourceCache } from "@/src/lib/db/repository";
 import type { Analysis, PlaceAnalysis, PlaceKind, Property } from "@/src/lib/types";
 
@@ -54,9 +55,11 @@ function schemaVersion() {
  * and one set of persisted rows — instead of refetching all upstream sources
  * per consumer.
  */
-export async function getSharedAnalysis(property: Property): Promise<Analysis> {
+export async function getSharedAnalysis(property: Property, locale: Locale = "nl"): Promise<Analysis> {
   const key = property.bagVboId;
-  const version = schemaVersion();
+  // Localized copy is baked into the analysis payload, so the cache is
+  // partitioned per locale alongside the analysis/scoring version.
+  const version = `${schemaVersion()}:${locale}`;
   const memoKey = `${version}:${key}`;
   const memoized = memoGet(analysisMemo, memoKey);
   if (memoized) return memoized;
@@ -74,7 +77,7 @@ export async function getSharedAnalysis(property: Property): Promise<Analysis> {
     } catch {
       // Fall through to a fresh computation.
     }
-    const analysis = await analyzeProperty(property);
+    const analysis = await analyzeProperty(property, locale);
     try {
       analysis.persistence = await persistAnalysis(analysis);
     } catch {
@@ -94,9 +97,9 @@ export async function getSharedAnalysis(property: Property): Promise<Analysis> {
  * politie upstreams are expensive and slow-moving, so /api/place, place pages
  * and the place comparison all reuse one computation per kind:code.
  */
-export async function getSharedPlaceAnalysis(kind: PlaceKind, code: string): Promise<PlaceAnalysis | null> {
+export async function getSharedPlaceAnalysis(kind: PlaceKind, code: string, locale: Locale = "nl"): Promise<PlaceAnalysis | null> {
   const key = `${kind}:${code}`;
-  const version = schemaVersion();
+  const version = `${schemaVersion()}:${locale}`;
   const memoKey = `${version}:${key}`;
   const memoized = memoGet(placeMemo, memoKey);
   if (memoized) return memoized;
@@ -113,7 +116,7 @@ export async function getSharedPlaceAnalysis(kind: PlaceKind, code: string): Pro
     } catch {
       // Fall through to a fresh computation.
     }
-    const place = await analyzePlace(kind, code);
+    const place = await analyzePlace(kind, code, locale);
     if (place) {
       void putSourceCache(PLACE_CACHE_SOURCE, key, place, version, TTL_SECONDS);
       memoSet(placeMemo, memoKey, place);

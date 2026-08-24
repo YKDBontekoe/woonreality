@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { loginHref } from "@/src/lib/login-href";
 
 export function StartCaseButton({ bagVboId }: { bagVboId: string }) {
+  const t = useTranslations("mijn-aankoop");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -14,13 +16,13 @@ export function StartCaseButton({ bagVboId }: { bagVboId: string }) {
       const response = await fetch("/api/cases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bagVboId }) });
       const body = await response.json() as { case?: { id: string }; error?: string };
       if (response.status === 401) { window.location.href = loginHref(); return; }
-      if (!response.ok || !body.case) throw new Error(body.error ?? "Dossier kon niet worden gestart.");
+      if (!response.ok || !body.case) throw new Error(body.error ?? t("startCaseError"));
       window.location.href = `/mijn-aankoop/${encodeURIComponent(body.case.id)}`;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Dossier kon niet worden gestart.");
+      setMessage(error instanceof Error ? error.message : t("startCaseError"));
       setBusy(false);
     }
   }
 
-  return <div className="start-case-wrap"><button className="primary-button" type="button" onClick={start} disabled={busy}>{busy ? "Dossier wordt gestart…" : "Start mijn aankoopdossier"}</button>{message && <small className="form-message" role="alert">{message}</small>}</div>;
+  return <div className="start-case-wrap"><button className="primary-button" type="button" onClick={start} disabled={busy}>{busy ? t("startingCase") : t("startCaseCta")}</button>{message && <small className="form-message" role="alert">{message}</small>}</div>;
 }

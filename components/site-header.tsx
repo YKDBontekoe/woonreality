@@ -1,12 +1,15 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import type { HeaderCurrent } from "@/components/ui/page-shell";
 
 export function SiteHeader({ current }: { current?: HeaderCurrent }) {
+  const t = useTranslations("header");
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuToggleRef = useRef<HTMLButtonElement>(null);
@@ -53,28 +56,29 @@ export function SiteHeader({ current }: { current?: HeaderCurrent }) {
   return (
     <header className="topbar">
       <Link href="/" onClick={() => setMenuOpen(false)}><Brand /></Link>
-      <nav ref={navRef} className={`nav ${menuOpen ? "nav-open" : ""}`} aria-label="Hoofdmenu">
+      <nav ref={navRef} className={`nav ${menuOpen ? "nav-open" : ""}`} aria-label={t("navAria")}>
         <button
           className="nav-menu-toggle"
           type="button"
           ref={menuToggleRef}
           aria-expanded={menuOpen}
           aria-controls="site-nav-links"
-          aria-label={menuOpen ? "Menu sluiten" : "Menu openen"}
+          aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
           onClick={() => setMenuOpen((value) => !value)}
         >
           {menuOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
         <div id="site-nav-links" className="nav-links">
-          <Link href="/#werkwijze" onClick={() => setMenuOpen(false)}>Werkwijze</Link>
-          <Link href="/hypotheek" className={current === "hypotheek" ? "nav-current" : undefined} aria-current={current === "hypotheek" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Hypotheek</Link>
-          <Link href="/kaart" className={current === "kaart" ? "nav-current" : undefined} aria-current={current === "kaart" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Kaart</Link>
-          <Link href="/vergelijken" className={current === "vergelijken" ? "nav-current" : undefined} aria-current={current === "vergelijken" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Vergelijken</Link>
-          <Link href="/extensie" className={current === "extensie" ? "nav-current" : undefined} aria-current={current === "extensie" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Extensie</Link>
-          <Link href="/mijn-aankoop" className={current === "aankoop" ? "nav-current" : undefined} aria-current={current === "aankoop" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Mijn aankoop</Link>
+          <Link href="/#werkwijze" onClick={() => setMenuOpen(false)}>{t("werkwijze")}</Link>
+          <Link href="/hypotheek" className={current === "hypotheek" ? "nav-current" : undefined} aria-current={current === "hypotheek" ? "page" : undefined} onClick={() => setMenuOpen(false)}>{t("hypotheek")}</Link>
+          <Link href="/kaart" className={current === "kaart" ? "nav-current" : undefined} aria-current={current === "kaart" ? "page" : undefined} onClick={() => setMenuOpen(false)}>{t("kaart")}</Link>
+          <Link href="/vergelijken" className={current === "vergelijken" ? "nav-current" : undefined} aria-current={current === "vergelijken" ? "page" : undefined} onClick={() => setMenuOpen(false)}>{t("vergelijken")}</Link>
+          <Link href="/extensie" className={current === "extensie" ? "nav-current" : undefined} aria-current={current === "extensie" ? "page" : undefined} onClick={() => setMenuOpen(false)}>{t("extensie")}</Link>
+          <Link href="/mijn-aankoop" className={current === "aankoop" ? "nav-current" : undefined} aria-current={current === "aankoop" ? "page" : undefined} onClick={() => setMenuOpen(false)}>{t("mijnAankoop")}</Link>
           <Link className="nav-cta" href="/#zoek-adres" onClick={() => setMenuOpen(false)}>
-            Adres zoeken
+            {t("adresZoeken")}
           </Link>
+          <LanguageSwitcher />
         </div>
       </nav>
     </header>

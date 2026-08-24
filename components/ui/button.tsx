@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
 import type { Route } from "next";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 

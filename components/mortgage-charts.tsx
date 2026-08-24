@@ -1,18 +1,20 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { BuyerCostLine } from "@/src/lib/costs";
 import type { MortgageMarketHistorySeries } from "@/src/lib/mortgage";
 import type { MortgageSchedule } from "@/src/lib/mortgage/schedule";
 import { formatEuro } from "@/src/lib/purchase";
 
-const COST_CATEGORY_META: Record<string, { label: string; color: string }> = {
-  tax: { label: "Belasting", color: "#2f6fed" },
-  deed: { label: "Aktes & kadaster", color: "#7a9e8a" },
-  finance: { label: "Financiering", color: "#244b3c" },
-  optional: { label: "Optioneel", color: "#c4a574" },
+const COST_CATEGORY_META: Record<string, { labelKey: string; color: string }> = {
+  tax: { labelKey: "costCatTax", color: "#2f6fed" },
+  deed: { labelKey: "costCatDeed", color: "#7a9e8a" },
+  finance: { labelKey: "costCatFinance", color: "#244b3c" },
+  optional: { labelKey: "costCatOptional", color: "#c4a574" },
 };
 
 export function CostCompositionBar({ lines, total }: { lines: BuyerCostLine[]; total: number }) {
+  const t = useTranslations("hypotheek");
   if (total <= 0) return null;
   const grouped = (["tax", "deed", "finance", "optional"] as const).map((key) => {
     const amount = lines.filter((line) => line.category === key).reduce((sum, line) => sum + line.amount, 0);
@@ -23,12 +25,12 @@ export function CostCompositionBar({ lines, total }: { lines: BuyerCostLine[]; t
 
   return (
     <div className="mortgage-stack">
-      <div className="mortgage-stack-bar" role="img" aria-label="Samenstelling eenmalige kosten">
+      <div className="mortgage-stack-bar" role="img" aria-label={t("compositionAria")}>
         {grouped.map((group) => (
           <span
             key={group.key}
             style={{ width: `${(group.amount / total) * 100}%`, background: group.color }}
-            title={`${group.label}: ${formatEuro(group.amount)}`}
+            title={t("compositionTip", { label: t(group.labelKey), amount: formatEuro(group.amount) })}
           />
         ))}
       </div>
@@ -36,16 +38,17 @@ export function CostCompositionBar({ lines, total }: { lines: BuyerCostLine[]; t
         {grouped.map((group) => (
           <li key={group.key}>
             <i style={{ background: group.color }} />
-            {group.label} <strong>{formatEuro(group.amount)}</strong>
+            {t(group.labelKey)} <strong>{formatEuro(group.amount)}</strong>
           </li>
         ))}
-        <li className="is-note">{deductiblePct}% aftrekbaar in jaar 1</li>
+        <li className="is-note">{t("deductibleYear1", { pct: deductiblePct })}</li>
       </ul>
     </div>
   );
 }
 
 export function FundsMeter({ needed, available }: { needed: number; available: number }) {
+  const t = useTranslations("hypotheek");
   if (needed <= 0) return null;
   const ratio = Math.min(1, Math.max(0, available / needed));
   const gap = needed - available;
@@ -55,10 +58,18 @@ export function FundsMeter({ needed, available }: { needed: number; available: n
       <div className="mortgage-meter-track" aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></div>
       <small>
         {gap > 0
-          ? `${formatEuro(Math.round(available))} van ${formatEuro(Math.round(needed))} — ${formatEuro(Math.round(gap))} tekort`
+          ? t("fundsMeterShort", {
+            available: formatEuro(Math.round(available)),
+            needed: formatEuro(Math.round(needed)),
+            gap: formatEuro(Math.round(gap)),
+          })
           : available > 0
-            ? `${formatEuro(Math.round(available))} dekt ${formatEuro(Math.round(needed))} · ${formatEuro(Math.round(-gap))} over`
-            : `${formatEuro(Math.round(needed))} uit eigen middelen`}
+            ? t("fundsMeterCover", {
+              available: formatEuro(Math.round(available)),
+              needed: formatEuro(Math.round(needed)),
+              surplus: formatEuro(Math.round(-gap)),
+            })
+            : t("fundsMeterOwn", { needed: formatEuro(Math.round(needed)) })}
       </small>
     </div>
   );
@@ -160,78 +171,84 @@ function LineChart({
 }
 
 export function BalanceComparisonChart({ annuity, linear }: { annuity: MortgageSchedule; linear: MortgageSchedule }) {
+  const t = useTranslations("hypotheek");
   return (
     <LineChart
-      title="Restschuld over 30 jaar"
-      subtitle="Annuïteit vs lineair — zelfde lening en rente"
+      title={t("balanceTitle")}
+      subtitle={t("balanceSubtitle")}
       series={[
         {
           id: "annuity",
-          label: "Annuïteit restschuld",
+          label: t("balanceAnnuity"),
           color: "var(--moss)",
           points: annuity.years.map((year) => ({ x: year.year, y: year.balanceEnd })),
           emphasized: true,
         },
         {
           id: "linear",
-          label: "Lineair restschuld",
+          label: t("balanceLinear"),
           color: "var(--coral-deep)",
           points: linear.years.map((year) => ({ x: year.year, y: year.balanceEnd })),
         },
       ]}
-      xLabel={(x) => (x === 0 ? "start" : `j${x}`)}
+      xLabel={(x) => (x === 0 ? t("chartStart") : t("chartYear", { x }))}
       yFormat={(y) => (y >= 1000 ? `${Math.round(y / 1000)}k` : String(Math.round(y)))}
     />
   );
 }
 
 export function PaymentComparisonChart({ annuity, linear }: { annuity: MortgageSchedule; linear: MortgageSchedule }) {
+  const t = useTranslations("hypotheek");
   return (
     <LineChart
-      title="Maandlast over tijd"
-      subtitle="Annuïteit blijft gelijk; lineair daalt"
+      title={t("paymentTitle")}
+      subtitle={t("paymentSubtitle")}
       series={[
         {
           id: "annuity",
-          label: "Annuïteit maandlast",
+          label: t("paymentAnnuity"),
           color: "var(--moss)",
           points: annuity.years.map((year) => ({ x: year.year, y: year.payment / 12 })),
           emphasized: true,
         },
         {
           id: "linear",
-          label: "Lineair maandlast",
+          label: t("paymentLinear"),
           color: "var(--coral-deep)",
           points: linear.years.map((year) => ({ x: year.year, y: year.payment / 12 })),
         },
       ]}
-      xLabel={(x) => (x === 0 ? "start" : `j${x}`)}
+      xLabel={(x) => (x === 0 ? t("chartStart") : t("chartYear", { x }))}
       yFormat={(y) => `€${Math.round(y)}`}
     />
   );
 }
 
 export function CumulativeInterestChart({ annuity, linear }: { annuity: MortgageSchedule; linear: MortgageSchedule }) {
+  const t = useTranslations("hypotheek");
   return (
     <LineChart
-      title="Cumulatieve rente"
-      subtitle={`Totaal: annuïteit ${formatEuro(Math.round(annuity.totalInterest))} · lineair ${formatEuro(Math.round(linear.totalInterest))}`}
+      title={t("interestTitle")}
+      subtitle={t("interestSubtitle", {
+        annuity: formatEuro(Math.round(annuity.totalInterest)),
+        linear: formatEuro(Math.round(linear.totalInterest)),
+      })}
       series={[
         {
           id: "annuity",
-          label: "Annuïteit cumulatieve rente",
+          label: t("interestAnnuity"),
           color: "var(--moss)",
           points: annuity.years.map((year) => ({ x: year.year, y: year.cumulativeInterest })),
           emphasized: true,
         },
         {
           id: "linear",
-          label: "Lineair cumulatieve rente",
+          label: t("interestLinear"),
           color: "var(--coral-deep)",
           points: linear.years.map((year) => ({ x: year.year, y: year.cumulativeInterest })),
         },
       ]}
-      xLabel={(x) => (x === 0 ? "start" : `j${x}`)}
+      xLabel={(x) => (x === 0 ? t("chartStart") : t("chartYear", { x }))}
       yFormat={(y) => (y >= 1000 ? `${Math.round(y / 1000)}k` : String(Math.round(y)))}
     />
   );
@@ -244,6 +261,7 @@ export function RateImpactChart({
   rows: { rate: number; firstPayment: number; totalInterest: number }[];
   showTable?: boolean;
 }) {
+  const t = useTranslations("hypotheek");
   const width = 640;
   const height = 200;
   const pad = { top: 16, right: 16, bottom: 36, left: 52 };
@@ -258,10 +276,10 @@ export function RateImpactChart({
   return (
     <figure className="mortgage-chart">
       <figcaption>
-        <strong>Rente-impact op maandlast</strong>
-        <span>Zelfde lening, andere rente (±1 procentpunt)</span>
+        <strong>{t("rateImpactTitle")}</strong>
+        <span>{t("rateImpactSubtitle")}</span>
       </figcaption>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Rente-impact op maandlast" className="mortgage-chart-svg">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("rateImpactTitle")} className="mortgage-chart-svg">
         {gridYs.map((y) => (
           <g key={`ri-${y}`}>
             <line x1={pad.left} x2={width - pad.right} y1={sy(y)} y2={sy(y)} className="mortgage-chart-grid" />
@@ -278,12 +296,12 @@ export function RateImpactChart({
       {showTable && (
         <div className="mortgage-chart-table-wrap">
           <table className="mortgage-chart-table">
-            <caption className="sr-only">Rente-impact cijfers</caption>
+            <caption className="sr-only">{t("rateImpactTableCaption")}</caption>
             <thead>
               <tr>
-                <th>Rente</th>
-                <th>Maandlast</th>
-                <th>Totale rente</th>
+                <th>{t("colRate")}</th>
+                <th>{t("colMonthly")}</th>
+                <th>{t("colTotalInterest")}</th>
               </tr>
             </thead>
             <tbody>
@@ -315,6 +333,7 @@ export function RateHistoryChart({
   history: MortgageMarketHistorySeries[];
   activePeriod: number;
 }) {
+  const t = useTranslations("hypotheek");
   if (history.length === 0) return null;
   const displaySeries = history.filter((item) => item.period === 5 || item.period === 10 || item.period === 20);
   if (displaySeries.length === 0) return null;
@@ -323,7 +342,7 @@ export function RateHistoryChart({
   const monthIndex = new Map(months.map((month, index) => [month, index]));
   const series: LineSeries[] = displaySeries.map((item) => ({
     id: String(item.period),
-    label: item.period === 20 ? "20/30 jaar vast" : `${item.period} jaar vast`,
+    label: item.period === 20 ? t("periodFixed20") : t("periodFixedYears", { period: item.period }),
     color: HISTORY_COLORS[item.period] ?? "#1d1d1f",
     emphasized: item.period === activePeriod || (activePeriod === 30 && item.period === 20),
     points: item.points.map((point) => ({
@@ -337,8 +356,8 @@ export function RateHistoryChart({
 
   return (
     <LineChart
-      title="Marktrente afgelopen jaren"
-      subtitle={`DNB/ECB nieuwe woninghypotheken · ${first} – ${last}`}
+      title={t("historyTitle")}
+      subtitle={t("historySubtitle", { first, last })}
       series={series}
       xLabel={(index) => months[index] ?? ""}
       yFormat={(y) => `${y.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%`}
@@ -353,6 +372,7 @@ export function RateSparkline({
   history: MortgageMarketHistorySeries[];
   activePeriod: number;
 }) {
+  const t = useTranslations("hypotheek");
   const series = history.find((item) => item.period === activePeriod)
     ?? history.find((item) => item.period === 20 && activePeriod === 30)
     ?? history[0];
@@ -372,7 +392,7 @@ export function RateSparkline({
   }).join(" ");
   return (
     <div className="mortgage-spark">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Rente ${activePeriod} jaar vast`} className="mortgage-spark-svg">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("sparklineAria", { period: activePeriod })} className="mortgage-spark-svg">
         <path d={d} fill="none" stroke="var(--moss)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       </svg>
       <div>

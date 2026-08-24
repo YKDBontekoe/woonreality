@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowLeft, GitCompare, MapPinned, Users } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
@@ -27,6 +28,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
   const [place, setPlace] = useState<PlaceAnalysis | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const t = useTranslations("plek");
   const router = useRouter();
   const [retryCount, setRetryCount] = useState(0);
 
@@ -47,18 +49,18 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
           return null;
         }
         const body = await response.json() as { place?: PlaceAnalysis; error?: string };
-        if (!response.ok) throw new Error(body.error ?? "Deze plekcheck lukt nu niet.");
+        if (!response.ok) throw new Error(body.error ?? t("loadFailedError"));
         return body.place ?? null;
       })
       .then((next) => {
         if (cancelled) return;
         setPlace(next);
-        if (!next) setError("Deze plek kon niet worden gevonden.");
+        if (!next) setError(t("notFoundError"));
       })
       .catch((caught) => {
         if (cancelled) return;
         setPlace(null);
-        setError(caught instanceof Error ? caught.message : "Deze plekcheck lukt nu niet.");
+        setError(caught instanceof Error ? caught.message : t("loadFailedError"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -66,7 +68,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
     return () => {
       cancelled = true;
     };
-  }, [kind, code, retryCount]);
+  }, [kind, code, retryCount, t]);
 
   const analysisStub = useMemo<Analysis | null>(() => {
     if (!place) return null;
@@ -106,15 +108,15 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
     <PageShell current="home" className="place-shell">
       <div className="place-dashboard">
         <Link className="text-link place-back" href="/">
-          <ArrowLeft size={16} aria-hidden="true" /> Terug naar zoeken
+          <ArrowLeft size={16} aria-hidden="true" /> {t("backToSearch")}
         </Link>
 
-        {loading && <div className="place-loading" role="status">Plek laden…</div>}
+        {loading && <div className="place-loading" role="status">{t("loadingPlace")}</div>}
         {error && !loading && (
           <div className="place-error" role="alert">
             {error}{" "}
-            {place === null && error !== "Deze plek kon niet worden gevonden." && (
-              <button className="text-link" type="button" onClick={() => setRetryCount((count) => count + 1)}>Opnieuw proberen</button>
+            {place === null && error !== t("notFoundError") && (
+              <button className="text-link" type="button" onClick={() => setRetryCount((count) => count + 1)}>{t("retry")}</button>
             )}
           </div>
         )}
@@ -127,22 +129,22 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
                 <h1>{place.name}</h1>
                 {place.subtitle && <p>{place.subtitle}</p>}
                 <p className="place-hero-note">
-                  Buurtgemiddelden en open data — geen woningcheck. Kies hieronder een adres voor je volledige woningcheck.
+                  {t("heroNote")}
                 </p>
               </div>
               <div className="place-kpis">
                 <div className="place-kpi">
                   <Users size={16} aria-hidden="true" />
-                  <small>Inwoners</small>
+                  <small>{t("kpiInhabitants")}</small>
                   <strong>{formatInhabitants(place.cbs?.inhabitants)}</strong>
                 </div>
                 <div className="place-kpi">
                   <MapPinned size={16} aria-hidden="true" />
-                  <small>Gem. WOZ</small>
+                  <small>{t("kpiAvgWoz")}</small>
                   <strong>{formatWoz(place.cbs?.averageWoz)}</strong>
                 </div>
                 <div className="place-kpi">
-                  <small>Dichtheid</small>
+                  <small>{t("kpiDensity")}</small>
                   <strong>
                     {place.cbs?.populationDensity != null
                       ? `${place.cbs.populationDensity.toLocaleString("nl-NL")} / km²`
@@ -151,7 +153,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
                 </div>
                 <div className="place-kpi place-kpi-action">
                   <button className="secondary-button" type="button" onClick={startPlaceComparison}>
-                    <GitCompare size={13} /> Vergelijk
+                    <GitCompare size={13} /> {t("compareButton")}
                   </button>
                 </div>
               </div>
@@ -164,11 +166,11 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
             {place.buurten.length > 0 && (
               <section className="place-section">
                 <div className="section-heading">
-                  <div className="section-kicker">Verder verkennen</div>
-                  <h2>Buurten in {place.name}</h2>
+                  <div className="section-kicker">{t("exploreKicker")}</div>
+                  <h2>{t("buurtenTitle", { name: place.name })}</h2>
                   <p>
-                    Klik door naar een buurt voor meer detail, of zoek direct een adres.
-                    {place.buurtenTruncated && " De lijst is ingekort; grote gemeenten tonen maximaal 200 buurten."}
+                    {t("buurtenIntro")}
+                    {place.buurtenTruncated && ` ${t("buurtenTruncated")}`}
                   </p>
                 </div>
                 <div className="place-buurt-grid">
@@ -180,7 +182,7 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
                     >
                       <strong>{buurt.name}</strong>
                       {buurt.inhabitants != null && (
-                        <span>{buurt.inhabitants.toLocaleString("nl-NL")} inwoners</span>
+                        <span>{t("buurtInhabitants", { count: buurt.inhabitants.toLocaleString("nl-NL") })}</span>
                       )}
                     </Link>
                   ))}
@@ -189,12 +191,12 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
             )}
 
             <section className="place-section" id="zoek-adres-in-plek">
-              <div className="section-heading">
-                <div className="section-kicker">Volgende stap</div>
-                <h2>Zoek een woning in {place.name}</h2>
-                <p>Typ straat en huisnummer voor je volledige woningcheck met energie, geluid en meer.</p>
-              </div>
-              <AddressSearch id="plek-adres" initialQuery={searchSeed} submitLabel="Check woning" addressesOnly />
+                <div className="section-heading">
+                  <div className="section-kicker">{t("nextKicker")}</div>
+                  <h2>{t("searchTitle", { name: place.name })}</h2>
+                  <p>{t("searchIntro")}</p>
+                </div>
+                <AddressSearch id="plek-adres" initialQuery={searchSeed} submitLabel={t("checkProperty")} addressesOnly />
             </section>
           </>
         )}

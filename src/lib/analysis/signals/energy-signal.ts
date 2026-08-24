@@ -2,8 +2,11 @@ import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import { epOnlineUrl } from "@/src/lib/sources/ep-online";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export function energyEvidence(input: { bagVboId: string; labelUpdatedAt?: string }): Evidence {
+export function energyEvidence(input: { bagVboId: string; labelUpdatedAt?: string }, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "ep-online-energy",
     source: "EP-Online / RVO",
@@ -12,7 +15,7 @@ export function energyEvidence(input: { bagVboId: string; labelUpdatedAt?: strin
     sourceUpdatedAt: input.labelUpdatedAt,
     confidence: "high",
     spatialResolution: "BAG-verblijfsobject",
-    caveat: "Een energielabel zegt niets over de actuele staat of het werkelijke verbruik van de woning.",
+    caveat: t("energy.caveat"),
   });
 }
 
@@ -31,18 +34,19 @@ export function energyScore(label: string) {
   return 2;
 }
 
-export function energySignal(input: { energyLabel: string | null; evidence: Evidence; energyAvailable: boolean }): Signal {
+export function energySignal(input: { energyLabel: string | null; evidence: Evidence; energyAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { energyLabel, evidence, energyAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const score = energyLabel ? energyScore(energyLabel) : undefined;
   return {
     key: "energy",
-    label: "Energielabel",
+    label: t("energy.label"),
     category: "woning",
-    value: energyLabel ?? "Geen data",
+    value: energyLabel ?? t("common.noData"),
     score,
     severity: energyLabel ? scoreSeverity(score!) : "neutral",
-    summary: energyLabel ? `Geregistreerd energielabel ${energyLabel}.` : "Er is geen energielabel beschikbaar in deze analyse.",
-    action: "Vraag naar de originele labelstukken en recente verbeteringen aan isolatie, glas en installaties.",
+    summary: energyLabel ? t("energy.summaryFound", { label: energyLabel }) : t("energy.summaryMissing"),
+    action: t("energy.action"),
     confidence: "high",
     spatialScale: "BAG-verblijfsobject",
     availability: energyAvailable ? "available" : "unavailable",

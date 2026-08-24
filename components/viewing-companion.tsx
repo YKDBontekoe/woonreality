@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowLeft, CircleHelp, ClipboardCheck, ThumbsDown, ThumbsUp } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { PageShell } from "@/components/ui/page-shell";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
@@ -11,6 +12,7 @@ import type { Analysis, ChecklistItem } from "@/src/lib/types";
 import { loginHref } from "@/src/lib/login-href";
 
 export function ViewingCompanion({ bagId }: { bagId: string }) {
+  const t = useTranslations("woning");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -26,14 +28,14 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     fetch(`/api/analysis/${encodeURIComponent(bagId)}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as Analysis & { error?: string };
-        if (!response.ok) throw new Error(body.error ?? "Analyse kon niet worden geladen.");
+        if (!response.ok) throw new Error(body.error ?? t("viewing.analysisLoadFailed"));
         setAnalysis(body);
       })
       .catch((caught) => {
-        if (!(caught instanceof DOMException && caught.name === "AbortError")) setError(caught instanceof Error ? caught.message : "Er ging iets mis");
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) setError(caught instanceof Error ? caught.message : t("somethingWentWrong"));
       });
     return () => controller.abort();
-  }, [bagId]);
+  }, [bagId, t]);
 
   useEffect(() => {
     if (!analysis) return;
@@ -45,21 +47,21 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
         if (supportsSessionChecklistFallback(response.status)) {
           const cached = loadSessionChecklist(bagId);
           setChecklist(cached ? mergeChecklistWithDefaults(defaults, cached) : defaults);
-          setChecklistError(response.status === 401 ? "Log in om notities te bewaren." : checklistSessionNotice);
+          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
           return;
         }
-        if (!response.ok) throw new Error(body.error ?? "Checklist kon niet worden geladen.");
+        if (!response.ok) throw new Error(body.error ?? t("viewing.checklistLoadFailed"));
         setChecklist(Array.isArray(body.items) ? mergeChecklistWithDefaults(defaults, body.items) : defaults);
         setChecklistError("");
       })
       .catch((caught) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
           setChecklist(checklistForAnalysis(analysis));
-          setChecklistError(caught instanceof Error ? caught.message : "Checklist kon niet worden geladen.");
+          setChecklistError(caught instanceof Error ? caught.message : t("viewing.checklistLoadFailed"));
         }
       });
     return () => controller.abort();
-  }, [analysis, bagId]);
+  }, [analysis, bagId, t]);
 
   useEffect(() => () => {
     Object.values(noteTimers.current).forEach((timer) => window.clearTimeout(timer));
@@ -70,15 +72,15 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
       const response = await fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: next }) });
       const body = await response.json() as { error?: string };
       if (supportsSessionChecklistFallback(response.status)) {
-        if (!saveSessionChecklist(bagId, next)) throw new Error("Je checklist kon niet in deze browser worden bewaard.");
-        setChecklistError(response.status === 401 ? "Log in om notities te bewaren." : checklistSessionNotice);
+        if (!saveSessionChecklist(bagId, next)) throw new Error(t("viewing.browserSaveFailed"));
+        setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
         return;
       }
-      if (!response.ok) throw new Error(body.error ?? "Checklist kon niet worden opgeslagen.");
+      if (!response.ok) throw new Error(body.error ?? t("viewing.checklistSaveFailed"));
       setChecklistError("");
     });
     writeQueue.current = write.catch(() => undefined);
-    try { await write; } catch (caught) { setChecklistError(caught instanceof Error ? caught.message : "Checklist kon niet worden opgeslagen."); }
+    try { await write; } catch (caught) { setChecklistError(caught instanceof Error ? caught.message : t("viewing.checklistSaveFailed")); }
   }
 
   async function saveChecklist(next: ChecklistItem[]) {
@@ -104,15 +106,15 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
       const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/debrief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
       const body = await response.json() as { caseId?: string | null; error?: string };
       if (response.status === 401) { window.location.href = loginHref(); return; }
-      if (!response.ok) { setDebrief(body.error ?? "Debrief kon niet worden opgeslagen."); return; }
+      if (!response.ok) { setDebrief(body.error ?? t("viewing.debriefSaveFailed")); return; }
       if (decision === "continue" && body.caseId) { window.location.href = `/mijn-aankoop/${body.caseId}#waarde-bod`; return; }
-      if (decision === "continue") { setDebrief("De bezichtiging is afgerond, maar er is nog geen dossier om het bod in te zetten. Start of open eerst een aankoopdossier."); return; }
+      if (decision === "continue") { setDebrief(t("viewing.debriefNoCase")); return; }
       if (decision === "drop") { window.location.href = "/mijn-aankoop"; return; }
       // The debrief changed the property stage server-side; sync the store.
       await refresh();
-      setDebrief("Twijfel is oké. Werk je notities bij en kom later terug.");
+      setDebrief(t("viewing.debriefDoubt"));
     } catch (caught) {
-      setDebrief(caught instanceof Error ? caught.message : "Debrief kon niet worden opgeslagen.");
+      setDebrief(caught instanceof Error ? caught.message : t("viewing.debriefSaveFailed"));
     } finally {
       setBusy(false);
     }
@@ -121,10 +123,10 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
   if (error) return (
     <PageShell current="woning">
       <div className="loading-shell">
-        <Link className="back-link" href="/"><ArrowLeft size={14} /> Terug naar zoeken</Link>
-        <h1>Deze bezichtiging lukt nu niet.</h1>
+        <Link className="back-link" href="/"><ArrowLeft size={14} /> {t("backToSearch")}</Link>
+        <h1>{t("viewing.errorTitle")}</h1>
         <p className="hero-copy">{error}</p>
-        <Link className="primary-button" href="/">Nieuw adres zoeken</Link>
+        <Link className="primary-button" href="/">{t("searchNewAddress")}</Link>
       </div>
     </PageShell>
   );
@@ -157,51 +159,51 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
           <span><strong>{item.label}</strong></span>
         </label>
         {item.reason && <p className="companion-reason" id={reasonId}>{item.reason}</p>}
-        <label className="sr-only" htmlFor={noteId}>Notitie voor {item.label}</label>
-        <textarea id={noteId} value={item.note ?? ""} placeholder="Wat zie, ruik of hoor je?" rows={2} onChange={(event) => { updateNote(item.id, event.target.value); }} />
+        <label className="sr-only" htmlFor={noteId}>{t("viewing.noteAria", { label: item.label })}</label>
+        <textarea id={noteId} value={item.note ?? ""} placeholder={t("viewing.notePlaceholder")} rows={2} onChange={(event) => { updateNote(item.id, event.target.value); }} />
       </div>;
     });
   }
 
   return <PageShell current="woning" className="viewing-companion">
-    <Link className="back-link" href={`/woning/${bagId}`}><ArrowLeft size={14} /> Terug naar de woningcheck</Link>
-    <div className="eyebrow"><ClipboardCheck size={13} /> bezichtigingsmodus</div>
+    <Link className="back-link" href={`/woning/${bagId}`}><ArrowLeft size={14} /> {t("viewing.backToCheck")}</Link>
+    <div className="eyebrow"><ClipboardCheck size={13} /> {t("viewing.modeEyebrow")}</div>
     <h1>{analysis.property.street} {analysis.property.houseNumber}</h1>
-    <p className="hero-copy">Grote vakjes, ruimte voor notities. Dit is je gezelschap in huis — geen printwerk.</p>
-    <div className="companion-progress-card" aria-label="Voortgang bezichtiging">
+    <p className="hero-copy">{t("viewing.heroCopy")}</p>
+    <div className="companion-progress-card" aria-label={t("viewing.progressAria")}>
       <div>
-        <span>Bezichtiging</span>
-        <strong>{checked} / {checklist.length} afgevinkt</strong>
+        <span>{t("viewing.viewingLabel")}</span>
+        <strong>{t("viewing.checkedCount", { checked, total: checklist.length })}</strong>
       </div>
-      <progress value={checked} max={Math.max(checklist.length, 1)} aria-label={`${checked} van ${checklist.length} punten afgevinkt`} />
-      <a className="secondary-button" href="#afronden">Afronden</a>
+      <progress value={checked} max={Math.max(checklist.length, 1)} aria-label={t("viewing.progressMeterAria", { checked, total: checklist.length })} />
+      <a className="secondary-button" href="#afronden">{t("viewing.finishLink")}</a>
     </div>
-    {checklistError && <p className="form-message" role="status">{checklistError}{authStatus === "anonymous" && <> <Link href="/login">Inloggen</Link></>}</p>}
+    {checklistError && <p className="form-message" role="status">{checklistError}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}</p>}
     <div className="companion-list">
       {attentionItems.length > 0 && <section className="companion-group" aria-labelledby="attention-checklist-title">
         <div className="companion-group-head">
-          <span className="section-kicker">Specifiek voor deze woning</span>
-          <h2 id="attention-checklist-title">Eerst hierop letten</h2>
-          <p>Deze punten komen rechtstreeks uit de woningcheck.</p>
+          <span className="section-kicker">{t("viewing.specificKicker")}</span>
+          <h2 id="attention-checklist-title">{t("viewing.attentionFirst")}</h2>
+          <p>{t("viewing.fromCheck")}</p>
         </div>
         <div className="companion-group-items">{checklistItems(attentionItems)}</div>
       </section>}
       {standardItems.length > 0 && <section className="companion-group" aria-labelledby="standard-checklist-title">
         <div className="companion-group-head">
-          <span className="section-kicker">Basisrondje</span>
-          <h2 id="standard-checklist-title">Niet vergeten</h2>
+          <span className="section-kicker">{t("viewing.basicsKicker")}</span>
+          <h2 id="standard-checklist-title">{t("viewing.dontForget")}</h2>
         </div>
         <div className="companion-group-items">{checklistItems(standardItems)}</div>
       </section>}
     </div>
     <section className="companion-debrief" id="afronden">
-      <h2>Na de rondleiding</h2>
-      <p>Dit zet de zaakfase bij. Er gaat geen mail naar de verkopende makelaar.</p>
+      <h2>{t("viewing.afterTour")}</h2>
+      <p>{t("viewing.debriefNote")}</p>
       {debrief && <p className="form-message" role="status">{debrief}</p>}
       <div className="debrief-actions">
-        <button className="primary-button" type="button" disabled={busy} onClick={() => { void finish("continue"); }}><ThumbsUp size={16} /> Doorgaan naar bod</button>
-        <button className="secondary-button" type="button" disabled={busy} onClick={() => { void finish("doubt"); }}><CircleHelp size={16} /> Nog twijfel</button>
-        <button className="secondary-button" type="button" disabled={busy} onClick={() => { void finish("drop"); }}><ThumbsDown size={16} /> Laten vallen</button>
+        <button className="primary-button" type="button" disabled={busy} onClick={() => { void finish("continue"); }}><ThumbsUp size={16} /> {t("viewing.continueToOffer")}</button>
+        <button className="secondary-button" type="button" disabled={busy} onClick={() => { void finish("doubt"); }}><CircleHelp size={16} /> {t("viewing.stillDoubting")}</button>
+        <button className="secondary-button" type="button" disabled={busy} onClick={() => { void finish("drop"); }}><ThumbsDown size={16} /> {t("viewing.dropIt")}</button>
       </div>
     </section>
   </PageShell>;

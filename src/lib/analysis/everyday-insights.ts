@@ -1,4 +1,6 @@
 import type { EverydayInsight, Signal } from "@/src/lib/types";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
 const ATTENTION_BELOW = 5.5;
 const GOOD_ABOVE = 6.5;
@@ -27,7 +29,8 @@ function combinedTone(...scores: (number | undefined)[]): EverydayInsight["tone"
   return "neutral";
 }
 
-export function everydayInsights(signals: Signal[]): EverydayInsight[] {
+export function everydayInsights(signals: Signal[], locale: Locale = "nl"): EverydayInsight[] {
+  const t = getLibTranslator(locale, "lib-analysis");
   const insights: EverydayInsight[] = [];
 
   const noise = scoreOf(signals, "noise");
@@ -35,12 +38,12 @@ export function everydayInsights(signals: Signal[]): EverydayInsight[] {
   if (noise != null || green != null) {
     const tone = streetTone(noise, green);
     insights.push({
-      title: "Hoe voelt de straat waarschijnlijk?",
+      title: t("everyday.street.title"),
       summary: tone === "attention"
-        ? "De directe wegcontext vraagt om een extra luistermoment. Plan je bezichtiging op een druk én rustig tijdstip; het aanwezige groen verandert dat niet automatisch."
+        ? t("everyday.street.attention")
         : tone === "good"
-          ? "De combinatie van lokale groenstructuur en wegcontext wijst op een prettiger straatbeeld. Check tijdens de bezichtiging nog wel geluid met open ramen."
-          : "De openbare data geven geen uitgesproken straatbeeld. Kijk bij de bezichtiging bewust naar geluid, schaduw en de ruimte rondom de woning.",
+          ? t("everyday.street.good")
+          : t("everyday.street.neutral"),
       tone,
       signalKeys: ["noise", "green"].filter((key) => Boolean(findSignal(signals, key))),
     });
@@ -51,12 +54,12 @@ export function everydayInsights(signals: Signal[]): EverydayInsight[] {
   if (energy != null || heat != null) {
     const tone = combinedTone(energy, heat);
     insights.push({
-      title: "Comfort en energierekening",
+      title: t("everyday.comfort.title"),
       summary: (energy ?? DEFAULT_FALLBACK_SCORE) < ATTENTION_BELOW
-        ? "De energiedata verdienen extra aandacht. Vraag naar verbruik, isolatie, ventilatie en wat al is verbeterd—dat zegt meer over je maandlasten dan een label alleen."
+        ? t("everyday.comfort.energyAttention")
         : (heat ?? DEFAULT_FALLBACK_SCORE) < ATTENTION_BELOW
-          ? "De woning kan prima presteren in de winter, maar de omgevingsindicatie vraagt aandacht voor warmte in de zomer. Vraag naar zonwering en ventilatie."
-          : "Energie- en omgevingssignalen geven geen directe rode vlag. Vraag alsnog om recente energiekosten en test ventilatie tijdens de bezichtiging.",
+          ? t("everyday.comfort.heatAttention")
+          : t("everyday.comfort.neutral"),
       tone,
       signalKeys: ["energy", "heat"].filter((key) => Boolean(findSignal(signals, key))),
     });
@@ -66,12 +69,12 @@ export function everydayInsights(signals: Signal[]): EverydayInsight[] {
   if (sun != null || heat != null) {
     const tone = combinedTone(sun, heat);
     insights.push({
-      title: "Licht en schaduw rond de woning",
+      title: t("everyday.light.title"),
       summary: tone === "attention"
-        ? "De georiëntatie- of omgevingssignalen wijzen op minder licht of meer warmte. Loop bij de bezichtiging bewust langs tuin, woonkamer en slaapkamerramen op een ochtend- én avondmoment."
+        ? t("everyday.light.attention")
         : tone === "good"
-          ? "Gevelrichting en omgeving wijken niet af van wat je in een prettige woning wilt zien. Check alsnog zelf hoe diep de zon 's winters in de kamers staat."
-          : "De geometrie geeft geen uitgesproken lichtbeeld. Bepaal de zonnestand tijdens een bezichtiging: vóór 12u en na 17u zegt het meest.",
+          ? t("everyday.light.good")
+          : t("everyday.light.neutral"),
       tone,
       signalKeys: ["sun", "heat"].filter((key) => Boolean(findSignal(signals, key))),
     });
@@ -84,10 +87,10 @@ export function everydayInsights(signals: Signal[]): EverydayInsight[] {
     const lowestScore = Math.min(transit ?? DEFAULT_FALLBACK_SCORE, access ?? DEFAULT_FALLBACK_SCORE);
     const tone: EverydayInsight["tone"] = lowestScore >= GOOD_ABOVE ? "good" : lowestScore < ATTENTION_BELOW ? "attention" : "neutral";
     insights.push({
-      title: "Je dagelijkse route",
+      title: t("everyday.route.title"),
       summary: tone === "good"
-        ? "De bereikbaarheidssignalen zijn gunstig voor dagelijkse verplaatsingen. Probeer je eigen woon-werkroute wel rond jouw vertrektijd."
-        : "De route naar voorzieningen of vervoer is niet eenduidig gunstig. Check je eigen fiets-, auto- en ov-route voordat je beslist.",
+        ? t("everyday.route.good")
+        : t("everyday.route.neutral"),
       tone,
       signalKeys: ["transit", "access"].filter((key) => Boolean(findSignal(signals, key))),
     });
@@ -101,12 +104,12 @@ export function everydayInsights(signals: Signal[]): EverydayInsight[] {
         ? "good"
         : "neutral";
     insights.push({
-      title: "Gezin en school",
+      title: t("everyday.family.title"),
       summary: tone === "good"
-        ? "Basisschool en opvang liggen volgens CBS-buurtgemiddelden dichtbij. Loop de route op een schooldag na; de cijfers zijn buurtgemiddelden, geen loopafstand vanaf de voordeur."
+        ? t("everyday.family.good")
         : tone === "attention"
-          ? "Scholen of opvang liggen volgens de buurtstatistiek verder weg. Check de echte fiets- of looproute en of er plek is op de school van je voorkeur."
-          : "De buurtcijfers over kinderen en scholen geven geen uitgesproken beeld. Gebruik ze als startpunt en check zelf de scholen in de wijk.",
+          ? t("everyday.family.attention")
+          : t("everyday.family.neutral"),
       tone,
       signalKeys: ["schools", "children"].filter((key) => Boolean(findSignal(signals, key))),
     });

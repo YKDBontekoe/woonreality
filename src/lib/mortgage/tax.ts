@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { currentMortgageReference, type MortgageReference } from "@/src/lib/mortgage/reference";
 import type { MortgageSchedule } from "@/src/lib/mortgage/schedule";
 
@@ -105,7 +107,9 @@ export function housingTaxForYear(params: {
   };
 }
 
-export function summarizeHousingTax(input: HousingTaxInput): HousingTaxSummary {
+export function summarizeHousingTax(input: HousingTaxInput, locale: Locale = "nl"): HousingTaxSummary {
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = locale === "en" ? "en-IE" : "nl-NL";
   const ref = input.reference ?? currentMortgageReference();
   const deductionRate = housingDeductionRate(input.taxableIncome, ref);
   const forfait = eigenwoningforfait(input.wozValue, ref);
@@ -143,7 +147,10 @@ export function summarizeHousingTax(input: HousingTaxInput): HousingTaxSummary {
     ongoingMonthlyNet: ongoingYear1.netMonthlyCost,
     ongoingMonthlyGross: roundEuro(year1Payment / 12),
     oneOffRefund: deductionRefund(oneOff, deductionRate),
-    disclaimer: `Hypotheekrenteaftrek-schets ${ref.year}: max aftrektarief ${(ref.box1.maxHousingDeductionRate * 100).toLocaleString("nl-NL", { maximumFractionDigits: 2 })}%, inclusief eigenwoningforfait. Netto maandlast is een jaar-1-indicatie. Geen aangifteadvies.`,
+    disclaimer: t("mortgage.taxDisclaimer", {
+      year: ref.year,
+      rate: (ref.box1.maxHousingDeductionRate * 100).toLocaleString(numTag, { maximumFractionDigits: 2 }),
+    }),
   };
 }
 

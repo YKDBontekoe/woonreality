@@ -12,8 +12,11 @@ import {
   polygonCentroid,
   polygonLongestEdgeBearing,
 } from "@/src/lib/solar";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export function sunEvidence(fetchedAt?: string): Evidence {
+export function sunEvidence(fetchedAt?: string, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "bgt-sun",
     source: "PDOK / BGT",
@@ -21,7 +24,7 @@ export function sunEvidence(fetchedAt?: string): Evidence {
     confidence: "low",
     fetchedAt,
     spatialResolution: "BGT-pandvlakken rond dit adres",
-    caveat: "Geometrische indicatie uit BGT-vlakken en zonnestand-berekening. Geen AHN-3D schaduwmodel; bomen, hoogteverschil en dakkapellen zijn niet meegenomen.",
+    caveat: t("sun.caveat"),
   });
 }
 
@@ -125,8 +128,9 @@ export function sunScoreFromMetrics(metrics: SunMetrics): number | null {
   return clamp(round1(base - blockingPenalty(metrics.blockingSouthCount, metrics.nearestBlockingM)));
 }
 
-export function sunSignal(input: { bgt: BgtContext | null; property: { coordinates: Coordinates }; evidence: Evidence; bgtAvailable: boolean }): Signal {
+export function sunSignal(input: { bgt: BgtContext | null; property: { coordinates: Coordinates }; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { bgt, property, evidence, bgtAvailable } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const buildings = bgt ? currentBuildings(bgt) : [];
   const own = ownBuildingFootprint(buildings, property.coordinates);
   const others = own ? buildings.filter((feature) => feature !== own) : buildings;
@@ -138,12 +142,12 @@ export function sunSignal(input: { bgt: BgtContext | null; property: { coordinat
   if (orientationBearing == null) {
     return {
       key: "sun",
-      label: "Zon & licht",
+      label: t("sun.label"),
       category: "woning",
-      value: "Geen data",
+      value: t("common.noData"),
       severity: "neutral",
-      summary: "Er is geen BGT-pandvlak gevonden voor dit adres, dus de geveloriëntatie kan niet worden afgeleid.",
-      action: "Check bij de bezichtiging waar de tuin/balkon op ligt en wanneer de zon in de woonkamer staat.",
+      summary: t("sun.noDataSummary"),
+      action: t("sun.noDataAction"),
       confidence: "low",
       spatialScale: "BGT-pandvlakken rond dit adres",
       evidence: [evidence],
@@ -155,19 +159,23 @@ export function sunSignal(input: { bgt: BgtContext | null; property: { coordinat
   const label = orientationLabel(facadeBearing);
   const axisLabel = orientationLabel(orientationBearing);
   const blockingText = blocking.count > 0
-    ? `${blocking.count} pand${blocking.count === 1 ? "" : "en"} op het zuiden binnen circa ${blocking.nearestM ?? 60} m kunnen lage (winter)zon wegnemen`
-    : "geen panden direct op het zuiden die laag zonlicht blokkeren";
+    ? t("sun.blockingSome", {
+      count: blocking.count,
+      word: blocking.count === 1 ? t("sun.buildingOne") : t("sun.buildingMany"),
+      nearest: blocking.nearestM ?? 60,
+    })
+    : t("sun.noBlocking");
 
   return {
     key: "sun",
-    label: "Zon & licht",
+    label: t("sun.label"),
     category: "woning",
     value: round1(score!),
     unit: "/ 10",
     score: score ?? undefined,
     severity: scoreSeverity(score!),
-    summary: `Het BGT-pandvlak heeft een lange zijde richting ${axisLabel}; de gunstigste gevelrichting komt daarmee uit op ${label}. Verder: ${blockingText}.`,
-    action: "Sta bij de bezichtiging minimaal één keer in de tuin/woonkamer vóór 12u én na 17u; schaduw van bomen en aanbouwen zit niet in deze indicatie.",
+    summary: t("sun.summary", { axis: axisLabel, facade: label, blocking: blockingText }),
+    action: t("sun.action"),
     raw: {
       value: Math.round(orientationBearing),
       unit: "°",

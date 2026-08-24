@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowRight, Check, CircleAlert, FileText, Hammer, Home, Landmark, MapPin, Pencil, PiggyBank, Plus, Puzzle, Search, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
 import { ListingHistory } from "@/components/listing-history";
@@ -20,11 +21,11 @@ import { formatScore } from "@/src/lib/math";
 type CaseSummary = { id: string; title: string; stage: string; status: string; updated_at: string; bagVboId?: string | null };
 type AccountInfo = { email: string; emailConfirmed: boolean; suggestPasskey?: boolean };
 
-const PIPELINE_GROUPS: { key: string; label: string; stages: PropertyStage[] }[] = [
-  { key: "saved", label: "Opgeslagen", stages: ["saved", "research"] },
-  { key: "viewing", label: "Bezichtiging", stages: ["viewing", "visited"] },
-  { key: "offer", label: "Bod", stages: ["offer", "offered", "negotiation", "accepted"] },
-  { key: "bought", label: "Gekocht", stages: ["bought"] },
+const PIPELINE_GROUPS: { key: string; stages: PropertyStage[] }[] = [
+  { key: "saved", stages: ["saved", "research"] },
+  { key: "viewing", stages: ["viewing", "visited"] },
+  { key: "offer", stages: ["offer", "offered", "negotiation", "accepted"] },
+  { key: "bought", stages: ["bought"] },
 ];
 
 function caseStageLabel(stage: string) {
@@ -40,6 +41,7 @@ export function PurchaseCockpit({
   focusCase?: string;
   account?: AccountInfo | null;
 }) {
+  const t = useTranslations("mijn-aankoop");
   const { workspace, workspaceReady, workspaceError, authStatus, setBuyerProfile, setPropertyStage, setListingPrice, toggleCompare, saveHistoryItem, removeListingHistory } = usePropertyWorkspace();
   const [profile, setProfile] = useState<BuyerProfile>(EMPTY_BUYER_PROFILE);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -119,13 +121,13 @@ export function PurchaseCockpit({
   }, [activeHomes, workspace.propertyStages]);
 
   const nextAction = useMemo(() => {
-    if (!workspaceReady) return { title: "Aankoopomgeving laden", text: "Je profiel en woningen worden opgehaald.", href: "#woonprofiel", urgency: "normal" as const };
+    if (!workspaceReady) return { title: t("loadingActionTitle"), text: t("loadingActionText"), href: "#woonprofiel", urgency: "normal" as const };
     if (!mortgageConfigured) {
-      return { title: "Bereken je koopkracht", text: "Vul de hypotheekcalculator in. Daarna zie je per bewaard huis of je het kunt betalen.", href: "/hypotheek", urgency: "high" as const };
+      return { title: t("budgetActionTitle"), text: t("budgetActionText"), href: "/hypotheek", urgency: "high" as const };
     }
     const missingPrice = activeHomes.find((home) => !(workspace.askingPrices[home.bagVboId] ?? home.askingPrice));
     if (missingPrice && activeHomes.length > 0) {
-      return { title: "Vul een vraagprijs in", text: `Zonder vraagprijs kun je niet zien of ${missingPrice.addressLabel.split(",")[0]} past bij je budget.`, href: "#mijn-woningen", urgency: "normal" as const };
+      return { title: t("priceActionTitle"), text: t("priceActionText", { home: missingPrice.addressLabel.split(",")[0] }), href: "#mijn-woningen", urgency: "normal" as const };
     }
     const focus = activeHomes.find((home) => home.bagVboId === activeCase?.bagVboId) ?? activeHomes[0];
     return nextPurchaseAction({
@@ -137,7 +139,7 @@ export function PurchaseCockpit({
       caseId: activeCase?.id,
       caseStage: activeCase ? normalizeCaseStage(activeCase.stage) : undefined,
     });
-  }, [actionableWorkspaceError, activeCase, activeHomes, mortgageConfigured, profileConfigured, workspace.askingPrices, workspace.propertyStages, workspaceReady]);
+  }, [actionableWorkspaceError, activeCase, activeHomes, mortgageConfigured, profileConfigured, t, workspace.askingPrices, workspace.propertyStages, workspaceReady]);
 
   async function saveProfile() {
     const result = await setBuyerProfile(profile);
@@ -153,61 +155,61 @@ export function PurchaseCockpit({
   const firstRun = !hasHomes && !hasHistory && initialCases.length === 0 && !mortgageConfigured;
 
   return <main className="site-shell"><div className="container purchase-cockpit">
-    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> mijn aankoop</div><h1>{firstRun ? "Begin met een adres." : "Jouw aankoopdashboard."}</h1><p className="hero-copy">{firstRun ? "Zoek een woning, klik op Bewaar, en alles wat je nodig hebt komt hier terug." : "Koopkracht, bewaarde huizen en dossiers op één plek — alsof je een makelaar meeneemt, maar dan voor jezelf."}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> Woning toevoegen</Link>}</div>
+    <div className="cockpit-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> {t("eyebrow")}</div><h1>{firstRun ? t("firstRunTitle") : t("dashboardTitle")}</h1><p className="hero-copy">{firstRun ? t("firstRunCopy") : t("dashboardCopy")}</p></div>{!firstRun && <Link className="primary-button" href="/#zoek-adres"><Plus size={15} /> {t("addHome")}</Link>}</div>
 
-    {focusCase && <Notice><Check size={15} /> Je aankoopdossier is gestart. Vul eerst je woonprofiel aan.</Notice>}
-    {actionableWorkspaceError && <Notice tone="warning" role="alert"><CircleAlert size={15} /> {actionableWorkspaceError} {authStatus === "anonymous" && <Link href="/login">Inloggen</Link>}</Notice>}
+    {focusCase && <Notice><Check size={15} /> {t("caseStartedNotice")}</Notice>}
+    {actionableWorkspaceError && <Notice tone="warning" role="alert"><CircleAlert size={15} /> {actionableWorkspaceError} {authStatus === "anonymous" && <Link href="/login">{t("signInLink")}</Link>}</Notice>}
 
     {firstRun ? (
-      <section className="cockpit-first-run" aria-label="Eerste woning toevoegen">
+      <section className="cockpit-first-run" aria-label={t("addFirstHomeAria")}>
         <EmptyState
           icon={<Home size={20} />}
-          title="Nog geen woningen bewaard"
-          text="Zoek een adres hieronder. Op de woningcheck klik je op Bewaar — daarna verschijnt het huis hier. Of open Funda-advertenties met de extensie."
-          action={<span className="listing-history-empty-actions"><Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> Hypotheek berekenen</Link><Link className="secondary-button" href="/extensie"><Puzzle size={14} /> Funda-extensie</Link></span>}
+          title={t("noHomesYetTitle")}
+          text={t("noHomesYetText")}
+          action={<span className="listing-history-empty-actions"><Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> {t("calculateMortgage")}</Link><Link className="secondary-button" href="/extensie"><Puzzle size={14} /> {t("fundaExtension")}</Link></span>}
         />
-        <AddressSearch submitLabel="Check adres" />
+        <AddressSearch submitLabel={t("checkAddress")} />
       </section>
     ) : (
       <>
-        <section className="buying-power-hero" aria-label="Je koopkracht">
+        <section className="buying-power-hero" aria-label={t("buyingPowerAria")}>
           <div className="buying-power-copy">
-            <div className="section-kicker">Koopkracht</div>
-            <h2>{mortgageConfigured ? "Wat kun je betalen?" : "Nog geen hypotheekschets"}</h2>
+            <div className="section-kicker">{t("buyingPowerKicker")}</div>
+            <h2>{mortgageConfigured ? t("whatCanYouPay") : t("noMortgageSketch")}</h2>
             <p>{mortgageConfigured
-              ? "Gebaseerd op je opgeslagen hypotheekcalculator. Per bewaard huis zie je of de vraagprijs past en wat er overblijft voor verbouwing."
-              : "Vul één keer je inkomen in. Daarna toont dit dashboard bij elk huis of je het kunt betalen."}</p>
-            <Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> {mortgageConfigured ? "Hypotheek bijwerken" : "Hypotheek berekenen"}</Link>
+              ? t("buyingPowerCopyConfigured")
+              : t("buyingPowerCopyEmpty")}</p>
+            <Link className="secondary-button" href="/hypotheek"><Landmark size={14} /> {mortgageConfigured ? t("updateMortgage") : t("calculateMortgage")}</Link>
           </div>
           <div className="buying-power-stats">
-            <div><span><WalletCards size={14} /> Max. koopsom</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.maxPurchasePrice) : profileConfigured ? formatEuro(profile.budget) : "—"}</strong><small>{mortgageConfigured ? "hypotheek + eigen geld" : "uit woonprofiel"}</small></div>
-            <div><span><Landmark size={14} /> Max. hypotheek</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.maxLoanForPurchase) : "—"}</strong><small>{mortgageConfigured ? "voor aankoop" : "Na calculator"}</small></div>
-            <div><span><PiggyBank size={14} /> Eigen geld</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.ownFunds) : profileConfigured ? formatEuro(profile.ownFunds) : "—"}</strong><small>kosten koper & inleg</small></div>
-            <div><span><Home size={14} /> Maandlast</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.monthlyPayment) : profileConfigured ? formatEuro(profile.monthlyPayment) : "—"}</strong><small>{snapshot?.nhg ? "met NHG" : "bruto indicatie"}</small></div>
+            <div><span><WalletCards size={14} /> {t("maxPurchasePrice")}</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.maxPurchasePrice) : profileConfigured ? formatEuro(profile.budget) : "—"}</strong><small>{mortgageConfigured ? t("maxPurchaseSourceMortgage") : t("maxPurchaseSourceProfile")}</small></div>
+            <div><span><Landmark size={14} /> {t("maxMortgage")}</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.maxLoanForPurchase) : "—"}</strong><small>{mortgageConfigured ? t("maxMortgageForPurchase") : t("maxMortgageAfterCalculator")}</small></div>
+            <div><span><PiggyBank size={14} /> {t("ownFunds")}</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.ownFunds) : profileConfigured ? formatEuro(profile.ownFunds) : "—"}</strong><small>{t("ownFundsDetail")}</small></div>
+            <div><span><Home size={14} /> {t("monthlyPayment")}</span><strong>{mortgageConfigured && snapshot ? formatEuro(snapshot.monthlyPayment) : profileConfigured ? formatEuro(profile.monthlyPayment) : "—"}</strong><small>{snapshot?.nhg ? t("withNhg") : t("grossIndication")}</small></div>
           </div>
         </section>
 
         {activeHomes.length > 0 && (
-          <section className="pipeline-strip" aria-label="Woningpijplijn">
+          <section className="pipeline-strip" aria-label={t("pipelineAria")}>
             {pipelineCounts.map((group) => (
               <div key={group.key} className="pipeline-item">
                 <strong>{group.count}</strong>
-                <span>{group.label}</span>
+                <span>{t(`pipeline.${group.key}`)}</span>
               </div>
             ))}
             <div className="pipeline-item pipeline-next">
               <strong className="stat-action">{nextAction.title}</strong>
-              <span>Volgende stap</span>
+              <span>{t("nextStepLabel")}</span>
             </div>
           </section>
         )}
 
         <div className="cockpit-grid">
           <section className="cockpit-card profile-card" id="woonprofiel">
-            <div className="card-heading"><div><div className="section-kicker">Stap 01 · Mijn woonprofiel</div><h2>Wat moet jouw volgende huis kunnen?</h2><p>{mortgageConfigured ? "Budget komt uit je hypotheekschets. Hier stel je zoekgebied en must-haves in." : "Budget, huishouden en must-haves sturen de check. Geen marketingvoorkeuren, wel harde grenzen."}</p></div><button className="icon-button" type="button" onClick={() => setEditingProfile((value) => !value)} aria-label="Woonprofiel bewerken"><Pencil size={15} /></button></div>
+            <div className="card-heading"><div><div className="section-kicker">{t("profileCardKicker")}</div><h2>{t("profileCardTitle")}</h2><p>{mortgageConfigured ? t("profileCardCopyConfigured") : t("profileCardCopyEmpty")}</p></div><button className="icon-button" type="button" onClick={() => setEditingProfile((value) => !value)} aria-label={t("editProfileAria")}><Pencil size={15} /></button></div>
             {editingProfile ? <ProfileForm profile={profile} setProfile={setProfile} updateNumber={updateNumber} onSave={saveProfile} mortgageLocked={mortgageConfigured} /> : <ProfileSummary profile={profile} completion={completion} configured={profileConfigured} mortgageConfigured={mortgageConfigured} onEdit={() => setEditingProfile(true)} />}
           </section>
-          <section className="cockpit-card next-action-card"><div className="section-kicker">Jouw volgende stap</div><h2>{nextAction.title}</h2><p>{nextAction.text}</p><Link className="primary-button" href={nextAction.href as never}>Open stap <ArrowRight size={15} /></Link><div className="action-note"><ShieldCheck size={14} /> WoonReality verstuurt geen bod en vervangt geen notaris of keurder.</div></section>
+          <section className="cockpit-card next-action-card"><div className="section-kicker">{t("nextStepKicker")}</div><h2>{nextAction.title}</h2><p>{nextAction.text}</p><Link className="primary-button" href={nextAction.href as never}>{t("openStep")} <ArrowRight size={15} /></Link><div className="action-note"><ShieldCheck size={14} /> {t("disclaimerShort")}</div></section>
         </div>
 
         <section className="cockpit-section" id="funda-geschiedenis">
@@ -221,13 +223,13 @@ export function PurchaseCockpit({
           />
         </section>
 
-        <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> stap 02 · mijn woningen</div><h2>Je woningbord</h2><p>Per huis: past het bij je koopkracht, wat blijft over voor verbouwing, en wat is de volgende status.</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> Adres zoeken</Link></div>
+        <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> {t("homesEyebrow")}</div><h2>{t("homeBoardTitle")}</h2><p>{t("homeBoardCopy")}</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> {t("searchAddress")}</Link></div>
           {!hasHomes ? (
             <EmptyState
               icon={<Home size={20} />}
-              title="Nog geen woningen opgeslagen"
-              text="Open een woningcheck en klik op Bewaar. Daarna verschijnt de woning hier automatisch."
-              action={<Link className="primary-button" href="/#zoek-adres">Check je eerste adres <ArrowRight size={14} /></Link>}
+              title={t("noSavedHomesTitle")}
+              text={t("noSavedHomesText")}
+              action={<Link className="primary-button" href="/#zoek-adres">{t("checkFirstAddress")} <ArrowRight size={14} /></Link>}
             />
           ) : (
             <div className="home-board">{sortedHomes.map((saved) => {
@@ -250,17 +252,17 @@ export function PurchaseCockpit({
           )}
         </section>
 
-        {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> stap 03 · koopdossier</div><h2>Actieve dossiers</h2><p>Documenten, taken en deadlines op één plek.</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{caseStageLabel(purchaseCase.stage)}</span><strong>{purchaseCase.title}</strong><span>Open dossier <ArrowRight size={13} /></span></Link>)}</div></section>}
+        {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> {t("dossierEyebrow")}</div><h2>{t("activeDossiersTitle")}</h2><p>{t("activeDossiersCopy")}</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{caseStageLabel(purchaseCase.stage)}</span><strong>{purchaseCase.title}</strong><span>{t("openDossier")} <ArrowRight size={13} /></span></Link>)}</div></section>}
 
-        <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> de aankoopcockpit</div><h2>Alles wat je nodig hebt na de advertentie</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title="Woningcheck" text="Feiten, bronnen, omgeving en risico's per adres." href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title="Documentdossier" text={activeCase ? "Uploaden, lezen en tegenstrijdigheden vinden." : activeHomes[0] ? "Start eerst een dossier vanuit je woningcheck; daarna upload je hier documenten." : "Voeg eerst een woning toe; daarna kun je een dossier starten."} href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} linkLabel={activeCase ? "Open dossier" : activeHomes[0] ? "Open woningcheck" : "Zoek een adres"} /><Module icon={<WalletCards size={17} />} number="03" title="Waarde & bod" text="Vraagprijs, risico's, voorwaarden en je maximum — geen neptaxatie." href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#bodconcept` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title="Hypotheek" text="Maximale lening op de leennormen 2026, ook als zelfstandige." href="/hypotheek" /><Module icon={<Puzzle size={17} />} number="05" title="Funda-extensie" text="Bewaar kenmerken vanuit de advertentie die jij opent, zonder captcha op de server." href="/extensie" /></div></section>
+        <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> {t("modulesEyebrow")}</div><h2>{t("modulesTitle")}</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title={t("moduleCheckTitle")} text={t("moduleCheckText")} href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title={t("moduleDocumentsTitle")} text={activeCase ? t("moduleDocumentsTextActive") : activeHomes[0] ? t("moduleDocumentsTextCase") : t("moduleDocumentsTextEmpty")} href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} linkLabel={activeCase ? t("openDossier") : activeHomes[0] ? t("openPropertyCheck") : t("findAddressModule")} /><Module icon={<WalletCards size={17} />} number="03" title={t("moduleValueTitle")} text={t("moduleValueText")} href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#bodconcept` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title={t("moduleMortgageTitle")} text={t("moduleMortgageText")} href="/hypotheek" /><Module icon={<Puzzle size={17} />} number="05" title={t("moduleExtensionTitle")} text={t("moduleExtensionText")} href="/extensie" /></div></section>
       </>
     )}
 
     {account && (
-      <section className="cockpit-section account-section" id="account" aria-label="Account">
-        <div className="section-inline-heading"><div><div className="eyebrow"><ShieldCheck size={13} /> account</div><h2>Jouw account</h2><p>Inloggen, passkeys en uitloggen — alles bij je aankoopomgeving.</p></div><SignOutButton /></div>
+      <section className="cockpit-section account-section" id="account" aria-label={t("accountAria")}>
+        <div className="section-inline-heading"><div><div className="eyebrow"><ShieldCheck size={13} /> {t("accountEyebrow")}</div><h2>{t("accountTitle")}</h2><p>{t("accountCopy")}</p></div><SignOutButton /></div>
         <div className="account-panel">
-          <div className="account-email"><small>E-mail</small><strong>{account.email}</strong></div>
+          <div className="account-email"><small>{t("emailLabel")}</small><strong>{account.email}</strong></div>
           <PasskeySettings email={account.email} emailConfirmed={account.emailConfirmed} suggestEnrollment={account.suggestPasskey} />
         </div>
       </section>
@@ -269,11 +271,13 @@ export function PurchaseCockpit({
 }
 
 function ProfileSummary({ profile, completion, configured, mortgageConfigured, onEdit }: { profile: BuyerProfile; completion: number; configured: boolean; mortgageConfigured: boolean; onEdit: () => void }) {
-  return <div className="profile-summary"><div className="completion-row"><span>{configured ? `Profiel ${completion}% compleet` : "Profiel nog niet ingevuld"}</span><button className="text-link" type="button" onClick={onEdit}>{configured ? "Bewerken" : "Invullen"}</button></div><div className="completion-track"><i style={{ width: `${completion}%` }} /></div><div className="profile-summary-grid"><div><small>Zoekgebied</small><strong>{configured ? profile.searchArea || "Nog invullen" : "Nog invullen"}</strong></div><div><small>Max. maandlast</small><strong>{configured ? formatEuro(profile.monthlyPayment) : "Nog invullen"}</strong></div><div><small>Huishouden</small><strong>{configured ? HOUSEHOLD_LABELS[profile.household] : "Nog invullen"}</strong></div><div><small>Must-haves</small><strong>{configured ? [profile.garden && "Tuin", profile.parking && "Oprit", profile.firstTimeBuyer && "Starter", profile.nhg && "NHG"].filter(Boolean).join(" · ") || "Nog kiezen" : "Nog kiezen"}</strong></div></div>{mortgageConfigured && <p className="profile-mortgage-note">Koopbudget en maandlast komen uit je <Link href="/hypotheek">hypotheekcalculator</Link>.</p>}</div>;
+  const t = useTranslations("mijn-aankoop");
+  return <div className="profile-summary"><div className="completion-row"><span>{configured ? t("profileComplete", { percent: completion }) : t("profileIncomplete")}</span><button className="text-link" type="button" onClick={onEdit}>{configured ? t("edit") : t("fillIn")}</button></div><div className="completion-track"><i style={{ width: `${completion}%` }} /></div><div className="profile-summary-grid"><div><small>{t("searchAreaLabel")}</small><strong>{configured ? profile.searchArea || t("toBeFilled") : t("toBeFilled")}</strong></div><div><small>{t("maxMonthlyLabel")}</small><strong>{configured ? formatEuro(profile.monthlyPayment) : t("toBeFilled")}</strong></div><div><small>{t("householdLabel")}</small><strong>{configured ? HOUSEHOLD_LABELS[profile.household] : t("toBeFilled")}</strong></div><div><small>{t("mustHavesLabel")}</small><strong>{configured ? [profile.garden && t("mustGarden"), profile.parking && t("mustParking"), profile.firstTimeBuyer && t("mustFirstTimeBuyer"), profile.nhg && t("mustNhg")].filter(Boolean).join(" · ") || t("toBeChosen") : t("toBeChosen")}</strong></div></div>{mortgageConfigured && <p className="profile-mortgage-note">{t("profileMortgageNote")} <Link href="/hypotheek">{t("profileMortgageNoteLink")}</Link>.</p>}</div>;
 }
 
 function ProfileForm({ profile, setProfile, updateNumber, onSave, mortgageLocked }: { profile: BuyerProfile; setProfile: React.Dispatch<React.SetStateAction<BuyerProfile>>; updateNumber: (key: "budget" | "monthlyPayment" | "ownFunds" | "bedrooms" | "maxCommuteMinutes" | "buyerAge", value: string) => void; onSave: () => void; mortgageLocked: boolean }) {
-  return <div className="profile-form"><div className="form-grid"><label>Koopbudget{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.budget || ""} disabled readOnly /> : <input type="number" min="0" step="5000" value={profile.budget || ""} onChange={(event) => updateNumber("budget", event.target.value)} />}</label><label>Max. maandlast{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.monthlyPayment || ""} disabled readOnly /> : <input type="number" min="0" step="50" value={profile.monthlyPayment || ""} onChange={(event) => updateNumber("monthlyPayment", event.target.value)} />}</label><label>Eigen geld{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.ownFunds || ""} disabled readOnly /> : <input type="number" min="0" step="5000" value={profile.ownFunds || ""} onChange={(event) => updateNumber("ownFunds", event.target.value)} />}</label><label>Zoekgebied<input value={profile.searchArea} onChange={(event) => setProfile((current) => ({ ...current, searchArea: event.target.value }))} placeholder="Utrecht + 20 km" /></label><label>Min. slaapkamers<input type="number" inputMode="numeric" min="1" max="20" value={profile.bedrooms || ""} onChange={(event) => updateNumber("bedrooms", event.target.value)} /></label><label>Max. reistijd (min)<input type="number" inputMode="numeric" min="0" max="240" value={profile.maxCommuteMinutes || ""} onChange={(event) => updateNumber("maxCommuteMinutes", event.target.value)} /></label><label>Leeftijd koper<input type="number" inputMode="numeric" min="0" max="120" value={profile.buyerAge || ""} onChange={(event) => updateNumber("buyerAge", event.target.value)} /></label><label>Huishouden<select value={profile.household} onChange={(event) => setProfile((current) => ({ ...current, household: event.target.value as HouseholdType, householdSpecified: true }))}>{Object.entries(HOUSEHOLD_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Woningtype<select value={profile.propertyType} onChange={(event) => setProfile((current) => ({ ...current, propertyType: event.target.value as SoughtPropertyType }))}>{Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>{mortgageLocked && <p className="profile-mortgage-note">Budgetvelden zijn vergrendeld. <Link href="/hypotheek">Wijzig ze in de hypotheekcalculator</Link>.</p>}<div className="toggle-grid"><label><input type="checkbox" checked={profile.garden} onChange={(event) => setProfile((current) => ({ ...current, garden: event.target.checked }))} /> Tuin verplicht</label><label><input type="checkbox" checked={profile.parking} onChange={(event) => setProfile((current) => ({ ...current, parking: event.target.checked }))} /> Eigen oprit</label><label><input type="checkbox" checked={profile.remoteWork} onChange={(event) => setProfile((current) => ({ ...current, remoteWork: event.target.checked }))} /> Werkkamer belangrijk</label><label><input type="checkbox" checked={profile.firstTimeBuyer} onChange={(event) => setProfile((current) => ({ ...current, firstTimeBuyer: event.target.checked }))} /> Starter</label><label><input type="checkbox" checked={profile.selfOccupied} onChange={(event) => setProfile((current) => ({ ...current, selfOccupied: event.target.checked }))} /> Zelf bewonen</label><label><input type="checkbox" checked={profile.priorExemptionUsed} onChange={(event) => setProfile((current) => ({ ...current, priorExemptionUsed: event.target.checked }))} /> Startersvrijstelling al gebruikt</label><label><input type="checkbox" checked={profile.nhg} onChange={(event) => setProfile((current) => ({ ...current, nhg: event.target.checked }))} disabled={mortgageLocked} /> NHG gewenst</label><label><input type="checkbox" checked={profile.acceptVve} onChange={(event) => setProfile((current) => ({ ...current, acceptVve: event.target.checked }))} /> Appartement / VvE oké</label></div><div className="form-actions"><button className="secondary-button" type="button" onClick={onSave}>Profiel opslaan</button></div></div>;
+  const t = useTranslations("mijn-aankoop");
+  return <div className="profile-form"><div className="form-grid"><label>{t("budgetLabel")}{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.budget || ""} disabled readOnly /> : <input type="number" min="0" step="5000" value={profile.budget || ""} onChange={(event) => updateNumber("budget", event.target.value)} />}</label><label>{t("maxMonthlyFieldLabel")}{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.monthlyPayment || ""} disabled readOnly /> : <input type="number" min="0" step="50" value={profile.monthlyPayment || ""} onChange={(event) => updateNumber("monthlyPayment", event.target.value)} />}</label><label>{t("ownFundsLabel")}{mortgageLocked ? <input inputMode="numeric" type="number" value={profile.ownFunds || ""} disabled readOnly /> : <input type="number" min="0" step="5000" value={profile.ownFunds || ""} onChange={(event) => updateNumber("ownFunds", event.target.value)} />}</label><label>{t("searchAreaLabel")}<input value={profile.searchArea} onChange={(event) => setProfile((current) => ({ ...current, searchArea: event.target.value }))} placeholder="Utrecht + 20 km" /></label><label>{t("minBedroomsLabel")}<input type="number" inputMode="numeric" min="1" max="20" value={profile.bedrooms || ""} onChange={(event) => updateNumber("bedrooms", event.target.value)} /></label><label>{t("maxCommuteLabel")}<input type="number" inputMode="numeric" min="0" max="240" value={profile.maxCommuteMinutes || ""} onChange={(event) => updateNumber("maxCommuteMinutes", event.target.value)} /></label><label>{t("buyerAgeLabel")}<input type="number" inputMode="numeric" min="0" max="120" value={profile.buyerAge || ""} onChange={(event) => updateNumber("buyerAge", event.target.value)} /></label><label>{t("householdLabel")}<select value={profile.household} onChange={(event) => setProfile((current) => ({ ...current, household: event.target.value as HouseholdType, householdSpecified: true }))}>{Object.entries(HOUSEHOLD_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>{t("propertyTypeLabel")}<select value={profile.propertyType} onChange={(event) => setProfile((current) => ({ ...current, propertyType: event.target.value as SoughtPropertyType }))}>{Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>{mortgageLocked && <p className="profile-mortgage-note">{t("budgetLocked")} <Link href="/hypotheek">{t("budgetLockedLink")}</Link>.</p>}<div className="toggle-grid"><label><input type="checkbox" checked={profile.garden} onChange={(event) => setProfile((current) => ({ ...current, garden: event.target.checked }))} /> {t("toggleGarden")}</label><label><input type="checkbox" checked={profile.parking} onChange={(event) => setProfile((current) => ({ ...current, parking: event.target.checked }))} /> {t("toggleParking")}</label><label><input type="checkbox" checked={profile.remoteWork} onChange={(event) => setProfile((current) => ({ ...current, remoteWork: event.target.checked }))} /> {t("toggleRemoteWork")}</label><label><input type="checkbox" checked={profile.firstTimeBuyer} onChange={(event) => setProfile((current) => ({ ...current, firstTimeBuyer: event.target.checked }))} /> {t("toggleStarter")}</label><label><input type="checkbox" checked={profile.selfOccupied} onChange={(event) => setProfile((current) => ({ ...current, selfOccupied: event.target.checked }))} /> {t("toggleSelfOccupied")}</label><label><input type="checkbox" checked={profile.priorExemptionUsed} onChange={(event) => setProfile((current) => ({ ...current, priorExemptionUsed: event.target.checked }))} /> {t("togglePriorExemption")}</label><label><input type="checkbox" checked={profile.nhg} onChange={(event) => setProfile((current) => ({ ...current, nhg: event.target.checked }))} disabled={mortgageLocked} /> {t("toggleNhg")}</label><label><input type="checkbox" checked={profile.acceptVve} onChange={(event) => setProfile((current) => ({ ...current, acceptVve: event.target.checked }))} /> {t("toggleVve")}</label></div><div className="form-actions"><button className="secondary-button" type="button" onClick={onSave}>{t("saveProfile")}</button></div></div>;
 }
 
 function HomeBoardCard({
@@ -301,6 +305,7 @@ function HomeBoardCard({
   onAskingPrice: (price: number) => void;
   loading: boolean;
 }) {
+  const t = useTranslations("mijn-aankoop");
   const personalFit = analysis ? calculatePersonalFit(analysis, preferences) : null;
   const attention = analysis?.highlights?.find((item) => item.type === "attention")?.text;
   const [priceDraft, setPriceDraft] = useState(askingPrice ? String(askingPrice) : "");
@@ -310,17 +315,17 @@ function HomeBoardCard({
   return <article className={`home-board-card fit-${fit}`}>
     <div className="home-card-top">
       <div className="home-card-address"><span className="home-card-icon"><MapPin size={15} /></span><div><h3>{saved.addressLabel.split(",")[0]}</h3><span>{saved.postcode} {saved.city}</span></div></div>
-      <span className="match-pill">{loading ? "…" : personalFit != null ? `${formatScore(personalFit)} match` : analysis ? `${formatScore(analysis.overallScore)} score` : "Onderzoek"}</span>
+      <span className="match-pill">{loading ? "…" : personalFit != null ? t("matchPill", { score: formatScore(personalFit) }) : analysis ? t("scorePill", { score: formatScore(analysis.overallScore) }) : t("researchPill")}</span>
     </div>
     <div className="home-card-money">
       <label>
-        Vraagprijs
+        {t("askingPriceLabel")}
         <input
           type="number" inputMode="numeric"
           min="0"
           step="1000"
           value={priceDraft}
-          placeholder="Nog invullen"
+          placeholder={t("toBeFilled")}
           onChange={(event) => setPriceDraft(event.target.value)}
           onBlur={() => {
             const value = Number(priceDraft);
@@ -331,26 +336,27 @@ function HomeBoardCard({
       {mortgageConfigured && affordability?.available ? (
         <div className={`fit-badge fit-${fit}`}>{fitLabel(fit)}</div>
       ) : (
-        <div className="fit-badge fit-unknown">{mortgageConfigured ? "Prijs?" : "Hypotheek?"}</div>
+        <div className="fit-badge fit-unknown">{mortgageConfigured ? t("badgePriceMissing") : t("badgeMortgageMissing")}</div>
       )}
     </div>
     {mortgageConfigured && affordability?.available && (
       <div className="home-card-afford">
         <p>{affordability.summary}</p>
         {affordability.renovationBuffer > 0 && (
-          <div className="renovation-chip"><Hammer size={13} /> {formatEuro(affordability.renovationBuffer)} over voor verbouwing</div>
+          <div className="renovation-chip"><Hammer size={13} /> {t("renovationLeft", { amount: formatEuro(affordability.renovationBuffer) })}</div>
         )}
         {affordability.energyMeasureExtra > 0 && affordability.fit !== "over" && (
-          <div className="renovation-chip muted">+ {formatEuro(affordability.energyMeasureExtra)} voor verduurzaming</div>
+          <div className="renovation-chip muted">{t("sustainabilityExtra", { amount: formatEuro(affordability.energyMeasureExtra) })}</div>
         )}
       </div>
     )}
-    <div className="home-card-meta">{analysis?.property.areaM2 ? <span>{analysis.property.areaM2} m²</span> : <span>Oppervlakte laden</span>}{analysis?.property.buildingYear ? <span>Bouwjaar {analysis.property.buildingYear}</span> : null}{askingPrice ? <span>{formatEuro(askingPrice)}</span> : null}</div>
+    <div className="home-card-meta">{analysis?.property.areaM2 ? <span>{analysis.property.areaM2} m²</span> : <span>{t("loadingArea")}</span>}{analysis?.property.buildingYear ? <span>{t("buildingYear", { year: analysis.property.buildingYear })}</span> : null}{askingPrice ? <span>{formatEuro(askingPrice)}</span> : null}</div>
     {attention && <div className="home-card-alert"><CircleAlert size={13} /> {attention}</div>}
-    <div className="home-card-footer"><select aria-label={`Status van ${saved.addressLabel}`} value={stage} onChange={(event) => onStageChange(event.target.value as PropertyStage)}>{PROPERTY_STAGE_ORDER.map((option) => <option value={option} key={option}>{PROPERTY_STAGE_LABELS[option]}</option>)}</select><Link className="text-link" href={caseId ? `/mijn-aankoop/${caseId}` : `/woning/${saved.bagVboId}`}>{caseId ? "Open dossier" : "Open woningcheck"} <ArrowRight size={13} /></Link></div>
+    <div className="home-card-footer"><select aria-label={t("stageStatusAria", { address: saved.addressLabel })} value={stage} onChange={(event) => onStageChange(event.target.value as PropertyStage)}>{PROPERTY_STAGE_ORDER.map((option) => <option value={option} key={option}>{PROPERTY_STAGE_LABELS[option]}</option>)}</select><Link className="text-link" href={caseId ? `/mijn-aankoop/${caseId}` : `/woning/${saved.bagVboId}`}>{caseId ? t("openDossier") : t("openPropertyCheck")} <ArrowRight size={13} /></Link></div>
   </article>;
 }
 
-function Module({ icon, number, title, text, href, linkLabel = "Open onderdeel" }: { icon: React.ReactNode; number: string; title: string; text: string; href: string; linkLabel?: string }) {
-  return <Link className="module-card" href={href as never}><span className="module-number">{number}</span><span className="module-icon">{icon}</span><h3>{title}</h3><p>{text}</p><span className="module-link">{linkLabel} <ArrowRight size={13} /></span></Link>;
+function Module({ icon, number, title, text, href, linkLabel }: { icon: React.ReactNode; number: string; title: string; text: string; href: string; linkLabel?: string }) {
+  const t = useTranslations("mijn-aankoop");
+  return <Link className="module-card" href={href as never}><span className="module-number">{number}</span><span className="module-icon">{icon}</span><h3>{title}</h3><p>{text}</p><span className="module-link">{linkLabel ?? t("defaultModuleLink")} <ArrowRight size={13} /></span></Link>;
 }

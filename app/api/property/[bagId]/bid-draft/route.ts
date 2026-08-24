@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
@@ -22,17 +25,19 @@ async function contextFor(bagId: string) {
   return { supabase, user: auth.user, valid: isValidBagId(bagId), bagId };
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ bagId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   try {
     const { bagId: rawBagId } = await context.params;
     const result = await contextFor(decodeURIComponent(rawBagId));
-    if (!result.valid) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
-    if (!result.user) return NextResponse.json({ error: "Log in om een bodconcept te bewaren." }, { status: 401 });
+    if (!result.valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
+    if (!result.user) return NextResponse.json({ error: t("errors.loginToSaveBid") }, { status: 401 });
     const { data, error } = await result.supabase.from("property_bid_drafts").select("asking_price,selected_scenario,updated_at").eq("user_id", result.user.id).eq("bag_vbo_id", result.bagId).maybeSingle();
-    if (error) return NextResponse.json({ error: "Bodconcept kon niet worden geladen." }, { status: 503 });
+    if (error) return NextResponse.json({ error: t("errors.bidDraftLoadFailed") }, { status: 503 });
     return NextResponse.json({ draft: data });
   } catch {
-    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld." }, { status: 503 });
+    return NextResponse.json({ error: t("errors.bidStorageUnavailable") }, { status: 503 });
   }
 }
 
@@ -41,7 +46,7 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
  * Saving a bid draft therefore also derives the workflow state here on the
  * server, instead of the client PATCHing two endpoints that could drift.
  */
-async function syncCaseWorkflow(bagId: string, userId: string, askingPrice: number | null, selected: BidScenarioKey | undefined): Promise<boolean> {
+async function syncCaseWorkflow(bagId: string, userId: string, askingPrice: number | null, selected: BidScenarioKey | undefined, locale: Locale): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
   const { data: propertyRow } = await supabase.from("properties").select("id").eq("bag_vbo_id", bagId).maybeSingle();
   if (!propertyRow) return false;
@@ -50,14 +55,14 @@ async function syncCaseWorkflow(bagId: string, userId: string, askingPrice: numb
 
   const property = await getPropertyById(bagId);
   const [analysis, profileResult] = await Promise.all([
-    getSharedAnalysis(property),
+    getSharedAnalysis(property, locale),
     supabase.from("profiles").select("preferences_json").eq("id", userId).maybeSingle(),
   ]);
   const preferences = (profileResult.data?.preferences_json ?? {}) as Record<string, unknown>;
   const buyerProfile = normalizeBuyerProfile(preferences.buyerProfile);
   const configured = buyerProfileIsConfigured(buyerProfile, preferences.buyerProfile);
   const scenario: BidScenarioKey = selected ?? "balanced";
-  const strategy = buildBidStrategy(askingPrice ?? 0, analysis, configured ? buyerProfile : null);
+  const strategy = buildBidStrategy(askingPrice ?? 0, analysis, configured ? buyerProfile : null, locale);
   const chosen = strategy?.scenarios[scenario];
   await applyWorkflowUpdate(supabase, userId, purchaseCase, {
     ...(askingPrice != null ? { askingPrice } : {}),
@@ -69,28 +74,30 @@ async function syncCaseWorkflow(bagId: string, userId: string, askingPrice: numb
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   try {
     const { bagId: rawBagId } = await context.params;
     const result = await contextFor(decodeURIComponent(rawBagId));
-    if (!result.valid) return NextResponse.json({ error: "Ongeldig woningadres." }, { status: 400 });
-    if (!result.user) return NextResponse.json({ error: "Log in om een bodconcept te bewaren." }, { status: 401 });
+    if (!result.valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
+    if (!result.user) return NextResponse.json({ error: t("errors.loginToSaveBid") }, { status: 401 });
     const parsed = bidDraftBodySchema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: "Ongeldige bodgegevens." }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: t("errors.invalidBidData") }, { status: 400 });
     const payload: { user_id: string; bag_vbo_id: string; asking_price?: number | null; selected_scenario?: "cautious" | "balanced" | "strong"; updated_at: string } = { user_id: result.user.id, bag_vbo_id: result.bagId, updated_at: new Date().toISOString() };
     if (Object.prototype.hasOwnProperty.call(parsed.data, "askingPrice")) payload.asking_price = parsed.data.askingPrice;
     if (Object.prototype.hasOwnProperty.call(parsed.data, "selected")) payload.selected_scenario = parsed.data.selected;
     const { data, error } = await result.supabase.from("property_bid_drafts").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("asking_price,selected_scenario,updated_at").single();
-    if (error) return NextResponse.json({ error: "Bodconcept kon niet worden opgeslagen." }, { status: 502 });
+    if (error) return NextResponse.json({ error: t("errors.bidDraftSaveFailed") }, { status: 502 });
 
     let workflowSynced = false;
     try {
-      workflowSynced = await syncCaseWorkflow(result.bagId, result.user.id, payload.asking_price ?? null, payload.selected_scenario);
+      workflowSynced = await syncCaseWorkflow(result.bagId, result.user.id, payload.asking_price ?? null, payload.selected_scenario, locale);
     } catch (syncError) {
       // The draft is saved; a failed dossier sync must not lose the user's work.
       logWarn("Bid draft saved but case workflow sync failed", syncError);
     }
     return NextResponse.json({ draft: data, workflowSynced });
   } catch {
-    return NextResponse.json({ error: "Bodopslag is nog niet beschikbaar, omdat de aankoopomgeving niet met Supabase is gekoppeld." }, { status: 503 });
+    return NextResponse.json({ error: t("errors.bidStorageUnavailable") }, { status: 503 });
   }
 }

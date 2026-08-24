@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { getDocumentProxy, extractText } from "unpdf";
 import { analyzeDocumentText } from "@/src/lib/documents/analyze";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
@@ -28,19 +31,21 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 export async function POST(request: Request, context: { params: Promise<{ caseId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { caseId } = await context.params;
   try {
     const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return NextResponse.json({ error: "Log in om documenten te bewaren." }, { status: 401 });
+  if (!auth.user) return NextResponse.json({ error: t("errors.loginToSaveDocuments") }, { status: 401 });
   const { data: purchaseCase } = await supabase.from("purchase_cases").select("id,stage,property_id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
-  if (!purchaseCase) return NextResponse.json({ error: "Dossier niet gevonden." }, { status: 404 });
+  if (!purchaseCase) return NextResponse.json({ error: t("errors.caseNotFound") }, { status: 404 });
 
   const formData = await request.formData();
   const file = formData.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "Kies eerst een PDF-bestand." }, { status: 400 });
-  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Voor nu kun je alleen PDF-bestanden uploaden." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "Dit bestand is groter dan 20 MB." }, { status: 400 });
+  if (!(file instanceof File)) return NextResponse.json({ error: t("errors.choosePdf") }, { status: 400 });
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: t("errors.pdfOnly") }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: t("errors.documentTooLarge") }, { status: 400 });
 
   const documentId = crypto.randomUUID();
   const storagePath = `${auth.user.id}/${caseId}/${documentId}.pdf`;
@@ -54,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
     const extracted = await extractText(pdf, { mergePages: true });
     text = String(extracted.text).replace(/\s+/g, " ").trim();
   } catch {
-    return NextResponse.json({ error: "Dit PDF-bestand kon niet worden gelezen. Probeer een andere versie." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.pdfUnreadable") }, { status: 400 });
   }
 
   const type = documentType(file.name);
@@ -76,10 +81,10 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
     askingPrice,
     offerAmount: bid?.amount,
     buildingYear: property?.build_year,
-  });
+  }, locale);
 
   const { error: uploadError } = await supabase.storage.from("purchase-documents").upload(storagePath, bytes, { contentType: "application/pdf", upsert: false });
-  if (uploadError) return NextResponse.json({ error: "Het document kon niet veilig worden opgeslagen." }, { status: 502 });
+  if (uploadError) return NextResponse.json({ error: t("errors.documentStoreFailed") }, { status: 502 });
   const { data: document, error } = await supabase.from("case_documents").insert({
     id: documentId,
     case_id: caseId,
@@ -94,7 +99,7 @@ export async function POST(request: Request, context: { params: Promise<{ caseId
   }).select("*").single();
   if (error || !document) {
     await supabase.storage.from("purchase-documents").remove([storagePath]);
-    return NextResponse.json({ error: "De documentgegevens konden niet worden opgeslagen." }, { status: 502 });
+    return NextResponse.json({ error: t("errors.documentPersistFailed") }, { status: 502 });
   }
 
   if (findings.length) {

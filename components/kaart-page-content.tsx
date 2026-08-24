@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Layers3, MapPinned, MousePointerClick, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { AddressSearch } from "@/components/address-search";
 import { SiteHeader } from "@/components/site-header";
@@ -13,9 +14,14 @@ const NetherlandsMap = dynamic(
   () => import("@/components/netherlands-map").then((module) => module.NetherlandsMap),
   {
     ssr: false,
-    loading: () => <div className="property-map-loading" role="status">Kaart laden…</div>,
+    loading: () => <MapLoading />,
   },
 );
+
+function MapLoading() {
+  const t = useTranslations("kaart");
+  return <div className="property-map-loading" role="status">{t("loadingMap")}</div>;
+}
 import { NATIONAL_LAYERS, NATIONAL_SCENES } from "@/src/lib/map/national-layers";
 import type { AddressSearchResult } from "@/src/lib/types";
 
@@ -30,6 +36,7 @@ export function KaartPageContent({
   initialLng?: string;
   initialZoom?: string;
 }) {
+  const t = useTranslations("kaart");
   const [focusAddress, setFocusAddress] = useState<AddressSearchResult | null>(null);
 
   function handleAddressSelect(result: AddressSearchResult) {
@@ -45,32 +52,32 @@ export function KaartPageContent({
     <main className="site-shell kaart-shell">
       <div className="container">
         <SiteHeader current="kaart" />
-        <Link className="back-link" href="/"><ArrowLeft size={14} /> Terug naar home</Link>
+        <Link className="back-link" href="/"><ArrowLeft size={14} /> {t("backHome")}</Link>
         <div className="kaart-hero">
           <div className="kaart-intro">
-            <div className="eyebrow"><span className="eyebrow-dot" /> Nederlandkaart</div>
-            <h1>Vergelijk buurten op <em>open data</em></h1>
+            <div className="eyebrow"><span className="eyebrow-dot" /> {t("eyebrow")}</div>
+            <h1>{t("heroTitleA")} <em>{t("heroTitleEm")}</em></h1>
             <p className="hero-copy">
-              Bekijk heel Nederland op SES, misdaad, WOZ en schoolafstand. Klik een gebied voor cijfers met bron — daarna kun je een adres in die buurt checken.
+              {t("heroCopy")}
             </p>
-            <div className="kaart-pills" aria-label="Beschikbare lagen">
+            <div className="kaart-pills" aria-label={t("layersPillAria")}>
               {Object.values(NATIONAL_LAYERS).slice(0, 5).map((item) => (
                 <span className="kaart-pill" key={item.id}>{item.label}</span>
               ))}
-              <span className="kaart-pill kaart-pill-muted">+ rasters</span>
+              <span className="kaart-pill kaart-pill-muted">{t("moreRasters")}</span>
             </div>
             <div className="kaart-search-wrap">
-              <AddressSearch id="kaart-zoek-adres" submitLabel="Zoek op kaart" onSelect={handleAddressSelect} />
+              <AddressSearch id="kaart-zoek-adres" submitLabel={t("searchSubmit")} onSelect={handleAddressSelect} />
             </div>
           </div>
-          <aside className="kaart-guide" aria-label="Kaartuitleg">
-            <div className="section-kicker">Zo werkt het</div>
+          <aside className="kaart-guide" aria-label={t("guideAria")}>
+            <div className="section-kicker">{t("guideKicker")}</div>
             <ol className="kaart-guide-steps">
-              <li><span><Layers3 size={14} /></span><div><strong>Kies een thema</strong><small>{NATIONAL_SCENES.map((scene) => scene.label).join(" · ")}</small></div></li>
-              <li><span><MousePointerClick size={14} /></span><div><strong>Klik een gebied</strong><small>Cijfers en bron verschijnen rechts op de kaart</small></div></li>
-              <li><span><Search size={14} /></span><div><strong>Zoek een adres</strong><small>Spring naar een plek en open de woningcheck</small></div></li>
+              <li><span><Layers3 size={14} /></span><div><strong>{t("step1Title")}</strong><small>{NATIONAL_SCENES.map((scene) => scene.label).join(" · ")}</small></div></li>
+              <li><span><MousePointerClick size={14} /></span><div><strong>{t("step2Title")}</strong><small>{t("step2Text")}</small></div></li>
+              <li><span><Search size={14} /></span><div><strong>{t("step3Title")}</strong><small>{t("step3Text")}</small></div></li>
             </ol>
-            <p className="kaart-guide-note"><MapPinned size={13} /> Zoom verder in voor wijken en buurten.</p>
+            <p className="kaart-guide-note"><MapPinned size={13} /> {t("guideNote")}</p>
           </aside>
         </div>
       </div>

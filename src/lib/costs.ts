@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { currentMortgageReference, type MortgageReference } from "@/src/lib/mortgage/reference";
 import type { BuyerProfile } from "@/src/lib/purchase";
 
@@ -56,8 +58,16 @@ function roundEuro(value: number) {
   return Math.round(value);
 }
 
-function euroLabel(value: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+function numberTag(locale: Locale) {
+  return locale === "en" ? "en-IE" : "nl-NL";
+}
+
+function euroLabel(value: number, locale: Locale = "nl") {
+  return new Intl.NumberFormat(numberTag(locale), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+}
+
+function percentLabel(value: number, locale: Locale) {
+  return (value * 100).toLocaleString(numberTag(locale));
 }
 
 export function starterExemptionEligible(profile: TransferTaxProfile, purchasePrice: number, ref = currentMortgageReference()) {
@@ -80,13 +90,15 @@ export function estimateBuyerCosts(
   profile: TransferTaxProfile & Pick<BuyerProfile, "ownFunds" | "budget"> & Partial<Pick<BuyerProfile, "nhg">> & { energySavingMeasures?: boolean },
   financingAmount?: number | null,
   options: BuyerCostOptions = {},
+  locale: Locale = "nl",
 ): BuyerCostEstimate | null {
   if (!purchasePrice || purchasePrice < 1) return null;
+  const t = getLibTranslator(locale, "lib-finance");
   const ref = options.reference ?? currentMortgageReference();
   const tax = ref.transferTax;
   const costs = ref.costs;
   const rate = transferTaxRate(profile, purchasePrice, { ...options, reference: ref });
-  const thresholdLabel = euroLabel(tax.starterThreshold);
+  const thresholdLabel = euroLabel(tax.starterThreshold, locale);
   const derivedLoan = (profile.ownFunds || 0) >= purchasePrice ? 0 : purchasePrice;
   const loan = financingAmount == null ? derivedLoan : Math.max(0, Math.min(financingAmount, purchasePrice));
   const financed = loan > 0;
@@ -103,15 +115,18 @@ export function estimateBuyerCosts(
   if (!options.newBuild) {
     let note: string;
     if (options.investment) {
-      note = `${(tax.investorResidentialRate * 100).toLocaleString("nl-NL")}% voor een woning die niet als hoofdverblijf geldt (${ref.year}). Niet aftrekbaar.`;
+      note = t("costs.lines.transferTax.noteInvestor", { rate: percentLabel(tax.investorResidentialRate, locale), year: ref.year });
     } else if (rate === tax.starterRate) {
-      note = `Startersvrijstelling tot ${thresholdLabel} (${ref.year}; leeftijd, zelfbewoning en eerdere vrijstelling toetst de notaris). Niet aftrekbaar.`;
+      note = t("costs.lines.transferTax.noteStarterExemption", { threshold: thresholdLabel, year: ref.year });
     } else {
-      note = `${(tax.ownerOccupierRate * 100).toLocaleString("nl-NL")}% voor een woning als hoofdverblijf. Belegging: ${(tax.investorResidentialRate * 100).toLocaleString("nl-NL")}%. Startersvrijstelling hangt af van leeftijd en zelfbewoning. Niet aftrekbaar.`;
+      note = t("costs.lines.transferTax.noteOwnerOccupier", {
+        rate: percentLabel(tax.ownerOccupierRate, locale),
+        investorRate: percentLabel(tax.investorResidentialRate, locale),
+      });
     }
     lines.push({
       key: "transfer-tax",
-      label: "Overdrachtsbelasting",
+      label: t("costs.lines.transferTax.label"),
       amount: roundEuro(purchasePrice * rate),
       note,
       deductible: false,
@@ -120,9 +135,9 @@ export function estimateBuyerCosts(
   } else {
     lines.push({
       key: "transfer-tax",
-      label: "Overdrachtsbelasting",
+      label: t("costs.lines.transferTax.label"),
       amount: 0,
-      note: "Nieuwbouw v.o.n.: btw zit in de koopsom, geen overdrachtsbelasting.",
+      note: t("costs.lines.transferTax.noteNewBuild"),
       deductible: false,
       category: "tax",
     });
@@ -131,9 +146,9 @@ export function estimateBuyerCosts(
   if (!options.newBuild) {
     lines.push({
       key: "notary-transfer",
-      label: "Notaris leveringsakte (indicatie)",
+      label: t("costs.lines.notaryTransfer.label"),
       amount: costs.transferDeed,
-      note: "Transportakte van de woning. Niet aftrekbaar. Vraag een offerte.",
+      note: t("costs.lines.notaryTransfer.note"),
       deductible: false,
       category: "deed",
     });
@@ -142,9 +157,9 @@ export function estimateBuyerCosts(
   if (financed) {
     lines.push({
       key: "notary-mortgage",
-      label: "Notaris hypotheekakte (indicatie)",
+      label: t("costs.lines.notaryMortgage.label"),
       amount: costs.mortgageDeed,
-      note: "Financieringskosten: aftrekbaar in box 1 in het jaar van betaling.",
+      note: t("costs.lines.notaryMortgage.note"),
       deductible: true,
       category: "finance",
     });
@@ -153,9 +168,9 @@ export function estimateBuyerCosts(
   if (!options.newBuild) {
     lines.push({
       key: "kadaster-transfer",
-      label: "Kadaster levering",
+      label: t("costs.lines.kadasterTransfer.label"),
       amount: roundEuro(ref.kadaster.kikPerDeed),
-      note: `Inschrijving levering (${ref.year} KIK-tarief). Niet aftrekbaar.`,
+      note: t("costs.lines.kadasterTransfer.note", { year: ref.year }),
       deductible: false,
       category: "deed",
     });
@@ -164,17 +179,17 @@ export function estimateBuyerCosts(
   if (financed) {
     lines.push({
       key: "kadaster-mortgage",
-      label: "Kadaster hypotheek",
+      label: t("costs.lines.kadasterMortgage.label"),
       amount: roundEuro(ref.kadaster.kikPerDeed),
-      note: `Inschrijving hypotheek (${ref.year} KIK-tarief). Aftrekbaar als financieringskosten.`,
+      note: t("costs.lines.kadasterMortgage.note", { year: ref.year }),
       deductible: true,
       category: "finance",
     });
     lines.push({
       key: "appraisal",
-      label: "Taxatie (indicatie)",
+      label: t("costs.lines.appraisal.label"),
       amount: costs.appraisal,
-      note: "Vaak verplicht voor de hypotheek. Aftrekbaar als de taxatie voor de lening nodig is. Geen WoonReality-waardering.",
+      note: t("costs.lines.appraisal.note"),
       deductible: true,
       category: "finance",
     });
@@ -183,9 +198,9 @@ export function estimateBuyerCosts(
   if (includeInspection) {
     lines.push({
       key: "inspection",
-      label: "Bouwkundige keuring (indicatie)",
+      label: t("costs.lines.inspection.label"),
       amount: costs.inspection,
-      note: "Optioneel maar sterk aangeraden bij oudere bouw. Niet aftrekbaar.",
+      note: t("costs.lines.inspection.note"),
       deductible: false,
       category: "optional",
     });
@@ -194,9 +209,9 @@ export function estimateBuyerCosts(
   if (profile.nhg && nhgEligible && loan > 0) {
     lines.push({
       key: "nhg",
-      label: "NHG-borgtochtprovisie",
+      label: t("costs.lines.nhg.label"),
       amount: roundEuro(loan * ref.nhg.feeRate),
-      note: `${(ref.nhg.feeRate * 100).toLocaleString("nl-NL")}% van de hypotheeksom (${ref.year}; grens ${euroLabel(nhgLimit)}). Aftrekbaar. Vaak meegefinancierd.`,
+      note: t("costs.lines.nhg.note", { rate: percentLabel(ref.nhg.feeRate, locale), year: ref.year, limit: euroLabel(nhgLimit, locale) }),
       deductible: true,
       category: "finance",
     });
@@ -205,9 +220,9 @@ export function estimateBuyerCosts(
   if (includeAdvice && financed) {
     lines.push({
       key: "advice",
-      label: "Hypotheekadvies (indicatie)",
+      label: t("costs.lines.advice.label"),
       amount: costs.advice,
-      note: "Advies- en bemiddelingskosten voor de hypotheek. Aftrekbaar in box 1. Vraag een offerte.",
+      note: t("costs.lines.advice.note"),
       deductible: true,
       category: "optional",
     });
@@ -218,9 +233,9 @@ export function estimateBuyerCosts(
     const fee = Math.max(250, roundEuro(guaranteed * costs.bankGuaranteeFeeRate));
     lines.push({
       key: "bank-guarantee",
-      label: "Bankgarantie (indicatie)",
+      label: t("costs.lines.bankGuarantee.label"),
       amount: fee,
-      note: `In plaats van ${(costs.depositFraction * 100).toLocaleString("nl-NL")}% waarborgsom contant. Niet aftrekbaar.`,
+      note: t("costs.lines.bankGuarantee.note", { percent: percentLabel(costs.depositFraction, locale) }),
       deductible: false,
       category: "optional",
     });
@@ -230,9 +245,9 @@ export function estimateBuyerCosts(
     const agent = roundEuro(purchasePrice * costs.buyingAgentPctExclVat * (1 + costs.vatRate));
     lines.push({
       key: "buying-agent",
-      label: "Aankoopmakelaar (indicatie)",
+      label: t("costs.lines.buyingAgent.label"),
       amount: agent,
-      note: `${(costs.buyingAgentPctExclVat * 100).toLocaleString("nl-NL")}% excl. btw + ${(costs.vatRate * 100).toLocaleString("nl-NL")}% btw. Niet aftrekbaar.`,
+      note: t("costs.lines.buyingAgent.note", { rate: percentLabel(costs.buyingAgentPctExclVat, locale), vat: percentLabel(costs.vatRate, locale) }),
       deductible: false,
       category: "optional",
     });
@@ -241,9 +256,9 @@ export function estimateBuyerCosts(
   if (includeMoving) {
     lines.push({
       key: "moving",
-      label: "Verhuiskosten (indicatie)",
+      label: t("costs.lines.moving.label"),
       amount: costs.moving,
-      note: "Geen vaste post; hangt af van afstand en volume. Niet aftrekbaar.",
+      note: t("costs.lines.moving.note"),
       deductible: false,
       category: "optional",
     });
@@ -267,6 +282,6 @@ export function estimateBuyerCosts(
     cashForPrice,
     financingGap,
     referenceYear: ref.year,
-    disclaimer: `Dit is een rekenschets op basis van parameters ${ref.year}, geen hypotheekadvies. Notaris- en adviseurstarieven zijn indicaties; NHG, rente en bankvoorwaarden horen bij een erkend adviseur.`,
+    disclaimer: t("costs.disclaimer", { year: ref.year }),
   };
 }

@@ -4,8 +4,11 @@ import { clamp, round1, roundToStep } from "@/src/lib/math";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import { ndovHaltesUrl, type NdovContext } from "@/src/lib/sources/ndov";
 import { dsoOnderwerpenUrl, type DsoContext } from "@/src/lib/sources/dso";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export function ndovEvidence(context: NdovContext | null): Evidence {
+export function ndovEvidence(context: NdovContext | null, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "ndov-haltes",
     source: "NDOV haltes",
@@ -14,7 +17,7 @@ export function ndovEvidence(context: NdovContext | null): Evidence {
     sourceRecordId: context?.catalogDate,
     fetchedAt: context?.fetchedAt,
     spatialResolution: "haltecoördinaat",
-    caveat: "Een nabijgelegen halte zegt niets over frequentie, reistijd of toegankelijkheid van de specifieke lijn.",
+    caveat: t("mobility.ndovCaveat"),
   });
 }
 
@@ -25,23 +28,28 @@ export function transitScoreForDistance(nearestDistanceM: number) {
   return clamp(10 - nearestDistanceM / TRANSIT_M_PER_POINT);
 }
 
-export function transitSignal(input: { ndov: NdovContext | null; evidence: Evidence; available: boolean }): Signal {
+export function transitSignal(input: { ndov: NdovContext | null; evidence: Evidence; available: boolean }, locale: Locale = "nl"): Signal {
   const { ndov, evidence, available } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   const score = ndov?.nearestDistanceM != null ? transitScoreForDistance(ndov.nearestDistanceM) : ndov ? 3 : undefined;
   const summary = ndov?.nearestDistanceM != null
-    ? `Dichtstbijzijnde NDOV-halte ligt op circa ${Math.round(ndov.nearestDistanceM / 10) * 10} m; ${ndov.stopCount} halte(n) binnen 1 km${ndov.catalogDate ? ` (catalogus ${ndov.catalogDate})` : ""}.`
+    ? t("mobility.transit.summaryDistance", {
+      distance: Math.round(ndov.nearestDistanceM / 10) * 10,
+      stops: ndov.stopCount,
+      catalog: ndov.catalogDate ? t("mobility.transit.catalogSuffix", { date: ndov.catalogDate }) : "",
+    })
     : ndov
-      ? "Geen NDOV-halte binnen 1 kilometer gevonden; controleer de catalogus en lokale dienstregeling voordat je hierop beslist."
-      : "De NDOV-haltecatalogus kon niet worden opgehaald.";
+      ? t("mobility.transit.summaryNoStop")
+      : t("mobility.transit.summaryUnavailable");
   return {
     key: "transit",
-    label: "OV-haltes",
+    label: t("mobility.transit.label"),
     category: "mobiliteit",
-    value: ndov?.nearestDistanceM != null ? `${roundToStep(ndov.nearestDistanceM, 10)} m` : ndov ? "Geen halte < 1 km" : "Geen data",
+    value: ndov?.nearestDistanceM != null ? `${roundToStep(ndov.nearestDistanceM, 10)} m` : ndov ? t("mobility.transit.valueNoneNearby") : t("common.noData"),
     score,
     severity: ndov ? scoreSeverity(score!) : "neutral",
     summary,
-    action: "Controleer lijnfrequentie, avondritten en de daadwerkelijke looproute vanaf de voordeur.",
+    action: t("mobility.transit.action"),
     raw: ndov?.nearestDistanceM != null
       ? { value: Math.round(ndov.nearestDistanceM), unit: "m", metric: "afstand tot dichtstbijzijnde NDOV-halte" }
       : undefined,
@@ -52,7 +60,8 @@ export function transitSignal(input: { ndov: NdovContext | null; evidence: Evide
   };
 }
 
-export function dsoEvidence(context: DsoContext | null): Evidence {
+export function dsoEvidence(context: DsoContext | null, locale: Locale = "nl"): Evidence {
+  const t = getLibTranslator(locale, "lib-analysis");
   return createEvidence({
     id: "dso-onderwerpen",
     source: "DSO Omgevingsdocumenten",
@@ -60,7 +69,7 @@ export function dsoEvidence(context: DsoContext | null): Evidence {
     confidence: "medium",
     fetchedAt: context?.fetchedAt,
     spatialResolution: "puntbevraging",
-    caveat: "De DSO-bevraging signaleert relevante onderwerpen; controleer de actuele regeling en kaartlagen voor juridische conclusies.",
+    caveat: t("mobility.dsoCaveat"),
   });
 }
 
@@ -69,19 +78,23 @@ export function futureScoreForTopics(topicCount: number) {
   return clamp(7 - Math.min(3, topicCount / 10));
 }
 
-export function futureSignal(input: { dso: DsoContext | null; evidence: Evidence; available: boolean }): Signal {
+export function futureSignal(input: { dso: DsoContext | null; evidence: Evidence; available: boolean }, locale: Locale = "nl"): Signal {
   const { dso, evidence, available } = input;
+  const t = getLibTranslator(locale, "lib-analysis");
   return {
     key: "future",
-    label: "Omgevingsontwikkelingen",
+    label: t("mobility.future.label"),
     category: "toekomst",
-    value: dso ? `${dso.topicCount} onderwerpen` : "Geen data",
+    value: dso ? t("mobility.future.valueTopics", { count: dso.topicCount }) : t("common.noData"),
     score: dso ? futureScoreForTopics(dso.topicCount) : undefined,
     severity: "neutral",
     summary: dso
-      ? `${dso.topicCount} DSO-onderwerp(en) raken deze locatie${dso.topicNames.length ? `, waaronder ${dso.topicNames.join(", ")}` : ""}.`
-      : "Er is geen DSO-onderwerpenbevraging beschikbaar.",
-    action: "Open de relevante omgevingsdocumenten en controleer status, besluitdatum en kaartbegrenzing voordat je conclusies trekt.",
+      ? t("mobility.future.summary", {
+        count: dso.topicCount,
+        names: dso.topicNames.length ? t("mobility.future.namesSuffix", { names: dso.topicNames.join(", ") }) : "",
+      })
+      : t("mobility.future.summaryUnavailable"),
+    action: t("mobility.future.action"),
     confidence: "medium",
     spatialScale: "puntbevraging",
     evidence: [evidence],

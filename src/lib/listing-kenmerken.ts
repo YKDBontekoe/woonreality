@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { formatEuro } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
 
@@ -50,25 +52,76 @@ function classify(label: string): KenmerkClassifyKey {
   return "overig";
 }
 
-const GROUP_LABELS: Record<KenmerkGroupKey, string> = {
-  overdracht: "Overdracht",
-  bouw: "Bouw",
-  oppervlakten: "Oppervlakten",
-  indeling: "Indeling",
-  energie: "Energie",
-  buiten: "Buiten",
-  kadastraal: "Kadastraal",
-  overig: "Overig",
-};
-
 const GROUP_ORDER: KenmerkGroupKey[] = ["overdracht", "bouw", "oppervlakten", "indeling", "energie", "buiten", "kadastraal", "overig"];
 
-function pushUnique(rows: KenmerkRow[], label: string, value: string | number | undefined | null) {
+type KnownRowKey =
+  | "status"
+  | "askingPrice"
+  | "pricePerM2"
+  | "livingArea"
+  | "plot"
+  | "volume"
+  | "rooms"
+  | "bedrooms"
+  | "bathrooms"
+  | "type"
+  | "constructionYear"
+  | "energyLabel"
+  | "insulation"
+  | "heating"
+  | "glazing"
+  | "solarPanels"
+  | "outdoorSpace"
+  | "gardenOrientation"
+  | "balcony"
+  | "terrace"
+  | "parking"
+  | "storage"
+  | "vveContribution"
+  | "vveReserve"
+  | "ownership";
+
+/** Fixed bucket per built-in row, mirroring the historical classify() outcome for the Dutch labels. */
+const KNOWN_ROW_KINDS: Record<KnownRowKey, KenmerkClassifyKey> = {
+  status: "overdracht",
+  askingPrice: "overdracht",
+  ownership: "overdracht",
+  type: "bouw",
+  constructionYear: "bouw",
+  livingArea: "oppervlakten",
+  plot: "oppervlakten",
+  volume: "oppervlakten",
+  rooms: "indeling",
+  bedrooms: "indeling",
+  bathrooms: "indeling",
+  energyLabel: "energie",
+  insulation: "energie",
+  heating: "energie",
+  pricePerM2: "overig",
+  glazing: "overig",
+  solarPanels: "overig",
+  vveContribution: "overig",
+  vveReserve: "overig",
+  outdoorSpace: "buiten",
+  gardenOrientation: "buiten",
+  balcony: "buiten",
+  terrace: "buiten",
+  parking: "buiten",
+  storage: "buiten",
+};
+
+function groupLabel(key: KenmerkGroupKey, locale: Locale) {
+  return getLibTranslator(locale, "lib-domain")(`kenmerken.groups.${key}`);
+}
+
+type CollectedRow = { kind: KenmerkClassifyKey; label: string; value: string };
+
+function pushUnique(rows: CollectedRow[], kind: KenmerkClassifyKey, label: string, value: string | number | undefined | null) {
   if (value == null || value === "" || value === "—") return;
   const text = String(value);
   const key = label.toLowerCase();
   if (rows.some((row) => row.label.toLowerCase() === key || (row.value === text && row.label.toLowerCase().includes(key.slice(0, 8))))) return;
-  rows.push({ label, value: text });
+  rows.push({ kind, label, value: text });
 }
 
 export function neighborhoodStatsFromListing(listing: PropertyListing | null | undefined): NeighborhoodStats {
@@ -84,67 +137,54 @@ export function neighborhoodStatsFromListing(listing: PropertyListing | null | u
   return stats;
 }
 
-export function listingKenmerkGroups(listing: PropertyListing | null | undefined): KenmerkGroup[] {
+export function listingKenmerkGroups(listing: PropertyListing | null | undefined, locale: Locale = "nl"): KenmerkGroup[] {
   if (!listing) return [];
-  const collected: KenmerkRow[] = [];
-  pushUnique(collected, "Status", listingStatusLabel(listing.status));
-  pushUnique(collected, "Vraagprijs", listing.askingPrice != null ? formatEuro(listing.askingPrice) : undefined);
-  pushUnique(collected, "Prijs per m²", listing.pricePerM2 != null ? formatEuro(listing.pricePerM2) : undefined);
-  pushUnique(collected, "Woonoppervlak", listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined);
-  pushUnique(collected, "Perceel", listing.plotAreaM2 != null ? `${listing.plotAreaM2} m²` : undefined);
-  pushUnique(collected, "Inhoud", listing.volumeM3 != null ? `${listing.volumeM3} m³` : undefined);
-  pushUnique(collected, "Kamers", listing.roomCount);
-  pushUnique(collected, "Slaapkamers", listing.bedroomCount);
-  pushUnique(collected, "Badkamers", listing.bathroomCount);
-  pushUnique(collected, "Type", listing.propertyType);
-  pushUnique(collected, "Bouwjaar", listing.constructionYear);
-  pushUnique(collected, "Energielabel", listing.energyLabel);
-  pushUnique(collected, "Isolatie", listing.insulation);
-  pushUnique(collected, "Verwarming", listing.heating);
-  pushUnique(collected, "Beglazing", listing.glazing);
-  pushUnique(collected, "Zonnepanelen", listing.solarPanelCount);
-  pushUnique(collected, "Buitenruimte", listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : undefined);
-  pushUnique(collected, "Tuinligging", listing.gardenOrientation);
-  pushUnique(collected, "Balkon", listing.balcony == null ? undefined : listing.balcony ? "Ja" : "Nee");
-  pushUnique(collected, "Terras", listing.terrace == null ? undefined : listing.terrace ? "Ja" : "Nee");
-  pushUnique(collected, "Parkeren", listing.parking);
-  pushUnique(collected, "Berging", listing.storage);
-  pushUnique(collected, "VvE-bijdrage", listing.vveContribution != null ? formatEuro(listing.vveContribution) : undefined);
-  pushUnique(collected, "VvE-reserve", listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund) : undefined);
-  pushUnique(collected, "Eigendomssituatie", listing.ownership);
+  const t = getLibTranslator(locale, "lib-domain");
+  const row = (key: KnownRowKey) => t(`kenmerken.rows.${key}`);
+  const kind = (key: KnownRowKey) => KNOWN_ROW_KINDS[key];
+  const collected: CollectedRow[] = [];
+  pushUnique(collected, kind("status"), row("status"), listingStatusLabel(listing.status, locale));
+  pushUnique(collected, kind("askingPrice"), row("askingPrice"), listing.askingPrice != null ? formatEuro(listing.askingPrice, locale) : undefined);
+  pushUnique(collected, kind("pricePerM2"), row("pricePerM2"), listing.pricePerM2 != null ? formatEuro(listing.pricePerM2, locale) : undefined);
+  pushUnique(collected, kind("livingArea"), row("livingArea"), listing.livingAreaM2 != null ? `${listing.livingAreaM2} m²` : undefined);
+  pushUnique(collected, kind("plot"), row("plot"), listing.plotAreaM2 != null ? `${listing.plotAreaM2} m²` : undefined);
+  pushUnique(collected, kind("volume"), row("volume"), listing.volumeM3 != null ? `${listing.volumeM3} m³` : undefined);
+  pushUnique(collected, kind("rooms"), row("rooms"), listing.roomCount);
+  pushUnique(collected, kind("bedrooms"), row("bedrooms"), listing.bedroomCount);
+  pushUnique(collected, kind("bathrooms"), row("bathrooms"), listing.bathroomCount);
+  pushUnique(collected, kind("type"), row("type"), listing.propertyType);
+  pushUnique(collected, kind("constructionYear"), row("constructionYear"), listing.constructionYear);
+  pushUnique(collected, kind("energyLabel"), row("energyLabel"), listing.energyLabel);
+  pushUnique(collected, kind("insulation"), row("insulation"), listing.insulation);
+  pushUnique(collected, kind("heating"), row("heating"), listing.heating);
+  pushUnique(collected, kind("glazing"), row("glazing"), listing.glazing);
+  pushUnique(collected, kind("solarPanels"), row("solarPanels"), listing.solarPanelCount);
+  pushUnique(collected, kind("outdoorSpace"), row("outdoorSpace"), listing.outdoorSpaceM2 != null ? `${listing.outdoorSpaceM2} m²` : undefined);
+  pushUnique(collected, kind("gardenOrientation"), row("gardenOrientation"), listing.gardenOrientation);
+  pushUnique(collected, kind("balcony"), row("balcony"), listing.balcony == null ? undefined : listing.balcony ? t("kenmerken.yes") : t("kenmerken.no"));
+  pushUnique(collected, kind("terrace"), row("terrace"), listing.terrace == null ? undefined : listing.terrace ? t("kenmerken.yes") : t("kenmerken.no"));
+  pushUnique(collected, kind("parking"), row("parking"), listing.parking);
+  pushUnique(collected, kind("storage"), row("storage"), listing.storage);
+  pushUnique(collected, kind("vveContribution"), row("vveContribution"), listing.vveContribution != null ? formatEuro(listing.vveContribution, locale) : undefined);
+  pushUnique(collected, kind("vveReserve"), row("vveReserve"), listing.vveReserveFund != null ? formatEuro(listing.vveReserveFund, locale) : undefined);
+  pushUnique(collected, kind("ownership"), row("ownership"), listing.ownership);
 
-  const shown = new Set(collected.map((row) => row.label.toLowerCase()));
   for (const [label, value] of Object.entries(listing.extraKenmerken ?? {})) {
-    const kind = classify(label);
-    if (kind === "skip" || kind === "buurt") continue;
-    if (shown.has(label.toLowerCase())) continue;
-    pushUnique(collected, label, value);
-    shown.add(label.toLowerCase());
-  }
-
-  const buckets = new Map<KenmerkGroupKey, KenmerkRow[]>();
-  for (const row of collected) {
-    const kind = classify(row.label);
-    if (kind === "skip" || kind === "buurt") continue;
-    const list = buckets.get(kind) ?? [];
-    list.push(row);
-    buckets.set(kind, list);
+    const extraKind = classify(label);
+    if (extraKind === "skip" || extraKind === "buurt") continue;
+    if (collected.some((existing) => existing.label.toLowerCase() === label.toLowerCase())) continue;
+    pushUnique(collected, extraKind, label, value);
   }
 
   return GROUP_ORDER.flatMap((key) => {
-    const rows = buckets.get(key);
-    if (!rows?.length) return [];
-    return [{ key, label: GROUP_LABELS[key] ?? key, rows }];
+    const rows = collected.filter((entry) => entry.kind === key).map(({ label, value }) => ({ label, value }));
+    if (!rows.length) return [];
+    return [{ key, label: groupLabel(key, locale), rows }];
   });
 }
 
-function listingStatusLabel(status: PropertyListing["status"]) {
-  return {
-    active: "Te koop",
-    sold: "Verkocht",
-    withdrawn: "Ingetrokken",
-    unknown: "Status onbekend",
-  }[status];
+function listingStatusLabel(status: PropertyListing["status"], locale: Locale = "nl") {
+  return getLibTranslator(locale, "lib-domain")(`kenmerken.status.${status}`);
 }
 
 export function isKenmerkenBlob(title: string, text: string) {

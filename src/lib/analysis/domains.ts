@@ -1,15 +1,20 @@
 import type { Analysis, DomainSummary, Signal } from "@/src/lib/types";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
-export const DOMAIN_LABELS = {
-  woning: "Woning",
-  gezondheid: "Gezondheid & hinder",
-  klimaat: "Klimaat & bodem",
-  mobiliteit: "Mobiliteit",
-  buurt: "Buurt & voorzieningen",
-  toekomst: "Toekomst",
-} as const;
+const DOMAIN_KEYS = ["woning", "gezondheid", "klimaat", "mobiliteit", "buurt", "toekomst"] as const;
 
-export type SignalDomain = keyof typeof DOMAIN_LABELS;
+export type SignalDomain = (typeof DOMAIN_KEYS)[number];
+
+/** Stable category identifiers; display labels come from the lib-analysis catalog. */
+const DOMAIN_LABELS = Object.fromEntries(DOMAIN_KEYS.map((key) => [key, key])) as Record<SignalDomain, string>;
+
+export function domainLabels(locale: Locale = "nl"): Record<SignalDomain, string> {
+  const t = getLibTranslator(locale, "lib-analysis");
+  return Object.fromEntries(
+    DOMAIN_KEYS.map((key) => [key, t(`domain.labels.${key}`)]),
+  ) as Record<SignalDomain, string>;
+}
 
 function isAvailable(signal: Signal) {
   return signal.availability !== "unavailable";
@@ -24,8 +29,9 @@ function isAvailable(signal: Signal) {
  */
 const UNSCORED_ATTENTION_SCORE_CAP = 6.4;
 
-export function domainSummaries(signals: Signal[]): DomainSummary[] {
-  return Object.entries(DOMAIN_LABELS).map(([key, label]) => {
+export function domainSummaries(signals: Signal[], locale: Locale = "nl"): DomainSummary[] {
+  const t = getLibTranslator(locale, "lib-analysis");
+  return Object.entries(DOMAIN_LABELS).map(([key]) => {
     const domainSignals = signals.filter((signal) => signal.category === key);
     const availableSignals = domainSignals.filter((signal) => isAvailable(signal) && typeof signal.score === "number");
     const hasUnscoredAttention = domainSignals.some(
@@ -35,18 +41,19 @@ export function domainSummaries(signals: Signal[]): DomainSummary[] {
       ? Math.round((availableSignals.reduce((sum, signal) => sum + (signal.score ?? 0), 0) / availableSignals.length) * 10) / 10
       : null;
     if (score != null && hasUnscoredAttention) score = Math.min(score, UNSCORED_ATTENTION_SCORE_CAP);
+    const formattedScore = score?.toLocaleString(locale === "en" ? "en-IE" : "nl-NL", { maximumFractionDigits: 1 });
     return {
       key: key as SignalDomain,
-      label,
+      label: t(`domain.labels.${key}`),
       score,
       signalKeys: domainSignals.map((signal) => signal.key),
       available: availableSignals.length > 0,
       hasUnscoredAttention,
       summary: score == null
-        ? "Voor dit domein is nu geen betrouwbare bron beschikbaar."
+        ? t("domain.summary.unavailable")
         : hasUnscoredAttention
-          ? `Gemiddelde indicatie ${score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10 — met een open aandachtspunt zonder score (zie hieronder); laat het cijfer dit niet verbloemen.`
-          : `Gemiddelde indicatie ${score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10.`,
+          ? t("domain.summary.attention", { score: formattedScore })
+          : t("domain.summary.plain", { score: formattedScore }),
     };
   });
 }

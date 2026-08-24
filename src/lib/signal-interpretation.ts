@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { NL_CRIME_PER_1000 } from "@/src/lib/sources/politie";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import type { DomainSummary, Severity, Signal } from "@/src/lib/types";
@@ -30,6 +32,8 @@ export type SignalInterpretation = {
   benchmark?: SignalBenchmark;
 };
 
+type Translator = ReturnType<typeof getLibTranslator>;
+
 const WHO_NO2 = 10;
 const EU_NO2 = 40;
 const WHO_PM25 = 5;
@@ -38,6 +42,8 @@ const NOISE_QUIET = 55;
 const NOISE_AVERAGE = 65;
 const NOISE_LOUD = 70;
 const SES_TYPICAL = 0.5;
+
+const numberTag = (locale: Locale) => (locale === "en" ? "en-IE" : "nl-NL");
 
 function buildBenchmark(input: {
   referenceLabel: string;
@@ -49,6 +55,7 @@ function buildBenchmark(input: {
   direction: SignalBenchmark["direction"];
   secondary?: { label: string; value: number };
   precision?: number;
+  youLabel: string;
 }): SignalBenchmark {
   const position = clampPosition(input.value, input.min, input.max);
   return {
@@ -63,6 +70,7 @@ function buildBenchmark(input: {
     precision: input.precision,
     markers: benchmarkMarkers(
       position,
+      input.youLabel,
       input.referenceLabel,
       input.referenceValue,
       input.min,
@@ -79,6 +87,7 @@ function clampPosition(value: number, min: number, max: number) {
 
 function benchmarkMarkers(
   position: number,
+  youLabel: string,
   referenceLabel: string,
   referenceValue: number,
   scaleMin: number,
@@ -86,7 +95,7 @@ function benchmarkMarkers(
   secondary?: { label: string; value: number },
 ): SignalBenchmarkMarker[] {
   const markers: SignalBenchmarkMarker[] = [
-    { label: "Jij", position, kind: "you" },
+    { label: youLabel, position, kind: "you" },
     {
       label: referenceLabel,
       position: clampPosition(referenceValue, scaleMin, scaleMax),
@@ -109,11 +118,11 @@ function numericRaw(signal: Signal): number | null {
   return null;
 }
 
-function scoreLabel(score: number): { verdict: InterpretationVerdict; label: string } {
+function scoreLabel(score: number, t: Translator): { verdict: InterpretationVerdict; label: string } {
   const severity = scoreSeverity(score);
-  if (severity === "good") return { verdict: "good", label: "Sterk" };
-  if (severity === "attention") return { verdict: "attention", label: "Aandacht" };
-  return { verdict: "neutral", label: "Gemiddeld" };
+  if (severity === "good") return { verdict: "good", label: t("signalInterpretation.scoreLabels.good") };
+  if (severity === "attention") return { verdict: "attention", label: t("signalInterpretation.scoreLabels.attention") };
+  return { verdict: "neutral", label: t("signalInterpretation.scoreLabels.neutral") };
 }
 
 function distanceKmFromSignal(signal: Signal): number | null {
@@ -133,36 +142,36 @@ function mentionsNo2(text: string) {
   return /NO\u2082|\bNO2\b/i.test(text);
 }
 
-function distanceLabel(km: number): { verdict: InterpretationVerdict; label: string; explainer: string } {
+function distanceLabel(km: number, t: Translator): { verdict: InterpretationVerdict; label: string; explainer: string } {
   if (km <= 0.5) {
     return {
       verdict: "good",
-      label: "Dichtbij",
-      explainer: "Op loop- of fietsafstand — vaak goed bereikbaar in het dagelijks leven.",
+      label: t("signalInterpretation.distance.near.label"),
+      explainer: t("signalInterpretation.distance.near.explainer"),
     };
   }
   if (km <= 1) {
     return {
       verdict: "neutral",
-      label: "Redelijk bereikbaar",
-      explainer: "Binnen ongeveer een kilometer — meestal nog met de fiets of een korte rit.",
+      label: t("signalInterpretation.distance.reachable.label"),
+      explainer: t("signalInterpretation.distance.reachable.explainer"),
     };
   }
   if (km <= 2) {
     return {
       verdict: "neutral",
-      label: "Verder weg",
-      explainer: "Meer dan een kilometer — plan bewust hoe je er dagelijks komt.",
+      label: t("signalInterpretation.distance.farther.label"),
+      explainer: t("signalInterpretation.distance.farther.explainer"),
     };
   }
   return {
     verdict: "attention",
-    label: "Ver",
-    explainer: "Relatief ver voor dagelijks gebruik — check of dat bij jouw leven past.",
+    label: t("signalInterpretation.distance.far.label"),
+    explainer: t("signalInterpretation.distance.far.explainer"),
   };
 }
 
-function interpretAir(signal: Signal): SignalInterpretation | null {
+function interpretAir(signal: Signal, t: Translator, locale: Locale): SignalInterpretation | null {
   const metric = signal.raw?.metric ?? "";
   const value = numericRaw(signal);
   if (value == null) return null;
@@ -170,121 +179,129 @@ function interpretAir(signal: Signal): SignalInterpretation | null {
   const isNo2 = mentionsNo2(metric) || mentionsNo2(String(signal.value));
   const whoLimit = isNo2 ? WHO_NO2 : WHO_PM25;
   const euLimit = isNo2 ? EU_NO2 : EU_PM25;
-  const pollutant = isNo2 ? "stikstofdioxide (NO₂)" : "fijnstof (PM₂·₅)";
+  const pollutant = isNo2 ? t("signalInterpretation.air.pollutantNo2") : t("signalInterpretation.air.pollutantPm25");
 
   let verdict: InterpretationVerdict = "neutral";
-  let label = "Gemiddeld voor NL";
+  let label = t("signalInterpretation.air.labels.neutral");
   if (value <= whoLimit) {
     verdict = "good";
-    label = "Onder WHO-richtlijn";
+    label = t("signalInterpretation.air.labels.good");
   } else if (value >= euLimit) {
     verdict = "attention";
-    label = "Boven EU-jaarlimiet";
+    label = t("signalInterpretation.air.labels.aboveEu");
   } else if (value > whoLimit * 1.5) {
     verdict = "attention";
-    label = "Boven WHO-richtlijn";
+    label = t("signalInterpretation.air.labels.aboveWho");
   }
 
   return {
     verdict,
     label,
-    explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} µg/m³ ${pollutant} is een buurtgemiddelde uit RIVM-data — lager is gezonder, maar ventilatie en verkeer op straatniveau tellen ook mee.`,
+    explainer: t("signalInterpretation.air.explainer", { value: value.toLocaleString(numberTag(locale), { maximumFractionDigits: 1 }), pollutant }),
     benchmark: buildBenchmark({
-      referenceLabel: "WHO",
+      referenceLabel: t("signalInterpretation.benchmarks.who"),
       referenceValue: whoLimit,
       value,
       unit: "µg/m³",
       min: 0,
       max: euLimit * 1.2,
       direction: "lower-is-better",
-      secondary: isNo2 ? { label: "EU", value: euLimit } : undefined,
+      secondary: isNo2 ? { label: t("signalInterpretation.benchmarks.eu"), value: euLimit } : undefined,
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-function interpretNoise(signal: Signal): SignalInterpretation | null {
+function interpretNoise(signal: Signal, t: Translator, locale: Locale): SignalInterpretation | null {
   const value = numericRaw(signal);
   if (value == null) return null;
 
   let verdict: InterpretationVerdict = "neutral";
-  let label = "Gemiddeld stadsniveau";
+  let label = t("signalInterpretation.noise.labels.neutral");
   if (value <= NOISE_QUIET) {
     verdict = "good";
-    label = "Relatief rustig";
+    label = t("signalInterpretation.noise.labels.good");
   } else if (value >= NOISE_LOUD) {
     verdict = "attention";
-    label = "Relatief luid";
+    label = t("signalInterpretation.noise.labels.loud");
   } else if (value >= NOISE_AVERAGE) {
     verdict = "attention";
-    label = "Drukker straatniveau";
+    label = t("signalInterpretation.noise.labels.busy");
   }
 
   return {
     verdict,
     label,
-    explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} dB Lden is een modelwaarde voor wegverkeersgeluid — luister tijdens de bezichtiging met open ramen op verschillende tijdstippen.`,
+    explainer: t("signalInterpretation.noise.explainer", { value: value.toLocaleString(numberTag(locale), { maximumFractionDigits: 1 }) }),
     benchmark: buildBenchmark({
-      referenceLabel: "Rustig",
+      referenceLabel: t("signalInterpretation.benchmarks.quiet"),
       referenceValue: NOISE_QUIET,
       value,
       unit: "dB",
       min: 45,
       max: 80,
       direction: "lower-is-better",
-      secondary: { label: "Luid", value: NOISE_LOUD },
+      secondary: { label: t("signalInterpretation.benchmarks.loud"), value: NOISE_LOUD },
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-function interpretCrime(signal: Signal): SignalInterpretation | null {
+function interpretCrime(signal: Signal, t: Translator, locale: Locale): SignalInterpretation | null {
   const value = numericRaw(signal);
   if (value == null) return null;
 
   const ratio = value / NL_CRIME_PER_1000;
   let verdict: InterpretationVerdict = "neutral";
-  let label = "Rond NL-gemiddelde";
+  let label = t("signalInterpretation.crime.labels.neutral");
   if (ratio <= 0.85) {
     verdict = "good";
-    label = "Lager dan NL-gemiddelde";
+    label = t("signalInterpretation.crime.labels.good");
   } else if (ratio >= 1.15) {
     verdict = "attention";
-    label = "Hoger dan NL-gemiddelde";
+    label = t("signalInterpretation.crime.labels.attention");
   }
 
   return {
     verdict,
     label,
-    explainer: `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} geregistreerde misdrijven per 1.000 inwoners — landelijk gemiddelde circa ${NL_CRIME_PER_1000}. Alleen politiecijfers, geen voorspelling voor jouw woning.`,
+    explainer: t("signalInterpretation.crime.explainer", {
+      value: value.toLocaleString(numberTag(locale), { maximumFractionDigits: 1 }),
+      average: String(NL_CRIME_PER_1000),
+    }),
     benchmark: buildBenchmark({
-      referenceLabel: "NL gem.",
+      referenceLabel: t("signalInterpretation.benchmarks.nlAverage"),
       referenceValue: NL_CRIME_PER_1000,
       value,
-      unit: "per 1.000",
+      unit: t("signalInterpretation.crime.unit"),
       min: 0,
       max: NL_CRIME_PER_1000 * 2,
       direction: "lower-is-better",
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-function interpretSes(signal: Signal): SignalInterpretation | null {
+function interpretSes(signal: Signal, t: Translator, locale: Locale): SignalInterpretation | null {
   const value = numericRaw(signal);
   if (value == null) return null;
 
   const verdict: InterpretationVerdict = "neutral";
-  let label = "Rond NL-gemiddelde";
+  let label = t("signalInterpretation.ses.labels.neutral");
   if (value <= -SES_TYPICAL) {
-    label = "Onder NL-gemiddelde";
+    label = t("signalInterpretation.ses.labels.below");
   } else if (value >= SES_TYPICAL) {
-    label = "Boven NL-gemiddelde";
+    label = t("signalInterpretation.ses.labels.above");
   }
 
   return {
     verdict,
     label,
-    explainer: `SES-WOA ${value.toLocaleString("nl-NL", { signDisplay: "exceptZero", maximumFractionDigits: 3 })} — Nederland ≈ 0. Dit is buurtcontext over welvaart, opleiding en werk, geen oordeel over de woning of je buren.`,
+    explainer: t("signalInterpretation.ses.explainer", {
+      value: value.toLocaleString(numberTag(locale), { signDisplay: "exceptZero", maximumFractionDigits: 3 }),
+    }),
     benchmark: buildBenchmark({
-      referenceLabel: "NL ≈ 0",
+      referenceLabel: t("signalInterpretation.benchmarks.nlZero"),
       referenceValue: 0,
       value,
       unit: "SES-WOA",
@@ -292,102 +309,107 @@ function interpretSes(signal: Signal): SignalInterpretation | null {
       max: 1,
       direction: "center-is-typical",
       precision: 3,
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-function interpretDistanceSignal(signal: Signal, noun: string): SignalInterpretation | null {
+function interpretDistanceSignal(signal: Signal, noun: string, t: Translator): SignalInterpretation | null {
   const km = distanceKmFromSignal(signal);
   if (km == null) return null;
-  const { verdict, label, explainer } = distanceLabel(km);
+  const { verdict, label, explainer } = distanceLabel(km, t);
   return {
     verdict,
     label,
-    explainer: `${noun}: ${explainer} CBS geeft buurtgemiddelden, geen exacte looproute vanaf de voordeur.`,
+    explainer: t("signalInterpretation.distanceSuffix", { noun, explainer }),
     benchmark: buildBenchmark({
-      referenceLabel: "1 km",
+      referenceLabel: t("signalInterpretation.benchmarks.oneKm"),
       referenceValue: 1,
       value: km,
       unit: "km",
       min: 0,
       max: 3,
       direction: "lower-is-better",
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-function interpretScored(signal: Signal): SignalInterpretation {
+function interpretScored(signal: Signal, t: Translator, locale: Locale): SignalInterpretation {
   if (typeof signal.score !== "number") {
     if (signal.severity === "attention") {
       return {
         verdict: "attention",
-        label: "Check dit zelf",
+        label: t("signalInterpretation.selfCheck.label"),
         explainer: signal.action,
       };
     }
     return {
       verdict: "neutral",
-      label: "Informatief",
+      label: t("signalInterpretation.informational.label"),
       explainer: signal.summary,
     };
   }
 
-  const { verdict, label } = scoreLabel(signal.score);
+  const { verdict, label } = scoreLabel(signal.score, t);
   return {
     verdict,
     label,
-    explainer: `${label} op onze 0–10 schaal (${signal.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}). ${signal.summary}`,
+    explainer: t("signalInterpretation.scoredExplainer", {
+      label,
+      score: signal.score.toLocaleString(numberTag(locale), { maximumFractionDigits: 1 }),
+      summary: signal.summary,
+    }),
     benchmark: buildBenchmark({
-      referenceLabel: "Midden",
+      referenceLabel: t("signalInterpretation.benchmarks.middle"),
       referenceValue: 5,
       value: signal.score,
       unit: "/ 10",
       min: 0,
       max: 10,
       direction: "higher-is-better",
+      youLabel: t("signalInterpretation.youMarker"),
     }),
   };
 }
 
-export function interpretSignal(signal: Signal): SignalInterpretation | null {
+export function interpretSignal(signal: Signal, locale: Locale = "nl"): SignalInterpretation | null {
+  const t = getLibTranslator(locale, "lib-domain");
   if (signal.availability === "unavailable") {
     return {
       verdict: "neutral",
-      label: "Geen data",
-      explainer: "Voor dit onderwerp is nu geen betrouwbare open-data bron beschikbaar.",
+      label: t("signalInterpretation.unavailable.label"),
+      explainer: t("signalInterpretation.unavailable.explainer"),
     };
   }
 
   switch (signal.key) {
     case "air":
-      return interpretAir(signal);
+      return interpretAir(signal, t, locale);
     case "noise":
-      return interpretNoise(signal);
+      return interpretNoise(signal, t, locale);
     case "crime":
-      return interpretCrime(signal);
+      return interpretCrime(signal, t, locale);
     case "ses":
-      return interpretSes(signal);
+      return interpretSes(signal, t, locale);
     case "transit":
-      return interpretDistanceSignal(
-        signal,
-        "Afstand tot OV-halte",
-      ) ?? interpretScored(signal);
+      return interpretDistanceSignal(signal, t("signalInterpretation.transitNoun"), t) ?? interpretScored(signal, t, locale);
     case "cbs-context":
     case "schools":
-      return interpretDistanceSignal(signal, signal.label) ?? interpretScored(signal);
+      return interpretDistanceSignal(signal, signal.label, t) ?? interpretScored(signal, t, locale);
     case "foundation":
     case "vve":
     case "usage":
       if (signal.severity === "attention") {
         return {
           verdict: "attention",
-          label: "Check dit zelf",
+          label: t("signalInterpretation.selfCheck.label"),
           explainer: signal.action,
         };
       }
-      return interpretScored(signal);
+      return interpretScored(signal, t, locale);
     default:
-      return interpretScored(signal);
+      return interpretScored(signal, t, locale);
   }
 }
 
@@ -400,14 +422,16 @@ export function interpretationToneFromVerdict(verdict: InterpretationVerdict): S
 export function interpretationForDomain(
   domain: DomainSummary,
   signals: Signal[],
+  locale: Locale = "nl",
 ): string {
+  const t = getLibTranslator(locale, "lib-domain");
   const domainSignals = signals.filter(
     (signal) => signal.category === domain.key && signal.availability !== "unavailable",
   );
-  if (!domainSignals.length) return "Geen betrouwbare data voor dit onderwerp.";
+  if (!domainSignals.length) return t("signalInterpretation.domainEmpty");
 
   const labels = domainSignals
-    .map((signal) => interpretSignal(signal))
+    .map((signal) => interpretSignal(signal, locale))
     .filter((item): item is SignalInterpretation => Boolean(item))
     .slice(0, 2)
     .map((item) => item.label.toLowerCase());

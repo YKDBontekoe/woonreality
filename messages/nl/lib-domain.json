@@ -1,0 +1,519 @@
+{
+  "checklist": {
+    "items": {
+      "windows": "Luister met ramen open én dicht",
+      "light": "Check licht, schaduw en geveloriëntatie",
+      "vve": "Vraag om VvE-notulen, begroting, reservefonds, MJOP en verzekeringspolis",
+      "legal": "Controleer splitsingsakte, erfpacht/eigen grond en gebruiksbeperkingen",
+      "condition": "Plan een bouwkundige keuring"
+    }
+  },
+  "journey": {
+    "stages": {
+      "intake": "Woonprofiel",
+      "research": "Onderzoek",
+      "viewing": "Bezichtiging",
+      "offer": "Bod",
+      "negotiation": "Onderhandeling",
+      "contract": "Koopakte",
+      "finance_inspection": "Keuring & financiering",
+      "transfer": "Overdracht"
+    },
+    "nextAction": {
+      "connectWorkspace": {
+        "title": "Koppel je aankoopomgeving",
+        "text": "Log in om je profiel, documenten en woningen veilig te bewaren."
+      },
+      "completeProfile": {
+        "title": "Vul je woonprofiel in",
+        "text": "Budget, huishouden en must-haves bepalen wat je wél en niet serieus neemt."
+      },
+      "addFirstProperty": {
+        "title": "Voeg je eerste woning toe",
+        "text": "Zoek een adres of plak een Funda-link. Kenmerken komen uit de extensie."
+      },
+      "openTask": {
+        "text": "Dit is de eerstvolgende actie in je dossier."
+      },
+      "reviewFindings": {
+        "title": "Bekijk document-aandachtspunten",
+        "text": "{count} punt{plural} uit je stukken vragen om een check."
+      },
+      "uploadDocuments": {
+        "title": "Upload de verkoopstukken",
+        "text": "Brochure, vragenlijst en eventuele VvE-stukken horen in het dossier vóór je biedt."
+      },
+      "stages": {
+        "intake": {
+          "title": "Maak het woonprofiel af",
+          "text": "Daarna kunnen we woningen tegen jouw grenzen afzetten."
+        },
+        "research": {
+          "title": "Werk het woningonderzoek af",
+          "text": "Check signalen, upload stukken en noteer wat je nog niet weet."
+        },
+        "viewing": {
+          "title": "Bereid de bezichtiging voor",
+          "text": "Neem de checklist mee en noteer wat je ziet."
+        },
+        "offer": {
+          "title": "Maak een bodconcept",
+          "text": "Koppel bedrag, risico’s en ontbindende voorwaarden. WoonReality verstuurt niets."
+        },
+        "negotiation": {
+          "title": "Bereid de onderhandeling voor",
+          "text": "Houd je maximum en voorwaarden vast. Een tegenbod is geen verplichting."
+        },
+        "contract": {
+          "title": "Controleer de koopakte",
+          "text": "Vergelijk koopsom, voorwaarden en opleverdatum met je concept."
+        },
+        "finance_inspection": {
+          "title": "Plan keuring en financiering",
+          "text": "Zet de deadlines van je voorbehouden in de agenda."
+        },
+        "transfer": {
+          "title": "Bereid de overdracht voor",
+          "text": "Notaris, waarborgsom en opleverpunten horen nu in beeld."
+        }
+      }
+    },
+    "checklist": {
+      "intake": {
+        "budget": "Bereken je hypotheekbudget ná kosten koper, niet ervoor.",
+        "profile": "Leg je woonwensen en prioriteiten vast (locatie, type, budget, must-haves).",
+        "nhg": "Check of Nationale Hypotheek Garantie (NHG) voor jou van toepassing en verstandig is."
+      },
+      "research": {
+        "analysis": "Lees de woningcheck en de aandachtspunten per domein, niet alleen het eindcijfer.",
+        "compare": "Vergelijk kandidaat-woningen naast elkaar op prijs, m², energie en VvE-signalen.",
+        "listing": "Koppel de Funda-advertentie zodat vraagprijs, kenmerken en VvE-gegevens meegenomen worden.",
+        "ai": "Vraag het AI-onderzoek aan voor extra context (vergunningen, gemeentelijke plannen, contradicties)."
+      },
+      "viewing": {
+        "checklist": "Loop de bezichtigingschecklist na, inclusief de aandachtspunten uit de woningcheck.",
+        "questions": "Stel de vragen die uit de AI-analyse of documentcheck naar voren komen.",
+        "debrief": "Leg direct na afloop vast: doorgaan, twijfel, of laten vallen — en waarom."
+      },
+      "offer": {
+        "strategy": "Bepaal je bod met de biedstrategie: voorzichtig, gebalanceerd of sterk, op basis van de risico's.",
+        "conditions": "Houd financierings- en keuringsvoorbehoud aan, zeker als starter of bij open aandachtspunten.",
+        "valuation": "Realiseer je: geen taxatie betekent geen bevestigde marktwaarde. Bied nooit blind boven de vraagprijs."
+      },
+      "negotiation": {
+        "counter": "Bij een tegenbod: pas alleen bedrag of voorwaarden aan, niet allebei tegelijk zonder reden.",
+        "escalation": "Overweeg bij concurrentie een ophoogclausule in plaats van blind hoger bieden.",
+        "walkaway": "Ken vooraf je maximale prijs en wees bereid om af te haken als die wordt overschreden."
+      },
+      "contract": {
+        "review": "Laat de koopakte controleren vóór ondertekening; vergelijk het bedrag met je bod.",
+        "deadlines": "Zet bedenktijd en de deadlines van je voorbehouden meteen in je agenda.",
+        "clauses": "Vraag uitleg bij bijzondere clausules (ouderdomsclausule, asbestclausule, erfpacht)."
+      },
+      "finance_inspection": {
+        "mortgage": "Rond de hypotheekaanvraag af ruim vóór de financieringsdeadline.",
+        "inspection": "Plan de bouwkundige keuring en behandel de bevindingen vóór de keuringsdeadline.",
+        "documents": "Vraag ontbrekende stukken op (VvE, MJOP, bouwtekeningen, energie) en laat ze meewegen."
+      },
+      "transfer": {
+        "final-inspection": "Doe de eindinspectie vlak vóór de overdracht en noteer opleverpunten schriftelijk.",
+        "notary": "Controleer de nota van afrekening en de conceptakte bij de notaris vóór het passeren.",
+        "keys": "Regel waarborgsom/bankgarantie, verzekeringen en de sleuteloverdracht."
+      }
+    }
+  },
+  "tasks": {
+    "profile": {
+      "title": "Vul je woonprofiel in",
+      "description": "Budget, huishouden en must-haves horen vast te staan voordat je een bod serieus maakt."
+    },
+    "docsCore": {
+      "title": "Upload brochure of vragenlijst",
+      "description": "Zonder verkoopstukken zie je alleen open data. De makelaar zou deze stukken nu opvragen."
+    },
+    "docsQuestionnaire": {
+      "title": "Vraag de vragenlijst van de verkoper",
+      "description": "Lekkage, geschillen en verbouwingen staan zelden in de brochure."
+    },
+    "docsVve": {
+      "title": "Upload VvE-stukken",
+      "description": "Notulen, MJOP, reservefonds en bijdrage horen in het dossier vóór je biedt."
+    },
+    "findingFallback": "Bekijk dit aandachtspunt in je documentdossier.",
+    "viewingSignals": {
+      "title": "Neem de aandachtspunten mee naar de bezichtiging"
+    },
+    "askingPrice": {
+      "title": "Vul de vraagprijs in",
+      "description": "Zonder vraagprijs kunnen we geen bodconcept of kosten koper schetsen."
+    },
+    "viewingChecklist": {
+      "title": "Werk de bezichtigingschecklist af",
+      "description": "Vink af wat je gezien hebt en noteer twijfels voordat je een bod voorbereidt."
+    },
+    "bidDraft": {
+      "title": "Bewaar een bodconcept",
+      "description": "Bedrag, voorwaarden en je maximum horen op papier — nog niet in een mail naar de makelaar."
+    },
+    "contractCheck": {
+      "title": "Vergelijk koopsom met je bod",
+      "description": "Een afwijkend bedrag in de akte is een stopteken, geen detail."
+    },
+    "inspectionBook": {
+      "title": "Plan de bouwkundige keuring",
+      "description": "Je zit in {stage}. Zet de deadline van het voorbehoud in je agenda."
+    },
+    "deadlines": {
+      "bedenktijd": {
+        "title": "Bedenktijd loopt af",
+        "description": "Tot en met {date} kun je nog kosteloos terugtreden (Art. 7:2 BW), zonder opgaaf van reden."
+      },
+      "financing": {
+        "title": "Voorbehoud van financiering vervalt",
+        "description": "Regel je hypotheek (afwijzing of toezegging) vóór {date}, anders vervalt je ontbindende voorwaarde."
+      },
+      "inspection": {
+        "title": "Voorbehoud van bouwkundige keuring vervalt",
+        "description": "Plan en verwerk de bouwkundige keuring vóór {date} om nog kosteloos te kunnen ontbinden."
+      }
+    }
+  },
+  "purchase": {
+    "propertyStages": {
+      "saved": "Opgeslagen",
+      "research": "Onderzoeken",
+      "viewing": "Bezichtiging gepland",
+      "visited": "Bezichtigd",
+      "offer": "Bod voorbereiden",
+      "offered": "Bod uitgebracht",
+      "negotiation": "Onderhandeling",
+      "accepted": "Geaccepteerd",
+      "dropped": "Afgevallen",
+      "bought": "Gekocht"
+    },
+    "households": {
+      "single": "Alleen",
+      "couple": "Samen",
+      "family": "Gezin"
+    },
+    "propertyTypes": {
+      "any": "Maakt niet uit",
+      "house": "Grondgebonden",
+      "apartment": "Appartement"
+    }
+  },
+  "personalization": {
+    "preferences": {
+      "quiet": "Rust",
+      "green": "Groen",
+      "energy": "Energie",
+      "mobility": "Mobiliteit",
+      "climate": "Klimaat",
+      "future": "Toekomst"
+    }
+  },
+  "signalInterpretation": {
+    "youMarker": "Jij",
+    "scoreLabels": {
+      "good": "Sterk",
+      "attention": "Aandacht",
+      "neutral": "Gemiddeld"
+    },
+    "unavailable": {
+      "label": "Geen data",
+      "explainer": "Voor dit onderwerp is nu geen betrouwbare open-data bron beschikbaar."
+    },
+    "selfCheck": {
+      "label": "Check dit zelf"
+    },
+    "informational": {
+      "label": "Informatief"
+    },
+    "transitNoun": "Afstand tot OV-halte",
+    "distanceSuffix": "{noun}: {explainer} CBS geeft buurtgemiddelden, geen exacte looproute vanaf de voordeur.",
+    "scoredExplainer": "{label} op onze 0–10 schaal ({score}). {summary}",
+    "domainEmpty": "Geen betrouwbare data voor dit onderwerp.",
+    "air": {
+      "pollutantNo2": "stikstofdioxide (NO₂)",
+      "pollutantPm25": "fijnstof (PM₂·₅)",
+      "labels": {
+        "neutral": "Gemiddeld voor NL",
+        "good": "Onder WHO-richtlijn",
+        "aboveEu": "Boven EU-jaarlimiet",
+        "aboveWho": "Boven WHO-richtlijn"
+      },
+      "explainer": "{value} µg/m³ {pollutant} is een buurtgemiddelde uit RIVM-data — lager is gezonder, maar ventilatie en verkeer op straatniveau tellen ook mee."
+    },
+    "noise": {
+      "labels": {
+        "neutral": "Gemiddeld stadsniveau",
+        "good": "Relatief rustig",
+        "loud": "Relatief luid",
+        "busy": "Drukker straatniveau"
+      },
+      "explainer": "{value} dB Lden is een modelwaarde voor wegverkeersgeluid — luister tijdens de bezichtiging met open ramen op verschillende tijdstippen."
+    },
+    "crime": {
+      "labels": {
+        "neutral": "Rond NL-gemiddelde",
+        "good": "Lager dan NL-gemiddelde",
+        "attention": "Hoger dan NL-gemiddelde"
+      },
+      "unit": "per 1.000",
+      "explainer": "{value} geregistreerde misdrijven per 1.000 inwoners — landelijk gemiddelde circa {average}. Alleen politiecijfers, geen voorspelling voor jouw woning."
+    },
+    "ses": {
+      "labels": {
+        "neutral": "Rond NL-gemiddelde",
+        "below": "Onder NL-gemiddelde",
+        "above": "Boven NL-gemiddelde"
+      },
+      "explainer": "SES-WOA {value} — Nederland ≈ 0. Dit is buurtcontext over welvaart, opleiding en werk, geen oordeel over de woning of je buren."
+    },
+    "distance": {
+      "near": {
+        "label": "Dichtbij",
+        "explainer": "Op loop- of fietsafstand — vaak goed bereikbaar in het dagelijks leven."
+      },
+      "reachable": {
+        "label": "Redelijk bereikbaar",
+        "explainer": "Binnen ongeveer een kilometer — meestal nog met de fiets of een korte rit."
+      },
+      "farther": {
+        "label": "Verder weg",
+        "explainer": "Meer dan een kilometer — plan bewust hoe je er dagelijks komt."
+      },
+      "far": {
+        "label": "Ver",
+        "explainer": "Relatief ver voor dagelijks gebruik — check of dat bij jouw leven past."
+      }
+    },
+    "benchmarks": {
+      "who": "WHO",
+      "eu": "EU",
+      "quiet": "Rustig",
+      "loud": "Luid",
+      "nlAverage": "NL gem.",
+      "nlZero": "NL ≈ 0",
+      "middle": "Midden",
+      "oneKm": "1 km"
+    }
+  },
+  "reportSummary": {
+    "verdict": {
+      "good": {
+        "headline": "De omgeving oogt overwegend gunstig",
+        "summary": "Omgevingsscore {score} / 10. {coverage}."
+      },
+      "attention": {
+        "headline": "Er zijn aandachtspunten in de omgeving",
+        "summary": "{count} punt{plural} vragen extra aandacht naast de omgevingsscore {score} / 10."
+      },
+      "mixed": {
+        "headline": "Gemengd beeld — check de details",
+        "summary": "Omgevingsscore {score} / 10 met zowel pluspunten als aandachtspunten. {coverage}."
+      }
+    }
+  },
+  "deadlines": {
+    "bedenktijd": "Bedenktijd (Art. 7:2 BW) loopt af",
+    "financing": "Voorbehoud van financiering vervalt",
+    "inspection": "Voorbehoud van bouwkundige keuring vervalt"
+  },
+  "professionals": {
+    "taxateur": {
+      "role": "Taxateur",
+      "whatTheyDo": "Bepaalt de marktwaarde voor je hypotheek. De bank leent op basis van de laagste van koopsom en taxatiewaarde.",
+      "howToChoose": [
+        "Kies zelf, ook als de bank of makelaar er één voorstelt — je bent niet verplicht die te gebruiken.",
+        "Moet in het NRVT-register staan (verplicht voor NHG en de meeste hypotheekverstrekkers).",
+        "Vraag een vaste prijs vooraf en een levertijd; bel niet de taxateur van de verkopende makelaar."
+      ],
+      "registryLabel": "Zoek een NRVT-taxateur"
+    },
+    "keurder": {
+      "role": "Bouwkundig keurder",
+      "whatTheyDo": "Beoordeelt de technische staat (dak, fundering, vocht, installaties) vóór je het keuringsvoorbehoud laat vervallen.",
+      "howToChoose": [
+        "Kies een keurder die onafhankelijk is van de verkopende makelaar — geen gedeelde herkomstpremie of vaste doorverwijzing.",
+        "Vraag of het rapport werkt met een puntensysteem/NEN 2767 of vergelijkbare, herleidbare normering.",
+        "Loop zelf mee tijdens de keuring; een goed keurder legt ter plekke uit wat hij ziet.",
+        "Vergelijk offertes van minimaal twee onafhankelijke keurders; er is geen wettelijk openbaar register."
+      ]
+    },
+    "notaris": {
+      "role": "Notaris",
+      "whatTheyDo": "Stelt de leverings- en hypotheekakte op en verzorgt de overdracht. De koper kiest de notaris, niet de verkoper.",
+      "howToChoose": [
+        "Vraag bij minimaal twee kantoren een vaste prijsopgave (all-in tarief) op vóór je kiest.",
+        "Moet ingeschreven staan bij de KNB (Koninklijke Notariële Beroepsorganisatie).",
+        "Vraag naar de conceptakte ruim vóór de passeerdatum, zodat je tijd hebt om vragen te stellen."
+      ],
+      "registryLabel": "Zoek een notaris (KNB)"
+    }
+  },
+  "placeLabels": {
+    "kinds": {
+      "woonplaats": "Woonplaats",
+      "gemeente": "Gemeente",
+      "buurt": "Buurt"
+    }
+  },
+  "map": {
+    "noData": "Geen data",
+    "layers": {
+      "ses": {
+        "label": "SES-WOA",
+        "hint": "Welvaart, opleiding en werk in de buurt",
+        "caveat": "Buurtgemiddelde; geen oordeel over huishoudens of de woning."
+      },
+      "education": {
+        "label": "Opleidingsniveau",
+        "hint": "Aandeel hoogopgeleid (SES-WOA)",
+        "caveat": "Geen schoolkwaliteit of Cito-scores; alleen opleidingsmix in de buurt."
+      },
+      "schools": {
+        "label": "Scholen dichtbij",
+        "hint": "Gemiddelde afstand basisonderwijs",
+        "caveat": "Afstand, geen inspectieresultaten. Kwaliteit: scholenopdekaart.nl."
+      },
+      "crime": {
+        "label": "Misdrijven",
+        "hint": "Geregistreerde misdrijven per 1.000 inwoners",
+        "caveat": "Registratiecijfers; niet alle incidenten worden gemeld."
+      },
+      "woz": {
+        "label": "Gem. WOZ-waarde",
+        "hint": "CBS gemiddelde woningwaarde",
+        "caveat": "WOZ-gemiddelde in de buurt, geen vraagprijs of €/m² uit advertenties."
+      },
+      "children": {
+        "label": "Kinderen",
+        "hint": "Aandeel 0–15 jaar"
+      },
+      "density": {
+        "label": "Bevolkingsdichtheid",
+        "hint": "Inwoners per km²"
+      }
+    },
+    "rasters": {
+      "noise": { "label": "Wegverkeersgeluid", "hint": "RIVM Lden wegverkeer" },
+      "no2": { "label": "NO₂", "hint": "RIVM luchtkwaliteit" },
+      "pm25": { "label": "PM2.5", "hint": "RIVM luchtkwaliteit" }
+    },
+    "scenes": {
+      "buurt": { "label": "Buurt", "hint": "SES, misdaad en demografie" },
+      "scholen": { "label": "Scholen", "hint": "Opleiding en schoolafstand" },
+      "wonen": { "label": "Wonen", "hint": "Gemiddelde WOZ-waarde" },
+      "verkeer": { "label": "Verkeer", "hint": "Geluid en lucht" }
+    },
+    "regions": {
+      "area": "Gebied",
+      "municipality": "Gemeente",
+      "inhabitants": "Inwoners",
+      "sesWoa": "SES-WOA",
+      "highlyEducated": "Hoogopgeleid",
+      "offences": "Misdrijven",
+      "avgWoz": "Gem. WOZ",
+      "primarySchool": "Basisschool",
+      "primarySchoolAvg": "{km} km gemiddeld",
+      "age0to15": "0–15 jaar",
+      "density": "Dichtheid",
+      "per1000": "per 1.000",
+      "perKm2": "per km²"
+    }
+  },
+  "placeCompare": {
+    "inhabitants": "Inwoners",
+    "densityPerKm2": "Dichtheid / km²",
+    "avgWozValue": "Gem. WOZ-waarde",
+    "householdsWithChildren": "Huishoudens m/kinderen",
+    "primarySchoolDistance": "Afstand basisschool"
+  },
+  "onboarding": {
+    "steps": {
+      "mortgage": {
+        "title": "Koopkracht",
+        "lead": "Bereken wat je kunt lenen. Budget en maandlast vullen we daarna automatisch in je woonprofiel."
+      },
+      "wishes": {
+        "title": "Woonwensen",
+        "lead": "Zoekgebied, huishouden en must-haves — de harde grenzen voor je woningcheck."
+      },
+      "priorities": {
+        "title": "Prioriteiten",
+        "lead": "Wat weegt het zwaarst mee in je persoonlijke fit-score?"
+      },
+      "done": {
+        "title": "Klaar",
+        "lead": "Je aankoopomgeving staat klaar. Zoek een adres of open je dashboard."
+      }
+    }
+  },
+  "listingIntake": {
+    "amountsNoAskingPrice": "Er staan bedragen in de tekst, maar geen overtuigende vraagprijs.",
+    "leasehold": "De tekst noemt erfpacht — controleer canon en afkoop.",
+    "ageClause": "Ouderdomsclausule genoemd — laat de notaris dit toelichten.",
+    "asbestos": "Asbest wordt genoemd — vraag om rapport of keuring."
+  },
+  "kenmerken": {
+    "groups": {
+      "overdracht": "Overdracht",
+      "bouw": "Bouw",
+      "oppervlakten": "Oppervlakten",
+      "indeling": "Indeling",
+      "energie": "Energie",
+      "buiten": "Buiten",
+      "kadastraal": "Kadastraal",
+      "overig": "Overig"
+    },
+    "rows": {
+      "status": "Status",
+      "askingPrice": "Vraagprijs",
+      "pricePerM2": "Prijs per m²",
+      "livingArea": "Woonoppervlak",
+      "plot": "Perceel",
+      "volume": "Inhoud",
+      "rooms": "Kamers",
+      "bedrooms": "Slaapkamers",
+      "bathrooms": "Badkamers",
+      "type": "Type",
+      "constructionYear": "Bouwjaar",
+      "energyLabel": "Energielabel",
+      "insulation": "Isolatie",
+      "heating": "Verwarming",
+      "glazing": "Beglazing",
+      "solarPanels": "Zonnepanelen",
+      "outdoorSpace": "Buitenruimte",
+      "gardenOrientation": "Tuinligging",
+      "balcony": "Balkon",
+      "terrace": "Terras",
+      "parking": "Parkeren",
+      "storage": "Berging",
+      "vveContribution": "VvE-bijdrage",
+      "vveReserve": "VvE-reserve",
+      "ownership": "Eigendomssituatie"
+    },
+    "status": {
+      "active": "Te koop",
+      "sold": "Verkocht",
+      "withdrawn": "Ingetrokken",
+      "unknown": "Status onbekend"
+    },
+    "yes": "Ja",
+    "no": "Nee"
+  },
+  "auth": {
+    "emailNotConfirmed": "Bevestig eerst je e-mailadres via de link in je inbox.",
+    "userBanned": "Dit account kan momenteel niet inloggen.",
+    "passkeysDisabled": "Passkeys staan nog uit in dit project. Schakel ze in via Authentication → Passkeys in het Supabase Dashboard (RP ID: woonreality.vercel.app).",
+    "tooManyPasskeys": "Je hebt het maximale aantal passkeys bereikt. Verwijder er eerst één.",
+    "passkeyAlreadyLinked": "Deze passkey staat al op je account.",
+    "passkeyNotLinked": "Deze passkey is niet gekoppeld aan je account. Probeer e-mail.",
+    "challengeExpired": "De passkey-controle is verlopen. Probeer het opnieuw.",
+    "verificationFailed": "Je passkey kon niet worden geverifieerd. Probeer het opnieuw of gebruik e-mail.",
+    "ceremonyAborted": "Passkey-aanvraag geannuleerd. Probeer het opnieuw wanneer je klaar bent.",
+    "invalidDomain": "Deze website mist de juiste passkey-domeininstelling. Controleer de Relying Party ID en origins in Supabase.",
+    "deviceFailed": "Je apparaat of wachtwoordmanager kon de passkey niet afronden. Probeer een andere browser of manager."
+  }
+}

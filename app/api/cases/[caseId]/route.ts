@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { isAcceptedCaseStageInput, normalizeCaseStage } from "@/src/lib/journey";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 
@@ -18,12 +21,14 @@ function bagFromCase(purchaseCase: { properties?: unknown }) {
   return property && typeof property === "object" && "bag_vbo_id" in property ? String((property as { bag_vbo_id: string }).bag_vbo_id) : null;
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ caseId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ caseId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { caseId } = await context.params;
   try {
     const { supabase, user, purchaseCase } = await ownedCase(caseId);
-    if (!user) return NextResponse.json({ error: "Log in om dit dossier te bekijken." }, { status: 401 });
-    if (!purchaseCase) return NextResponse.json({ error: "Dossier niet gevonden." }, { status: 404 });
+    if (!user) return NextResponse.json({ error: t("errors.loginToViewCase") }, { status: 401 });
+    if (!purchaseCase) return NextResponse.json({ error: t("errors.caseNotFound") }, { status: 404 });
     const [{ data: tasks }, { data: documents }, { data: findings }, { data: events }] = await Promise.all([
       supabase.from("case_tasks").select("*").eq("case_id", caseId).eq("user_id", user.id).order("due_at", { ascending: true, nullsFirst: false }),
       supabase.from("case_documents").select("*").eq("case_id", caseId).eq("user_id", user.id).order("created_at", { ascending: false }),
@@ -38,16 +43,18 @@ export async function GET(_request: Request, context: { params: Promise<{ caseId
       events: events ?? [],
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Dossier kon niet worden geladen." }, { status: 502 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.caseLoadFailed") }, { status: 502 });
   }
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ caseId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { caseId } = await context.params;
   try {
     const { supabase, user, purchaseCase } = await ownedCase(caseId);
-    if (!user) return NextResponse.json({ error: "Log in om dit dossier te wijzigen." }, { status: 401 });
-    if (!purchaseCase) return NextResponse.json({ error: "Dossier niet gevonden." }, { status: 404 });
+    if (!user) return NextResponse.json({ error: t("errors.loginToUpdateCase") }, { status: 401 });
+    if (!purchaseCase) return NextResponse.json({ error: t("errors.caseNotFound") }, { status: 404 });
     const body = await request.json() as { title?: string; stage?: string; status?: string };
     if (typeof body.stage === "string" && body.stage.trim() && !isAcceptedCaseStageInput(body.stage)) {
       return NextResponse.json({ error: "Onbekende dossierstap." }, { status: 400 });
@@ -58,7 +65,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ caseI
       p_title: body.title?.trim() || null,
       p_status: body.status || null,
     });
-    if (error || !data) throw error ?? new Error("Dossier kon niet worden bijgewerkt.");
+    if (error || !data) throw error ?? new Error(t("errors.caseUpdateFailed"));
     const updated = data as Record<string, unknown>;
     const stage = normalizeCaseStage(typeof updated.stage === "string" ? updated.stage : purchaseCase.stage);
     await syncEngineTasks(supabase, user.id, await loadTaskEngineInput(supabase, user.id, {
@@ -68,6 +75,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ caseI
     }));
     return NextResponse.json({ case: { ...updated, stage, bagVboId: bagFromCase(purchaseCase) } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Dossier kon niet worden bijgewerkt." }, { status: 502 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.caseUpdateFailed") }, { status: 502 });
   }
 }

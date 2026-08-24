@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Foutmelding",
+  "title": "Er ging iets mis",
+  "routeCopy": "Deze pagina kon niet worden geladen. Probeer het opnieuw — je gegevens blijven bewaard. Lukt het niet, ga dan terug naar de startpagina.",
+  "globalCopy": "De applicatie kon niet worden geladen. Probeer het opnieuw.",
+  "retry": "Opnieuw proberen",
+  "home": "Naar de startpagina",
+  "errorCode": "Foutcode:",
+  "notFoundTitle": "Deze pagina bestaat niet",
+  "notFoundCopy": "Mogelijk is het adres verkeerd getypt of is de woning van de markt gehaald. Zoek hieronder opnieuw op adres, buurt of plaats."
+}

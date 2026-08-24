@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { threeYearToetsinkomen } from "@/src/lib/mortgage/income";
 import type { YearTriple } from "@/src/lib/mortgage/types";
 
@@ -69,7 +71,8 @@ export function thirteenthAmount(input: Pick<SalaryBreakdownInput, "monthlyGross
   return roundEuro(input.thirteenthMonth || input.monthlyGross);
 }
 
-export function buildSalaryBreakdown(input: SalaryBreakdownInput): SalaryBreakdown {
+export function buildSalaryBreakdown(input: SalaryBreakdownInput, locale: Locale = "nl"): SalaryBreakdown {
+  const t = getLibTranslator(locale, "lib-finance");
   const months = roundEuro(input.monthlyGross * 12);
   const holiday = holidayPayAmount(input);
   const allowances = roundEuro(input.monthlyAllowances * 12);
@@ -80,19 +83,19 @@ export function buildSalaryBreakdown(input: SalaryBreakdownInput): SalaryBreakdo
   const grossAnnual = months + holiday + allowances;
   const extras = thirteenthMonth + yearEndPayout + structuralBonus + variableBonus;
   const lines: SalaryLine[] = [];
-  if (months) lines.push({ key: "months", label: "12 × maandsalaris", amount: months });
+  if (months) lines.push({ key: "months", label: t("mortgage.salary.months"), amount: months });
   if (holiday) {
     lines.push({
       key: "holiday",
-      label: input.holidayMode === "custom" ? "Vakantiegeld" : "Vakantiegeld 8%",
+      label: input.holidayMode === "custom" ? t("mortgage.salary.holiday") : t("mortgage.salary.holidayRate"),
       amount: holiday,
     });
   }
-  if (allowances) lines.push({ key: "allowances", label: "Vaste toeslagen", amount: allowances });
-  if (thirteenthMonth) lines.push({ key: "thirteenth", label: "13e maand", amount: thirteenthMonth });
-  if (yearEndPayout) lines.push({ key: "year-end", label: "Eindejaarsuitkering", amount: yearEndPayout });
-  if (structuralBonus) lines.push({ key: "bonus", label: "Vaste bonus", amount: structuralBonus });
-  if (variableBonus) lines.push({ key: "variable", label: "Variabele bonus (3 jaar)", amount: variableBonus });
+  if (allowances) lines.push({ key: "allowances", label: t("mortgage.salary.allowances"), amount: allowances });
+  if (thirteenthMonth) lines.push({ key: "thirteenth", label: t("mortgage.salary.thirteenth"), amount: thirteenthMonth });
+  if (yearEndPayout) lines.push({ key: "year-end", label: t("mortgage.salary.yearEnd"), amount: yearEndPayout });
+  if (structuralBonus) lines.push({ key: "bonus", label: t("mortgage.salary.structuralBonus"), amount: structuralBonus });
+  if (variableBonus) lines.push({ key: "variable", label: t("mortgage.salary.variableBonus"), amount: variableBonus });
   return {
     months,
     holiday,

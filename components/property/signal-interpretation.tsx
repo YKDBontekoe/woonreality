@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { SignalInterpretation } from "@/src/lib/signal-interpretation";
 
 export function SignalInterpretationBlock({
@@ -9,6 +10,7 @@ export function SignalInterpretationBlock({
   compact?: boolean;
   hidePill?: boolean;
 }) {
+  const t = useTranslations("woning");
   return (
     <div className={`signal-interpretation ${compact ? "is-compact" : ""}`}>
       {!hidePill && (
@@ -50,7 +52,7 @@ export function SignalInterpretationBlock({
       )}
       {!compact && (
         <p className="signal-explainer">
-          <strong>Wat betekent dit?</strong> {interpretation.explainer}
+          <strong>{t("interpretation.meaning")}</strong> {interpretation.explainer}
         </p>
       )}
     </div>

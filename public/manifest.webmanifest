@@ -1,0 +1,24 @@
+{
+  "name": "WoonReality — AI-aankoopbegeleider",
+  "short_name": "WoonReality",
+  "description": "Koop een huis zonder makelaar ernaast: open-data woningcheck, documenten, bezichtiging en een bodconcept dat jij zelf verstuurt.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfbfd",
+  "theme_color": "#0a84ff",
+  "lang": "nl",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

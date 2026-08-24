@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import type { Analysis, PersonalPreferences } from "@/src/lib/types";
 
 export const DEFAULT_PREFERENCES: PersonalPreferences = {
@@ -50,6 +52,6 @@ export function calculatePersonalFit(analysis: Analysis, preferences: PersonalPr
   return weight ? Math.round((weighted / weight) * 10) / 10 : null;
 }
 
-export function preferenceLabel(key: keyof PersonalPreferences) {
-  return ({ quiet: "Rust", green: "Groen", energy: "Energie", mobility: "Mobiliteit", climate: "Klimaat", future: "Toekomst" })[key];
+export function preferenceLabel(key: keyof PersonalPreferences, locale: Locale = "nl") {
+  return getLibTranslator(locale, "lib-domain")(`personalization.preferences.${key}`);
 }

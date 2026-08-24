@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { viewingDebriefStage } from "@/src/lib/journey";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { applyWorkflowUpdate } from "@/src/lib/cases/apply-workflow";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { viewingDebriefSchema, isValidBagId } from "@/src/lib/validation/workspace";
@@ -7,24 +10,26 @@ import { viewingDebriefSchema, isValidBagId } from "@/src/lib/validation/workspa
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   try {
     const { bagId } = await context.params;
-    if (!isValidBagId(bagId)) return NextResponse.json({ error: "Ongeldig BAG-adres." }, { status: 400 });
+    if (!isValidBagId(bagId)) return NextResponse.json({ error: t("errors.invalidBagAddress") }, { status: 400 });
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return NextResponse.json({ error: "Log in om je bezichtiging af te ronden." }, { status: 401 });
+    if (!auth.user) return NextResponse.json({ error: t("errors.loginToFinishViewing") }, { status: 401 });
     let raw: unknown;
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json({ error: "Kies of je doorgaat, twijfelt of afhaakt." }, { status: 400 });
+      return NextResponse.json({ error: t("errors.chooseDebriefOutcome") }, { status: 400 });
     }
     const parsed = viewingDebriefSchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: "Kies of je doorgaat, twijfelt of afhaakt." }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: t("errors.chooseDebriefOutcome") }, { status: 400 });
     const result = viewingDebriefStage(parsed.data.decision);
     const now = new Date().toISOString();
     const { data: stageRows, error: stageError } = await supabase.from("saved_properties").update({ stage: result.propertyStage, updated_at: now }).eq("user_id", auth.user.id).eq("bag_vbo_id", bagId).select("bag_vbo_id");
-    if (stageError || !stageRows?.length) return NextResponse.json({ error: "Bewaar de woning eerst, daarna kun je de bezichtiging afronden." }, { status: 400 });
+    if (stageError || !stageRows?.length) return NextResponse.json({ error: t("errors.savePropertyFirst") }, { status: 400 });
 
     let caseId = parsed.data.caseId;
     if (caseId) {
@@ -56,8 +61,8 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     return NextResponse.json({ ...result, caseId: caseId ?? null });
   } catch (error) {
     if (error instanceof Error && error.message === "Supabase is nog niet geconfigureerd.") {
-      return NextResponse.json({ error: "Je bezichtiging kan nog niet worden afgerond, omdat de aankoopomgeving niet met Supabase is gekoppeld." }, { status: 503 });
+      return NextResponse.json({ error: t("errors.viewingStorageUnavailable") }, { status: 503 });
     }
-    return NextResponse.json({ error: "Je bezichtiging kon niet worden afgerond. Probeer het straks opnieuw." }, { status: 502 });
+    return NextResponse.json({ error: t("errors.viewingFinishFailed") }, { status: 502 });
   }
 }

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { loadTaskEngineInput, syncEngineTasks, taskSource } from "@/src/lib/cases/sync-tasks";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { normalizeCaseStage } from "@/src/lib/journey";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 
 export async function PATCH(request: Request, context: { params: Promise<{ caseId: string; findingId: string }> }) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   const { caseId, findingId } = await context.params;
   try {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return NextResponse.json({ error: "Log in om aandachtspunten bij te werken." }, { status: 401 });
+    if (!auth.user) return NextResponse.json({ error: t("errors.loginToUpdateFindings") }, { status: 401 });
     const body = await request.json() as { status?: string };
     if (!body.status || !["open", "resolved", "ignored"].includes(body.status)) return NextResponse.json({ error: "Ongeldige status." }, { status: 400 });
     const { data, error } = await supabase.from("document_findings").update({ status: body.status }).eq("id", findingId).eq("case_id", caseId).eq("user_id", auth.user.id).select("*").single();

@@ -4,6 +4,8 @@
  * - ECB/DNB MIR: nieuwe-contractenrente Nederlandse woninghypotheken (laatste punt + historie).
  * Woonquotes, NHG-grenzen en energietoeslagen blijven jaarlijks in reference.ts (wet/NHG), niet live.
  */
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { AFM_TOETSRENTE_FLOOR, INDICATIVE_RATES, indicativeRate } from "@/src/lib/mortgage/norms-2026";
 import type { FixedPeriodYears, MortgageMarketHistorySeries, MortgageMarketRatePoint, MortgageMarketSnapshot } from "@/src/lib/mortgage/types";
 import { fetchJson, fetchText } from "@/src/lib/http/fetch-json";
@@ -77,18 +79,19 @@ export function parseEcbMirObservation(payload: unknown) {
   return { rate: last.rate, period: last.month };
 }
 
-function fallbackSnapshot(): MortgageMarketSnapshot {
+function fallbackSnapshot(locale: Locale = "nl"): MortgageMarketSnapshot {
+  const t = getLibTranslator(locale, "lib-finance");
   return {
     fetchedAt: new Date().toISOString(),
     toetsrente: {
       rate: AFM_TOETSRENTE_FLOOR,
-      label: "wettelijk minimum 5%",
+      label: t("mortgage.market.statutoryMinimum", { floor: AFM_TOETSRENTE_FLOOR }),
       sourceUrl: AFM_TOETSRENTE_URL,
       live: false,
     },
     indicativeRates: {
       asOf: INDICATIVE_RATES.asOf,
-      source: "ingebouwde indicatie",
+      source: t("mortgage.market.builtInIndication"),
       sourceUrl: "https://data.ecb.europa.eu/data/datasets/MIR",
       live: false,
       byPeriod: {
@@ -147,8 +150,9 @@ function historyFromResult(
   return { period, points: result.value.points };
 }
 
-export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
-  const snapshot = fallbackSnapshot();
+export async function loadMortgageMarket(locale: Locale = "nl"): Promise<MortgageMarketSnapshot> {
+  const t = getLibTranslator(locale, "lib-finance");
+  const snapshot = fallbackSnapshot(locale);
   const [afm, five, ten, long] = await Promise.allSettled([
     fetchAfmToetsrente(),
     fetchEcbSeries(5),
@@ -171,7 +175,7 @@ export async function loadMortgageMarket(): Promise<MortgageMarketSnapshot> {
       || snapshot.indicativeRates.asOf;
     snapshot.indicativeRates = {
       asOf,
-      source: "DNB/ECB nieuwe woninghypotheken (banken)",
+      source: t("mortgage.market.dnbEcbSource"),
       sourceUrl: "https://data.ecb.europa.eu/data/datasets/MIR/MIR.M.NL.B.A2C.O.R.A.2250.EUR.N",
       live: true,
       byPeriod: {

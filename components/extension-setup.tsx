@@ -1,13 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
 import { Puzzle, RefreshCw, Unplug } from "lucide-react";
 import { formatRelativeTime } from "@/src/lib/format-relative";
 
 type TokenRow = { id: string; label: string; created_at: string; last_used_at: string | null };
 
 export function ExtensionSetup() {
+  const t = useTranslations("extensie");
   const [detected, setDetected] = useState(false);
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [message, setMessage] = useState("");
@@ -22,13 +24,13 @@ export function ExtensionSetup() {
       const data = event.data as { type?: string; ok?: boolean; error?: string; version?: string } | null;
       if (data?.type === "woonreality-extension-hello") setDetected(true);
       if (data?.type === "woonreality-extension-paired") {
-        setMessage(data.ok ? "Deze browser is gekoppeld. Open een Funda-advertentie om kenmerken te bewaren." : (data.error ?? "Koppelen is niet gelukt."));
+        setMessage(data.ok ? t("setup.pairedOk") : (data.error ?? t("setup.pairFailed")));
         void loadTokens();
       }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [t]);
 
   async function loadTokens() {
     const response = await fetch("/api/listing/extension/token", { cache: "no-store" });
@@ -65,11 +67,11 @@ export function ExtensionSetup() {
       const body = await response.json() as { token?: string; error?: string };
       if (response.status === 401) {
         setAuthed(false);
-        setMessage("Log in om de extensie te koppelen.");
+        setMessage(t("setup.loginToPair"));
         return;
       }
       if (!response.ok || !body.token) {
-        setMessage(body.error ?? "Koppelcode kon niet worden aangemaakt.");
+        setMessage(body.error ?? t("setup.codeFailed"));
         return;
       }
       setOneTimeToken(body.token);
@@ -87,11 +89,11 @@ export function ExtensionSetup() {
       const response = await fetch(`/api/listing/extension/token/${id}`, { method: "DELETE" });
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) {
-        setMessage(body.error ?? "Deze browserkoppeling kon niet worden ingetrokken.");
+        setMessage(body.error ?? t("setup.revokeFailed"));
         return;
       }
       await loadTokens();
-      setMessage("Browserkoppeling ingetrokken.");
+      setMessage(t("setup.revoked"));
     } finally {
       setBusy(false);
     }
@@ -101,28 +103,28 @@ export function ExtensionSetup() {
     <div className="listing-intake-card">
       <p>
         {detected
-          ? "De WoonReality-extensie is in deze browser gevonden."
-          : "Installeer eerst de extensie. Daarna kun je deze browser koppelen aan je account."}
+          ? t("setup.detected")
+          : t("setup.notDetected")}
       </p>
       {serviceAvailable === false && (
         <p className="extension-setup-note" role="status">
-          Koppelen is in deze omgeving nog niet actief. Je kunt de extensie wel alvast installeren.
+          {t("setup.serviceInactive")}
         </p>
       )}
       {serviceAvailable !== false && authed === false && (
         <p>
-          <Link href="/login">Log in</Link> om kenmerken in je dossier te bewaren.
+          <Link href="/login">{t("setup.loginLink")}</Link> {t("setup.loginPurpose")}
         </p>
       )}
       {serviceAvailable !== false && authed && (
         <>
           <button className="primary-button" type="button" disabled={busy} onClick={() => { void pair(); }}>
             {busy ? <RefreshCw size={14} className="spin" /> : <Puzzle size={14} />}
-            Koppel deze browser
+            {t("setup.pairBrowser")}
           </button>
           {oneTimeToken && (
             <p className="form-message" role="status">
-              Koppelcode (eenmalig): <code>{oneTimeToken}</code>. Als de extensie niet automatisch koppelt, plak je deze code in de popup.
+              {t("setup.oneTimeCodePrefix")} <code>{oneTimeToken}</code>{t("setup.oneTimeCodeSuffix")}
             </p>
           )}
           {tokens.length > 0 && (
@@ -130,11 +132,11 @@ export function ExtensionSetup() {
               {tokens.map((token) => (
                 <li key={token.id}>
                   <span>
-                    <strong>{token.label || "Browser-extensie"}</strong>
-                    <small title={new Date(token.created_at).toLocaleString("nl-NL")}> sinds {formatRelativeTime(token.created_at)}{token.last_used_at ? ` · laatst ${formatRelativeTime(token.last_used_at)}` : ""}</small>
+                    <strong>{token.label || t("setup.defaultTokenLabel")}</strong>
+                    <small title={new Date(token.created_at).toLocaleString("nl-NL")}> {t("setup.since", { time: formatRelativeTime(token.created_at) })}{token.last_used_at ? t("setup.lastUsed", { time: formatRelativeTime(token.last_used_at) }) : ""}</small>
                   </span>
-                  <button className="text-link" type="button" disabled={busy} aria-label={`Koppeling met ${token.label || "deze browser"} intrekken`} onClick={() => { if (window.confirm(`Trek de koppeling met ${token.label || "deze browser"} in?`)) void revoke(token.id); }}>
-                    <Unplug size={14} /> Intrekken
+                  <button className="text-link" type="button" disabled={busy} aria-label={t("setup.revokeAria", { label: token.label || t("setup.defaultBrowserRef") })} onClick={() => { if (window.confirm(t("setup.revokeConfirm", { label: token.label || t("setup.defaultBrowserRef") }))) void revoke(token.id); }}>
+                    <Unplug size={14} /> {t("setup.revoke")}
                   </button>
                 </li>
               ))}

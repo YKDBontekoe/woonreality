@@ -1,15 +1,10 @@
+import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { SignalInterpretationBlock } from "@/components/property/signal-interpretation";
 import { confidenceLabel } from "@/src/lib/analysis/evidence";
 import type { SignalInterpretation } from "@/src/lib/signal-interpretation";
-import type { Severity, Signal } from "@/src/lib/types";
+import type { Signal } from "@/src/lib/types";
 import { formatRelativeTime } from "@/src/lib/format-relative";
-
-const severityLabel: Record<Severity, string> = {
-  good: "Positief",
-  neutral: "Neutraal",
-  attention: "Aandachtspunt",
-};
 
 function evidenceDate(value: string) {
   const date = new Date(value);
@@ -23,6 +18,7 @@ export function SignalCard({
   signal: Signal;
   interpretation?: SignalInterpretation | null;
 }) {
+  const t = useTranslations("woning");
   const score = typeof signal.score === "number" ? Math.round(signal.score * 10) : undefined;
   const value =
     typeof signal.value === "number"
@@ -38,7 +34,7 @@ export function SignalCard({
           {/* The dot alone is colour-only; the hidden text carries the verdict to
               screen readers and colour-blind users. */}
           <span className={`signal-dot ${signal.severity}`} aria-hidden="true" />
-          <span className="sr-only">{severityLabel[signal.severity]}</span>
+          <span className="sr-only">{t(`signalCard.severity.${signal.severity}`)}</span>
           <div>
             <h3>{signal.label}</h3>
             <small className="signal-category">{signal.category}</small>
@@ -46,7 +42,7 @@ export function SignalCard({
         </div>
         <div className="signal-value">
           {unavailable ? (
-            "Geen data"
+            t("noData")
           ) : (
             <>
               {value}
@@ -58,10 +54,10 @@ export function SignalCard({
       {interpretation && <SignalInterpretationBlock interpretation={interpretation} />}
       <p className="signal-summary">{signal.summary}</p>
       <p className="signal-context">
-        <span className="sr-only">Datakwaliteit: </span>{context}
+        <span className="sr-only">{t("signalCard.dataQuality")}</span>{context}
       </p>
       <div className="signal-action">
-        <strong>Check dit:</strong> {signal.action}
+        <strong>{t("checkThis")}</strong> {signal.action}
       </div>
       {!unavailable && typeof signal.score === "number" && (
         // Convey the bar's meaning as a meter rather than pure decoration.
@@ -71,7 +67,7 @@ export function SignalCard({
           aria-valuenow={Math.round(signal.score * 10) / 10}
           aria-valuemin={0}
           aria-valuemax={10}
-          aria-label={`${signal.label}: score ${signal.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} van 10`}
+          aria-label={t("signalCard.meterAria", { label: signal.label, score: signal.score.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) })}
         >
           <div
             className={`signal-bar-fill ${signal.severity}`}
@@ -80,20 +76,20 @@ export function SignalCard({
         </div>
       )}
       <details className="evidence-list">
-        <summary>Waarom zie ik dit?</summary>
+        <summary>{t("signalCard.whySeeing")}</summary>
         <div className="evidence-content">
           {signal.evidence.map((evidence) => (
             <div key={evidence.id}>
               <strong>{evidence.source}</strong>
               {evidence.caveat && <> · {evidence.caveat}</>}{" "}
               <a href={evidence.sourceUrl} target="_blank" rel="noreferrer">
-                <ExternalLink size={9} style={{ verticalAlign: "-1px" }} /> bron
-                <span className="sr-only"> (opent in nieuw tabblad)</span>
+                <ExternalLink size={9} style={{ verticalAlign: "-1px" }} /> {t("signalCard.sourceLink")}
+                <span className="sr-only">{t("signalCard.opensNewTab")}</span>
               </a>
               <small>
-                <span title={new Date(evidence.fetchedAt).toLocaleString("nl-NL")}>Opgehaald {formatRelativeTime(evidence.fetchedAt)}</span>
-                {evidence.sourceUpdatedAt ? ` · brondata ${evidenceDate(evidence.sourceUpdatedAt)}` : ""}
-                {evidence.sourceRecordId ? ` · record ${evidence.sourceRecordId}` : ""}
+                <span title={new Date(evidence.fetchedAt).toLocaleString("nl-NL")}>{t("signalCard.fetchedAt", { time: formatRelativeTime(evidence.fetchedAt) })}</span>
+                {evidence.sourceUpdatedAt ? t("signalCard.sourceData", { date: evidenceDate(evidence.sourceUpdatedAt) }) : ""}
+                {evidence.sourceRecordId ? t("signalCard.recordId", { id: evidence.sourceRecordId }) : ""}
               </small>
             </div>
           ))}

@@ -1,3 +1,6 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+
 /**
  * Pure date-math helpers for the legal/contractual deadlines that a Dutch
  * aankoopmakelaar would normally track for you: bedenktijd (Art. 7:2 BW) and
@@ -139,17 +142,18 @@ export function computePurchaseDeadlines(input: {
   contractSignedAt?: Date | null;
   financingWeeks?: number | null;
   inspectionWeeks?: number | null;
-}): PurchaseDeadline[] {
+}, locale: Locale = "nl"): PurchaseDeadline[] {
+  const t = getLibTranslator(locale, "lib-domain");
   const deadlines: PurchaseDeadline[] = [];
   const receivedAt = input.contractReceivedAt ?? input.contractSignedAt;
   if (receivedAt) {
-    deadlines.push({ key: "bedenktijd", label: "Bedenktijd (Art. 7:2 BW) loopt af", dueAt: computeBedenktijdEnd(receivedAt) });
+    deadlines.push({ key: "bedenktijd", label: t("deadlines.bedenktijd"), dueAt: computeBedenktijdEnd(receivedAt) });
   }
   if (input.contractSignedAt && input.financingWeeks != null && input.financingWeeks > 0) {
-    deadlines.push({ key: "financing", label: "Voorbehoud van financiering vervalt", dueAt: computeConditionDeadline(input.contractSignedAt, input.financingWeeks) });
+    deadlines.push({ key: "financing", label: t("deadlines.financing"), dueAt: computeConditionDeadline(input.contractSignedAt, input.financingWeeks) });
   }
   if (input.contractSignedAt && input.inspectionWeeks != null && input.inspectionWeeks > 0) {
-    deadlines.push({ key: "inspection", label: "Voorbehoud van bouwkundige keuring vervalt", dueAt: computeConditionDeadline(input.contractSignedAt, input.inspectionWeeks) });
+    deadlines.push({ key: "inspection", label: t("deadlines.inspection"), dueAt: computeConditionDeadline(input.contractSignedAt, input.inspectionWeeks) });
   }
   return deadlines;
 }

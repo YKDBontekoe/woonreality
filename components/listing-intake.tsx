@@ -1,14 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
 import { AddressSearch } from "@/components/address-search";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type { AddressSearchResult } from "@/src/lib/types";
 
 export function ListingIntake() {
+  const t = useTranslations("woning");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [askingPrice, setAskingPrice] = useState("");
@@ -41,18 +43,18 @@ export function ListingIntake() {
         const importBody = await importResponse.json() as { facts?: ImportedListingFacts; error?: string };
         if (importResponse.ok && importBody.facts) {
           facts = { ...importBody.facts, ...(price ? { askingPrice: price } : {}) };
-          notice = "Kenmerken volgen via de extensie zodra je de advertentie op Funda opent.";
+          notice = t("intake.followViaExtension");
           setMessage(notice);
         } else {
-          notice = importBody.error ?? "Deze Funda-link kon niet worden gekoppeld.";
+          notice = importBody.error ?? t("funda.linkFailed");
           setMessage(notice);
         }
       } catch {
-        notice = "De Funda-link kon nu niet worden gekoppeld.";
+        notice = t("intake.linkUnavailable");
         setMessage(notice);
       }
     } else if (url) {
-      notice = "Alleen een Funda-advertentielink wordt herkend. Andere links bewaren we als referentie.";
+      notice = t("intake.onlyFundaLinks");
       setMessage(notice);
     }
 
@@ -78,22 +80,22 @@ export function ListingIntake() {
         }),
       });
       if (response.status === 401) {
-        setMessage("We bewaren de gegevens op dit apparaat. Log later in om ze in je dossier te zetten.");
+        setMessage(t("intake.savedLocally"));
         setAuthContinue(true);
         setBusy(false);
         return;
       }
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: undefined })) as { error?: string };
-        if (response.status === 400) setMessage(body.error ?? "Controleer de vraagprijs of bronlink.");
-        else if (response.status === 502) setMessage(body.error ?? "Advertentiegegevens konden nu niet worden opgeslagen. Probeer het later opnieuw.");
-        else setMessage(body.error ?? "Advertentiegegevens konden niet worden opgeslagen.");
+        if (response.status === 400) setMessage(body.error ?? t("intake.checkInput"));
+        else if (response.status === 502) setMessage(body.error ?? t("intake.saveRetry"));
+        else setMessage(body.error ?? t("intake.saveFailed"));
         setBusy(false);
         return;
       }
       goToProperty(result.bagVboId);
     } catch {
-      setMessage("Geen verbinding. Controleer je netwerk en probeer het opnieuw.");
+      setMessage(t("networkError"));
     } finally {
       setBusy(false);
     }
@@ -102,28 +104,28 @@ export function ListingIntake() {
   return (
     <div className="listing-intake">
       <button className="text-link" type="button" onClick={() => setOpen((value) => !value)}>
-        {open ? "Verberg advertentie-invoer" : "Ik heb al een advertentie — plak de Funda-link"}
+        {open ? t("intake.hideToggle") : t("intake.showToggle")}
       </button>
       {open && (
         <div className="listing-intake-card">
           <p>
-            Plak de Funda-link van één woning voor het officiële adres. Vraagprijs en kenmerken komen uit de{" "}
-            <Link href="/extensie">browser-extensie</Link> wanneer je de advertentie opent — we scrapen Funda niet vanaf de server.
+            {t("intake.bodyPrefix")}{" "}
+            <Link href="/extensie">{t("intake.extensionLink")}</Link> {t("intake.bodySuffix")}
           </p>
-          <AddressSearch id="advertentie-adres" submitLabel="Koppel adres" onSelect={setSelected} addressesOnly />
-          {selected && <small className="listing-selected">Gekoppeld: {selected.displayName}</small>}
+          <AddressSearch id="advertentie-adres" submitLabel={t("intake.submitAddress")} onSelect={setSelected} addressesOnly />
+          {selected && <small className="listing-selected">{t("intake.linkedAddress", { name: selected.displayName })}</small>}
           <div className="listing-intake-grid">
-            <label>Vraagprijs (optioneel)<input type="number" inputMode="numeric" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>
-            <label>Funda-link<input type="url" inputMode="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://www.funda.nl/detail/koop/…" /></label>
+            <label>{t("intake.askingPriceOptional")}<input type="number" inputMode="numeric" min="0" step="500" value={askingPrice} onChange={(event) => setAskingPrice(event.target.value)} placeholder="555000" /></label>
+            <label>{t("intake.fundaLink")}<input type="url" inputMode="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://www.funda.nl/detail/koop/…" /></label>
           </div>
           {message && <p className="form-message" role="status">{message}</p>}
           {authContinue && selected && (
             <button className="secondary-button" type="button" onClick={() => goToProperty(selected.bagVboId)}>
-              Toch verder naar de woningcheck
+              {t("intake.continueAnyway")}
             </button>
           )}
           <button className="primary-button" type="button" disabled={!selected || busy} onClick={() => { if (selected) void continueWith(selected); }}>
-            {busy ? "Gegevens bewaren…" : "Start woningcheck met deze gegevens"}
+            {busy ? t("intake.saving") : t("intake.startCheck")}
           </button>
         </div>
       )}

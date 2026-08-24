@@ -1,4 +1,6 @@
 import type { Confidence, Evidence } from "@/src/lib/types";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 
 export function createEvidence(input: {
   id: string;
@@ -17,6 +19,7 @@ export function createEvidence(input: {
   };
 }
 
-export function confidenceLabel(confidence: Confidence) {
-  return confidence === "high" ? "Hoge zekerheid" : confidence === "medium" ? "Indicatie" : "Beperkte data";
+export function confidenceLabel(confidence: Confidence, locale: Locale = "nl") {
+  const t = getLibTranslator(locale, "lib-analysis");
+  return t(`confidence.${confidence}`);
 }

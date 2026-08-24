@@ -1,7 +1,8 @@
 "use client";
 
 import { Link2, Puzzle, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
@@ -51,6 +52,7 @@ export function FundaListingPanel({
   listing: PropertyListing | null;
   onListingChange: (listing: PropertyListing | null) => void;
 }) {
+  const t = useTranslations("woning");
   const [sourceUrl, setSourceUrl] = useState(isFundaListingUrl(listing?.sourceUrl ?? "") ? listing?.sourceUrl ?? "" : "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -72,7 +74,7 @@ export function FundaListingPanel({
   async function importListing() {
     const url = sourceUrl.trim();
     if (!isFundaListingUrl(url)) {
-      setMessage("Plak de link van één Funda-woning, geen zoekresultaat.");
+      setMessage(t("funda.invalidUrl"));
       return;
     }
     setBusy(true);
@@ -85,17 +87,17 @@ export function FundaListingPanel({
       });
       const body = await response.json() as ImportResponse;
       if (!response.ok) {
-        setMessage(body.error ?? "Deze Funda-link kon niet worden gekoppeld.");
+        setMessage(body.error ?? t("funda.linkFailed"));
         return;
       }
       if (body.listing) {
         onListingChange(body.listing);
-        const notice = "Adres uit de Funda-link bewaard. Open de advertentie met de extensie voor vraagprijs en kenmerken.";
+        const notice = t("funda.savedNotice");
         storeDraft(bagId, url, body.listing, body.facts, body.blocked, notice);
         setMessage(notice);
       }
     } catch {
-      setMessage("Geen verbinding. Controleer je netwerk en probeer het opnieuw.");
+      setMessage(t("networkError"));
     } finally {
       setBusy(false);
     }
@@ -105,17 +107,17 @@ export function FundaListingPanel({
     <section className="funda-listing-panel funda-listing-panel-compact" id="advertentie">
       <div className="section-inline-heading">
         <div>
-          <div className="eyebrow"><Link2 size={13} /> advertentie ontbreekt</div>
-          <h2>Koppel Funda voor het AI-oordeel</h2>
+          <div className="eyebrow"><Link2 size={13} /> {t("funda.missingEyebrow")}</div>
+          <h2>{t("funda.heading")}</h2>
           <p>
-            Open data heeft geen vraagprijs of kamers. Plak de link en open de woning daarna met de{" "}
-            <Link href="/extensie">WoonReality-extensie</Link>.
+            {t("funda.bodyPrefix")}{" "}
+            <Link href="/extensie">{t("funda.extensionLink")}</Link>{t("funda.bodySuffix")}
           </p>
         </div>
       </div>
       <div className="listing-intake-card funda-listing-form">
         <label>
-          Funda-advertentielink
+          {t("funda.linkLabel")}
           <input
             type="url"
             value={sourceUrl}
@@ -131,10 +133,10 @@ export function FundaListingPanel({
         <div className="funda-listing-actions">
           <button className="primary-button" type="button" disabled={busy || !sourceUrl.trim()} onClick={() => { void importListing(); }}>
             {busy ? <RefreshCw size={14} className="spin" /> : <Link2 size={14} />}
-            {busy ? "Adres koppelen…" : "Koppel Funda-link"}
+            {busy ? t("funda.linking") : t("funda.linkButton")}
           </button>
           <Link className="secondary-button" href="/extensie">
-            <Puzzle size={14} /> Installeer de extensie
+            <Puzzle size={14} /> {t("funda.installExtension")}
           </Link>
         </div>
         {message && <p className="form-message" role="status">{message}</p>}

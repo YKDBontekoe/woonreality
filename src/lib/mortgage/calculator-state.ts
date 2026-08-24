@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import {
   defaultDgaSource,
   defaultEmploymentSource,
@@ -22,15 +24,13 @@ import type { BuyerProfile } from "@/src/lib/purchase";
 
 export const MORTGAGE_STORAGE_KEY = "woonreality.mortgage.v2";
 
-export const WORK_TYPES: { value: WorkType; label: string }[] = [
-  { value: "permanent", label: "Loondienst" },
-  { value: "temporary", label: "Tijdelijk" },
-  { value: "flex", label: "Flex" },
-  { value: "self_employed", label: "Zelfstandig" },
-  { value: "dga", label: "DGA" },
-  { value: "pension", label: "Pensioen" },
-  { value: "mix", label: "Mix" },
-];
+export function workTypeOptions(locale: Locale = "nl"): { value: WorkType; label: string }[] {
+  const t = getLibTranslator(locale, "lib-finance");
+  const values: WorkType[] = ["permanent", "temporary", "flex", "self_employed", "dga", "pension", "mix"];
+  return values.map((value) => ({ value, label: t(`mortgage.workTypes.${value}`) }));
+}
+
+export const WORK_TYPES = workTypeOptions();
 
 export type PersonForm = {
   workType: WorkType;

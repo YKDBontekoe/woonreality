@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { AiReportStatus, ListingInsights } from "@/src/lib/types";
 
@@ -8,6 +9,7 @@ export function ListingInsightsPanel({
   insights: ListingInsights | null;
   status: AiReportStatus;
 }) {
+  const t = useTranslations("woning");
   const [filter, setFilter] = useState("all");
   const topics = insights ? [...new Set(insights.points.map((point) => point.topic))] : [];
   const topicKey = topics.join("\0");
@@ -23,9 +25,9 @@ export function ListingInsightsPanel({
   if (!insights) {
     return (
       <section className="dash-points" id="omschrijving">
-        <div className="section-kicker">Uit de omschrijving</div>
-        <h2>{status === "failed" ? "Extractie mislukt" : "Advertentietekst wordt gelezen…"}</h2>
-        <p>{status === "failed" ? "De kenmerken blijven beschikbaar." : "CV, VvE, fundering en andere koperpunten komen hier."}</p>
+        <div className="section-kicker">{t("insights.fromDescription")}</div>
+        <h2>{status === "failed" ? t("insights.extractionFailed") : t("insights.readingDescription")}</h2>
+        <p>{status === "failed" ? t("insights.featuresRemain") : t("insights.buyerPointsComing")}</p>
       </section>
     );
   }
@@ -38,10 +40,10 @@ export function ListingInsightsPanel({
     <section className="dash-points" id="omschrijving">
       <div className="section-inline-heading">
         <div>
-          <div className="section-kicker">Uit de omschrijving</div>
+          <div className="section-kicker">{t("insights.fromDescription")}</div>
           <h2>{insights.headline}</h2>
         </div>
-        <span className="coverage-pill">{insights.points.length} punten</span>
+        <span className="coverage-pill">{t("insights.pointsCount", { count: insights.points.length })}</span>
       </div>
       {insights.layout.length > 0 && (
         <div className="dash-layout">
@@ -54,8 +56,8 @@ export function ListingInsightsPanel({
         </div>
       )}
       <div className="dash-point-filters">
-        <button aria-pressed={filter === "all"} className={filter === "all" ? "is-on" : ""} type="button" onClick={() => setFilter("all")}>Alles</button>
-        <button aria-pressed={filter === "attention"} className={filter === "attention" ? "is-on" : ""} type="button" onClick={() => setFilter("attention")}>Let op</button>
+        <button aria-pressed={filter === "all"} className={filter === "all" ? "is-on" : ""} type="button" onClick={() => setFilter("all")}>{t("insights.all")}</button>
+        <button aria-pressed={filter === "attention"} className={filter === "attention" ? "is-on" : ""} type="button" onClick={() => setFilter("attention")}>{t("insights.payAttention")}</button>
         {topics.slice(0, 8).map((topic) => (
           <button aria-pressed={filter === topic} className={filter === topic ? "is-on" : ""} type="button" key={topic} onClick={() => setFilter(topic)}>
             {topic}
@@ -71,7 +73,7 @@ export function ListingInsightsPanel({
               <span>{point.summary}</span>
               {point.quote ? (
                 <details>
-                  <summary>Quote</summary>
+                  <summary>{t("insights.quote")}</summary>
                   <q>{point.quote}</q>
                 </details>
               ) : null}
@@ -79,7 +81,7 @@ export function ListingInsightsPanel({
           ))}
         </ul>
       ) : (
-        <p className="muted-copy" role="status">Geen punten in deze selectie. Kies “Alles” om de hele advertentieanalyse te zien.</p>
+        <p className="muted-copy" role="status">{t("insights.emptySelection")}</p>
       )}
     </section>
   );

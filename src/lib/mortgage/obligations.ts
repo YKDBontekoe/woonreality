@@ -1,3 +1,5 @@
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { studentLoanGrossFactor } from "@/src/lib/mortgage/norms-2026";
 import type { MortgageFinance, MortgageLine } from "@/src/lib/mortgage/types";
 
@@ -9,6 +11,10 @@ export const STUDENT_REMAINING_MONTHLY_FACTOR = {
   sf35: 0.0035,
   legacy: 0.0065,
 } as const;
+
+function numberTag(locale: Locale) {
+  return locale === "en" ? "en-IE" : "nl-NL";
+}
 
 export function studentLoanMonthlyForTest(finance: Pick<MortgageFinance, "studentLoanMonthly" | "studentLoanRemaining" | "studentLoanSf35">) {
   if (finance.studentLoanMonthly > 0) return finance.studentLoanMonthly;
@@ -25,72 +31,76 @@ export function ownFundsTotal(finance: Pick<MortgageFinance, "savings" | "gift" 
   return Math.max(0, finance.savings) + Math.max(0, finance.gift) + Math.max(0, finance.saleEquity);
 }
 
-export function obligationLines(finance: MortgageFinance, toetsrente: number): MortgageLine[] {
+export function obligationLines(finance: MortgageFinance, toetsrente: number, locale: Locale = "nl"): MortgageLine[] {
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = numberTag(locale);
   const studentFactor = studentLoanGrossFactor(toetsrente);
   const studentMonthly = studentLoanMonthlyForTest(finance);
   const items: MortgageLine[] = [];
   if (finance.privateLeaseMonthly > 0) {
     items.push({
       key: "lease",
-      label: "Private lease",
+      label: t("mortgage.obligations.lease.label"),
       amount: -roundEuro(finance.privateLeaseMonthly * 12),
-      note: "Werkelijke maandlast (NHG/BKR OA sinds april 2022, 100% van het contract).",
+      note: t("mortgage.obligations.lease.note"),
     });
   }
   if (studentMonthly > 0) {
     const usedRemaining = finance.studentLoanMonthly <= 0 && finance.studentLoanRemaining > 0;
     items.push({
       key: "student",
-      label: "Studieschuld",
+      label: t("mortgage.obligations.student.label"),
       amount: -roundEuro(usedRemaining ? studentMonthly * 12 : studentMonthly * 12 * studentFactor),
       note: usedRemaining
-        ? `${finance.studentLoanSf35 ? "0,35% (SF35)" : "0,65% (oud stelsel)"} van de restschuld per maand, omdat het DUO-termijnbedrag ontbreekt.`
-        : `DUO-termijnbedrag gebruteerd met factor ${studentFactor.toLocaleString("nl-NL", { minimumFractionDigits: 2 })} (art. 3a).`,
+        ? t("mortgage.obligations.student.noteRemaining", {
+          bracket: finance.studentLoanSf35 ? t("mortgage.obligations.student.bracketSf35") : t("mortgage.obligations.student.bracketLegacy"),
+        })
+        : t("mortgage.obligations.student.noteTerm", { factor: studentFactor.toLocaleString(numTag, { minimumFractionDigits: 2 }) }),
     });
   }
   if (finance.revolvingCreditLimit > 0) {
     items.push({
       key: "revolving",
-      label: "Doorlopend krediet / creditcard",
+      label: t("mortgage.obligations.revolving.label"),
       amount: -roundEuro(finance.revolvingCreditLimit * REVOLVING_MONTHLY_FACTOR * 12),
-      note: `${(REVOLVING_MONTHLY_FACTOR * 100).toFixed(0)}% per maand van de limiet (gangbare BKR RK-toets).`,
+      note: t("mortgage.obligations.revolving.note", { percent: (REVOLVING_MONTHLY_FACTOR * 100).toFixed(0) }),
     });
   }
   if (finance.installmentLoanMonthly > 0) {
     items.push({
       key: "installment",
-      label: "Leningen (auto, persoonlijk)",
+      label: t("mortgage.obligations.installment.label"),
       amount: -roundEuro(finance.installmentLoanMonthly * 12),
-      note: "Werkelijke maandlast van aflopend krediet.",
+      note: t("mortgage.obligations.installment.note"),
     });
   }
   if (finance.groundLeaseMonthly > 0) {
     items.push({
       key: "erfpacht",
-      label: "Erfpachtcanon",
+      label: t("mortgage.obligations.groundLease.label"),
       amount: -roundEuro(finance.groundLeaseMonthly * 12),
-      note: "Jaarlijkse canon telt mee als financiële verplichting bij deze woning.",
+      note: t("mortgage.obligations.groundLease.note"),
     });
   }
   if (finance.alimonyPaidMonthly > 0) {
     items.push({
       key: "alimony",
-      label: "Alimentatie",
+      label: t("mortgage.obligations.alimony.label"),
       amount: -roundEuro(finance.alimonyPaidMonthly * 12),
-      note: "Partner- en kinderalimentatie die je betaalt.",
+      note: t("mortgage.obligations.alimony.note"),
     });
   }
   if (finance.otherMonthlyDebts > 0) {
     items.push({
       key: "other-debts",
-      label: "Overige maandlasten",
+      label: t("mortgage.obligations.otherDebts.label"),
       amount: -roundEuro(finance.otherMonthlyDebts * 12),
-      note: "Overige BKR- of vaste verplichtingen.",
+      note: t("mortgage.obligations.otherDebts.note"),
     });
   }
   return items;
 }
 
-export function obligationAnnualTotal(finance: MortgageFinance, toetsrente: number) {
-  return obligationLines(finance, toetsrente).reduce((sum, line) => sum - line.amount, 0);
+export function obligationAnnualTotal(finance: MortgageFinance, toetsrente: number, locale: Locale = "nl") {
+  return obligationLines(finance, toetsrente, locale).reduce((sum, line) => sum - line.amount, 0);
 }

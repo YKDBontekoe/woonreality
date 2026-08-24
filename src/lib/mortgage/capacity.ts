@@ -1,4 +1,6 @@
 import { estimateBuyerCosts } from "@/src/lib/costs";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { financieringslastPercentage } from "@/src/lib/mortgage/quotes";
 import { incomeFromPerson } from "@/src/lib/mortgage/income";
 import { obligationAnnualTotal, obligationLines, ownFundsTotal } from "@/src/lib/mortgage/obligations";
@@ -7,7 +9,6 @@ import {
   AOW_SINGLE_INCOME_THRESHOLD,
   ENERGY_GUARANTEE_EXTRA,
   LOAN_TERM_YEARS,
-  MORTGAGE_DISCLAIMER,
   MORTGAGE_NORMS_YEAR,
   NHG,
   SINGLE_EXTRA,
@@ -33,8 +34,8 @@ function aowForQuote(applicant: PersonFinance, partner: PersonFinance | null, ap
   return (applicantIncome >= partnerIncome ? applicant : partner).reachedAow;
 }
 
-function euro(value: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(roundEuro(value));
+function intlTag(locale: Locale) {
+  return locale === "en" ? "en-IE" : "nl-NL";
 }
 
 function costProfileFor(finance: MortgageFinance, ownFunds: number, nhg: boolean) {
@@ -117,7 +118,15 @@ function solveMaxPurchasePriceAfterCosts(
   return roundEuro(best);
 }
 
-export function calculateMortgageCapacity(finance: MortgageFinance, property: MortgagePropertyContext = {}, market?: MortgageMarketSnapshot): MortgageCapacity {
+export function calculateMortgageCapacity(
+  finance: MortgageFinance,
+  property: MortgagePropertyContext = {},
+  market?: MortgageMarketSnapshot,
+  locale: Locale = "nl",
+): MortgageCapacity {
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = intlTag(locale);
+  const euro = (value: number) => new Intl.NumberFormat(numTag, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(roundEuro(value));
   const nhg = Boolean(property.nhg);
   const applicantIncome = incomeFromPerson(finance.applicant, { nhg });
   const partnerIncome = finance.partner ? incomeFromPerson(finance.partner, { nhg }) : 0;
@@ -159,19 +168,19 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     buyerCosts: null,
     ownFundsGap: null,
     fit: "unknown",
-    disclaimer: MORTGAGE_DISCLAIMER,
+    disclaimer: t("mortgage.disclaimer"),
   };
 
   if (toetsinkomen <= 0) {
-    return { ...empty, available: false, reason: "Vul minstens één inkomen in om de leenruimte te berekenen.", lines: [] };
+    return { ...empty, available: false, reason: t("mortgage.capacity.noIncome"), lines: [] };
   }
 
   const toetsrente = toetsrenteFor(finance.interestRate, finance.fixedPeriodYears, market?.toetsrente.rate ?? AFM_TOETSRENTE_FLOOR);
   const reachedAow = aowForQuote(finance.applicant, finance.partner, applicantIncome, partnerIncome);
   const woonquote = financieringslastPercentage(toetsinkomen, toetsrente, reachedAow, true);
   const allowedBurden = toetsinkomen * woonquote;
-  const debtLines = obligationLines(finance, toetsrente);
-  const obligationBurden = obligationAnnualTotal(finance, toetsrente);
+  const debtLines = obligationLines(finance, toetsrente, locale);
+  const obligationBurden = obligationAnnualTotal(finance, toetsrente, locale);
   const remainingBurden = Math.max(0, allowedBurden - obligationBurden);
   const incomeLoan = roundEuro(maxPrincipalFromAnnualBurden(remainingBurden, toetsrente));
 
@@ -216,31 +225,90 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
   );
   const monthlyPaymentToets = roundEuro(annuityPayment(displayLoan, toetsrente));
 
+  const rateLabel = (value: number, fractionDigits: number) => value.toLocaleString(numTag, { maximumFractionDigits: fractionDigits });
+
   const lines: MortgageLine[] = [
-    { key: "income", label: "Toetsinkomen", amount: roundEuro(toetsinkomen), note: partnerIncome > 0 ? `Jij ${euro(applicantIncome)} + partner ${euro(partnerIncome)} (tweede inkomen telt 100%).` : "Bruto toetsinkomen volgens de gekozen inkomensbronnen." },
-    { key: "quote", label: `Woonquote ${(woonquote * 100).toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%`, amount: roundEuro(allowedBurden), note: `Bijlage 1 ${reachedAow ? "AOW" : "pre-AOW"}, toetsrente ${toetsrente.toLocaleString("nl-NL", { maximumFractionDigits: 2 })}%.` },
+    {
+      key: "income",
+      label: t("mortgage.capacity.income.label"),
+      amount: roundEuro(toetsinkomen),
+      note: partnerIncome > 0
+        ? t("mortgage.capacity.income.notePartner", { applicant: euro(applicantIncome), partner: euro(partnerIncome) })
+        : t("mortgage.capacity.income.noteSingle"),
+    },
+    {
+      key: "quote",
+      label: t("mortgage.capacity.quote.label", { quote: rateLabel(woonquote * 100, 1) }),
+      amount: roundEuro(allowedBurden),
+      note: reachedAow
+        ? t("mortgage.capacity.quote.noteAow", { rate: rateLabel(toetsrente, 2) })
+        : t("mortgage.capacity.quote.notePreAow", { rate: rateLabel(toetsrente, 2) }),
+    },
     ...debtLines,
   ];
-  lines.push({ key: "income-loan", label: "Maximale hypotheek uit inkomen", amount: incomeLoan, note: `Annuïteit ${LOAN_TERM_YEARS} jaar op de toetsrente.` });
-  if (singleExtra) lines.push({ key: "single", label: "Alleenstaandentoeslag", amount: singleExtra, note: `Buiten de financieringslast tot ${euro(SINGLE_EXTRA)} (art. 3 lid 8).` });
-  if (purchaseExtra) lines.push({ key: "energy-buy", label: `Energielabel ${label ?? ""} extra`.trim(), amount: purchaseExtra, note: band === "apppp" && finance.energyPerformanceGuarantee ? `A++++ met energieprestatiegarantie: ${euro(ENERGY_GUARANTEE_EXTRA)}.` : "Extra leenruimte bij aankoop volgens de tabel 2026." });
-  if (measureExtra) lines.push({ key: "energy-measures", label: "Extra voor verduurzaming", amount: measureExtra, note: "Alleen te gebruiken voor energiebesparende maatregelen; LTV tot 106%." });
+  lines.push({ key: "income-loan", label: t("mortgage.capacity.incomeLoan.label"), amount: incomeLoan, note: t("mortgage.capacity.incomeLoan.note", { years: LOAN_TERM_YEARS }) });
+  if (singleExtra) lines.push({ key: "single", label: t("mortgage.capacity.singleExtra.label"), amount: singleExtra, note: t("mortgage.capacity.singleExtra.note", { amount: euro(SINGLE_EXTRA) }) });
+  if (purchaseExtra) lines.push({
+    key: "energy-buy",
+    label: t("mortgage.capacity.energyPurchase.label", { label: label ?? "" }).trim(),
+    amount: purchaseExtra,
+    note: band === "apppp" && finance.energyPerformanceGuarantee
+      ? t("mortgage.capacity.energyPurchase.noteGuarantee", { amount: euro(ENERGY_GUARANTEE_EXTRA) })
+      : t("mortgage.capacity.energyPurchase.noteTable"),
+  });
+  if (measureExtra) lines.push({ key: "energy-measures", label: t("mortgage.capacity.energyMeasures.label"), amount: measureExtra, note: t("mortgage.capacity.energyMeasures.note") });
   if (finance.fixedPeriodYears < 10 && toetsrente > finance.interestRate) {
-    lines.push({ key: "toetsrente", label: "AFM-toetsrente", amount: 0, note: `Rentevast onder 10 jaar: getoetst tegen ${toetsrente.toLocaleString("nl-NL", { maximumFractionDigits: 2 })}% (${market?.toetsrente.live ? market.toetsrente.label : `minimaal ${AFM_TOETSRENTE_FLOOR}%`}).` });
+    lines.push({
+      key: "toetsrente",
+      label: t("mortgage.capacity.testRate.label"),
+      amount: 0,
+      note: t("mortgage.capacity.testRate.note", {
+        rate: rateLabel(toetsrente, 2),
+        basis: market?.toetsrente.live ? market.toetsrente.label : t("mortgage.capacity.testRate.floorBasis", { floor: AFM_TOETSRENTE_FLOOR }),
+      }),
+    });
   }
   if (nhgCapped) {
     lines.push({
       key: "nhg",
-      label: "NHG-plafond",
+      label: t("mortgage.capacity.nhgCapped.label"),
       amount: roundEuro(maxLoanForPurchase),
-      note: `Inkomensruimte ${euro(uncappedMaxLoanForPurchase)} begrensd tot kostengrens 2026 ${euro(NHG.limit)}${finance.includeEnergyMeasures ? ` (met EBV tot ${euro(NHG.energyLimit)})` : ""}.`,
+      note: t("mortgage.capacity.nhgCapped.note", {
+        room: euro(uncappedMaxLoanForPurchase),
+        year: MORTGAGE_NORMS_YEAR,
+        limit: euro(NHG.limit),
+        ebv: finance.includeEnergyMeasures ? t("mortgage.capacity.nhgCapped.ebv", { limit: euro(NHG.energyLimit) }) : "",
+      }),
     });
   } else if (nhgApplies) {
-    lines.push({ key: "nhg", label: "NHG van toepassing", amount: 0, note: `Onder de kostengrens 2026 ${euro(NHG.limit)}${finance.includeEnergyMeasures ? `, met EBV ${euro(NHG.energyLimit)}` : ""}.` });
+    lines.push({
+      key: "nhg",
+      label: t("mortgage.capacity.nhgApplies.label"),
+      amount: 0,
+      note: t("mortgage.capacity.nhgApplies.note", {
+        year: MORTGAGE_NORMS_YEAR,
+        limit: euro(NHG.limit),
+        ebv: finance.includeEnergyMeasures ? t("mortgage.capacity.nhgApplies.ebv", { limit: euro(NHG.energyLimit) }) : "",
+      }),
+    });
   }
-  lines.push({ key: "max-loan", label: "Maximale hypotheek voor aankoop", amount: roundEuro(maxLoanForPurchase), note: measureExtra > 0 ? `Plus ${euro(measureExtra)} alleen voor verduurzaming (totaal ${euro(maxLoan)}).` : "Som van inkomenslening en aankoopextra’s, na eventueel NHG-plafond." });
-  lines.push({ key: "max-price", label: "Maximale koopsom (vóór kosten koper)", amount: roundEuro(maxPurchasePrice), note: ownFunds > 0 ? `Hypotheek voor aankoop ${euro(maxLoanForPurchase)} + eigen geld ${euro(ownFunds)}. Overdrachtsbelasting, notaris en taxatie moeten hier nog vanaf.` : "Zonder eigen geld is dit gelijk aan de maximale hypotheek (LTV 100%) — kosten koper kunnen hier niet uit betaald worden." });
-  lines.push({ key: "max-price-after-costs", label: "Wat je écht kunt uitgeven", amount: roundEuro(maxPurchasePriceAfterCosts), note: "Koopsom die je eigen geld en hypotheekruimte dekken ná overdrachtsbelasting, notaris, kadaster, taxatie en keuring. Gebruik dit bedrag om te bepalen of een huis past." });
+  lines.push({
+    key: "max-loan",
+    label: t("mortgage.capacity.maxLoan.label"),
+    amount: roundEuro(maxLoanForPurchase),
+    note: measureExtra > 0
+      ? t("mortgage.capacity.maxLoan.noteWithMeasures", { measures: euro(measureExtra), total: euro(maxLoan) })
+      : t("mortgage.capacity.maxLoan.notePlain"),
+  });
+  lines.push({
+    key: "max-price",
+    label: t("mortgage.capacity.maxPrice.label"),
+    amount: roundEuro(maxPurchasePrice),
+    note: ownFunds > 0
+      ? t("mortgage.capacity.maxPrice.noteWithFunds", { loan: euro(maxLoanForPurchase), funds: euro(ownFunds) })
+      : t("mortgage.capacity.maxPrice.noteNoFunds"),
+  });
+  lines.push({ key: "max-price-after-costs", label: t("mortgage.capacity.realBudget.label"), amount: roundEuro(maxPurchasePriceAfterCosts), note: t("mortgage.capacity.realBudget.note") });
 
   const costs = askingPrice > 0
     ? estimateBuyerCosts(askingPrice, {
@@ -252,31 +320,36 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
       budget: askingPrice,
       nhg,
       energySavingMeasures: finance.includeEnergyMeasures,
-    }, financingNeeded === 0 ? 0 : Math.min(askingPrice, maxLoanForPurchase))
+    }, financingNeeded === 0 ? 0 : Math.min(askingPrice, maxLoanForPurchase), undefined, locale)
     : null;
   const buyerCosts = costs?.total ?? null;
   const ownFundsGap = costs && ownFunds >= 0 ? roundEuro(costs.ownFundsNeeded - ownFunds) : ownFunds > 0 && askingPrice > 0 ? roundEuro(financingNeeded - maxLoanForPurchase) : null;
   if (buyerCosts != null) {
-    lines.push({ key: "costs", label: "Kosten koper (indicatie)", amount: buyerCosts, note: "Overdrachtsbelasting, notaris, kadaster, taxatie, keuring en NHG-provisie indien van toepassing. Zie het kostenoverzicht voor aftrekbaarheid." });
+    lines.push({ key: "costs", label: t("mortgage.capacity.buyerCosts.label"), amount: buyerCosts, note: t("mortgage.capacity.buyerCosts.note") });
   }
   if (ownFunds > 0) {
-    lines.push({ key: "own-funds", label: "Eigen geld", amount: roundEuro(ownFunds), note: [finance.savings && "spaargeld", finance.gift && "schenking", finance.saleEquity && "overwaarde"].filter(Boolean).join(", ") || "Inleg voor koopsom en kosten koper." });
+    const sourceParts = [
+      finance.savings && t("mortgage.capacity.ownFunds.sources.savings"),
+      finance.gift && t("mortgage.capacity.ownFunds.sources.gift"),
+      finance.saleEquity && t("mortgage.capacity.ownFunds.sources.saleEquity"),
+    ].filter(Boolean);
+    lines.push({ key: "own-funds", label: t("mortgage.capacity.ownFunds.label"), amount: roundEuro(ownFunds), note: sourceParts.join(", ") || t("mortgage.capacity.ownFunds.noteFallback") });
   }
   if (ownFundsGap != null) {
     lines.push({
       key: "funds-gap",
-      label: ownFundsGap > 0 ? "Tekort eigen geld" : "Ruimte in eigen geld",
+      label: ownFundsGap > 0 ? t("mortgage.capacity.fundsGap.shortfallLabel") : t("mortgage.capacity.fundsGap.surplusLabel"),
       // `ownFundsGap` is signed for downstream affordability calculations:
       // negative means a surplus. A line labelled “Ruimte” must never show a
       // negative euro amount to a buyer.
       amount: ownFundsGap > 0 ? ownFundsGap : Math.abs(ownFundsGap),
-      note: ownFundsGap > 0 ? "Kosten koper plus het deel van de koopsom dat buiten je maximale hypotheek valt." : "Je inleg dekt de kosten koper en eventuele rest van de koopsom (tot LTV 100%).",
+      note: ownFundsGap > 0 ? t("mortgage.capacity.fundsGap.shortfallNote") : t("mortgage.capacity.fundsGap.surplusNote"),
     });
   }
 
   const selfEmployed = [...finance.applicant.sources, ...(finance.partner?.sources ?? [])].some((source) => source.kind === "self_employed" || source.kind === "dga");
   if (selfEmployed) {
-    lines.push({ key: "ikv", label: "Ondernemer", amount: 0, note: "Toetsinkomen = 3-jaarsgemiddelde, gemaximeerd op het laatste jaar (NHG IKV). De bank vraagt meestal een Inkomensverklaring Ondernemer." });
+    lines.push({ key: "ikv", label: t("mortgage.capacity.entrepreneur.label"), amount: 0, note: t("mortgage.capacity.entrepreneur.note") });
   }
 
   return {
@@ -315,7 +388,7 @@ export function calculateMortgageCapacity(finance: MortgageFinance, property: Mo
     ownFundsGap,
     fit,
     lines,
-    disclaimer: MORTGAGE_DISCLAIMER,
+    disclaimer: t("mortgage.disclaimer"),
   };
 }
 
@@ -352,9 +425,10 @@ function pushScenario(
   finance: MortgageFinance,
   property: MortgagePropertyContext,
   market: MortgageMarketSnapshot | undefined,
+  locale: Locale,
   note?: string,
 ) {
-  const result = calculateMortgageCapacity(finance, property, market);
+  const result = calculateMortgageCapacity(finance, property, market, locale);
   if (!result.available) return;
   scenarios.push({
     id,
@@ -371,14 +445,19 @@ export function buildMortgageScenarios(
   finance: MortgageFinance,
   property: MortgagePropertyContext = {},
   market?: MortgageMarketSnapshot,
+  locale: Locale = "nl",
 ): MortgageScenario[] {
-  const baselineResult = calculateMortgageCapacity(finance, property, market);
+  const t = getLibTranslator(locale, "lib-finance");
+  const numTag = intlTag(locale);
+  const baselineResult = calculateMortgageCapacity(finance, property, market, locale);
   if (!baselineResult.available) return [];
+
+  const euro = (value: number) => new Intl.NumberFormat(numTag, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 
   const baseline = baselineResult.maxLoanForPurchase;
   const scenarios: MortgageScenario[] = [{
     id: "current",
-    label: "Huidige situatie",
+    label: t("mortgage.scenarios.current"),
     maxLoanForPurchase: baseline,
     maxPurchasePrice: baselineResult.maxPurchasePrice,
     delta: 0,
@@ -388,12 +467,13 @@ export function buildMortgageScenarios(
     pushScenario(
       scenarios,
       "no-lease",
-      "Zonder private lease",
+      t("mortgage.scenarios.noLeaseLabel"),
       baseline,
       { ...finance, privateLeaseMonthly: 0 },
       property,
       market,
-      `Nu ${euro(finance.privateLeaseMonthly)} per maand in de toets.`,
+      locale,
+      t("mortgage.scenarios.noLeaseNote", { monthly: euro(finance.privateLeaseMonthly) }),
     );
   }
 
@@ -401,11 +481,12 @@ export function buildMortgageScenarios(
     pushScenario(
       scenarios,
       "no-debts",
-      "Zonder schulden of vaste lasten",
+      t("mortgage.scenarios.noDebtsLabel"),
       baseline,
       clearDebts(finance),
       property,
       market,
+      locale,
     );
   }
 
@@ -415,11 +496,12 @@ export function buildMortgageScenarios(
     pushScenario(
       scenarios,
       `energy-${label.toLowerCase()}`,
-      `Energielabel ${label}`,
+      t("mortgage.scenarios.energyLabel", { label }),
       baseline,
       finance,
       { ...property, energyLabel: label },
       market,
+      locale,
     );
   }
 
@@ -429,37 +511,40 @@ export function buildMortgageScenarios(
     pushScenario(
       scenarios,
       "rate-down",
-      `Rente ${rateDown.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`,
+      t("mortgage.scenarios.rateDownLabel", { rate: rateDown.toLocaleString(numTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }),
       baseline,
       { ...finance, interestRate: rateDown },
       property,
       market,
-      "Halve procent lager dan je huidige toetsrente-input.",
+      locale,
+      t("mortgage.scenarios.rateDownNote"),
     );
   }
   pushScenario(
     scenarios,
     "rate-up",
-    `Rente ${rateUp.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`,
+    t("mortgage.scenarios.rateUpLabel", { rate: rateUp.toLocaleString(numTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }),
     baseline,
     { ...finance, interestRate: rateUp },
     property,
     market,
-    "Halve procent hoger dan je huidige toetsrente-input.",
+    locale,
+    t("mortgage.scenarios.rateUpNote"),
   );
 
   const nhgOn = Boolean(property.nhg);
   pushScenario(
     scenarios,
     nhgOn ? "no-nhg" : "with-nhg",
-    nhgOn ? "Zonder NHG-plafond" : "Met NHG-plafond",
+    nhgOn ? t("mortgage.scenarios.nhgWithoutLabel") : t("mortgage.scenarios.nhgWithLabel"),
     baseline,
     finance,
     { ...property, nhg: !nhgOn },
     market,
+    locale,
     nhgOn
-      ? `Kostengrens 2026 ${euro(NHG.limit)}; inkomensruimte kan hoger liggen.`
-      : `Begrenst op ${euro(NHG.limit)} (of ${euro(NHG.energyLimit)} met EBV).`,
+      ? t("mortgage.scenarios.nhgWithoutNote", { year: MORTGAGE_NORMS_YEAR, limit: euro(NHG.limit) })
+      : t("mortgage.scenarios.nhgWithNote", { limit: euro(NHG.limit), energyLimit: euro(NHG.energyLimit) }),
   );
 
   return scenarios;

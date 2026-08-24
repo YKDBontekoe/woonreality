@@ -11,6 +11,9 @@ import {
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
 import { requireSearchLogin } from "@/src/lib/search-auth";
+import type { Locale } from "@/src/lib/i18n/config";
+import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { userListingImportBodySchema } from "@/src/lib/validation/workspace";
 
@@ -23,16 +26,18 @@ async function currentUser() {
 }
 
 export async function POST(request: Request) {
+  const locale: Locale = getLocaleFromRequest(request);
+  const t = getLibTranslator(locale, "lib-api");
   let raw: unknown;
   try {
     raw = await request.json();
   } catch {
-    return NextResponse.json({ error: "Plak een geldige Funda-advertentielink." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.pasteFundaLink") }, { status: 400 });
   }
   const parsed = userListingImportBodySchema.safeParse(raw);
   const sourceUrl = parsed.success ? normalizeFundaListingUrl(parsed.data.sourceUrl) : null;
   if (!parsed.success || !isHttpUrl(parsed.data.sourceUrl) || !sourceUrl) {
-    return NextResponse.json({ error: "Dit is geen Funda-advertentielink. Plak de link van één woning, geen zoekresultaat." }, { status: 400 });
+    return NextResponse.json({ error: t("errors.notFundaListing") }, { status: 400 });
   }
 
   const denied = await requireSearchLogin();
@@ -44,20 +49,20 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof ListingImportError
       ? error.message
-      : "Deze Funda-link kon niet worden herkend.";
+      : t("errors.fundaLinkUnrecognized");
     return NextResponse.json({ error: message }, { status: error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 502 });
   }
 
   const query = addressQueryFromFacts(inspected.facts, inspected.sourceUrl)?.trim();
   if (!query) {
-    return NextResponse.json({ error: "We konden geen adres uit deze Funda-link halen. Zoek het adres handmatig." }, { status: 422 });
+    return NextResponse.json({ error: t("errors.noAddressInLink") }, { status: 422 });
   }
 
   let results;
   try {
     results = await searchAddresses(query, 6);
   } catch {
-    return NextResponse.json({ error: "Het adres uit de advertentie kon nu niet worden opgezocht. Probeer het later of zoek op adres." }, { status: 502 });
+    return NextResponse.json({ error: t("errors.addressLookupFailed") }, { status: 502 });
   }
   const address = results[0];
   if (!address) {

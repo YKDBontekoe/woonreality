@@ -8,6 +8,7 @@
   Semantic only: ok / warn / attention (never for brand chrome)
 */
 :root {
+  color-scheme: light;
   --ink: #1d1d1f;
   --ink-soft: #6e6e73;
   /* #75757c keeps the light-gray hierarchy but passes WCAG AA (4.5:1) on white;
@@ -31,14 +32,33 @@
   --radius-control: 12px;
   --radius-card: 16px;
   --radius-pill: 999px;
+  /* Derived interaction & feedback tokens. Defined once here so the dark
+     theme in dark.css only has to override values, not invent rules. */
+  --accent-hover: #0077ed;
+  --accent-border: #b9d4f0;
+  --ink-hover: #3a3a3c;
+  /* Text placed on ink-filled controls; flips with the palette. */
+  --inverse: #ffffff;
+  --attention-soft: #fff5ed;
+  --attention-border: #efd6cc;
+  --warn-deep: #8a5a16;
+  --warn-border: #ead9a8;
+  --danger: #b42318;
+  /* Frosted surfaces that sit on top of scrolling content. */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.92);
+  /* Static map placeholder illustrations. */
+  --map-bg: #e7eef7;
+  --map-line: #b7c7db;
+  --map-line-soft: #c5d3e4;
   /* Compat aliases — prefer the names above in new CSS */
   --moss: var(--ink);
   --moss-bright: var(--accent);
   --moss-focus: var(--accent-focus);
   --mint: var(--accent-soft);
-  --mint-soft: #f4f8ff;
-  --mint-pale: #edf5ff;
-  --mint-border: #dbe8fa;
+  --mint-soft: var(--surface-accent);
+  --mint-pale: var(--surface-accent);
+  --mint-border: var(--accent-border);
   --coral: var(--attention);
   --coral-deep: var(--attention-deep);
   --yellow: var(--warn);

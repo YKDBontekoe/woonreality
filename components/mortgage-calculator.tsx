@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/src/lib/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { Calculator, ChevronDown, CircleAlert, Landmark, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -36,29 +37,31 @@ import { formatEuro } from "@/src/lib/purchase";
 import { MortgageCostInsight, type CostInsightOptions } from "@/components/mortgage-cost-insight";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 
-const DEBT_FIELDS: { key: DebtKey; label: string; add: string; hint?: string }[] = [
-  { key: "lease", label: "Private lease per maand", add: "Private lease", hint: "De hele maandlast telt mee." },
-  { key: "student", label: "Studieschuld", add: "Studieschuld" },
-  { key: "installment", label: "Andere lening per maand", add: "Lening" },
-  { key: "revolving", label: "Creditcard- of kredietlimiet", add: "Creditcardlimiet", hint: "Ook als je die niet gebruikt." },
-  { key: "erfpacht", label: "Erfpacht per maand", add: "Erfpacht" },
-  { key: "alimony", label: "Alimentatie die je betaalt", add: "Alimentatie" },
-  { key: "other", label: "Overige maandlasten", add: "Overige last" },
+type Translator = ReturnType<typeof useTranslations>;
+
+const DEBT_FIELDS: { key: DebtKey; labelKey: string; addKey: string; hintKey?: string }[] = [
+  { key: "lease", labelKey: "debtLeaseLabel", addKey: "debtLeaseAdd", hintKey: "debtLeaseHint" },
+  { key: "student", labelKey: "debtStudentLabel", addKey: "debtStudentAdd" },
+  { key: "installment", labelKey: "debtInstallmentLabel", addKey: "debtInstallmentAdd" },
+  { key: "revolving", labelKey: "debtRevolvingLabel", addKey: "debtRevolvingAdd", hintKey: "debtRevolvingHint" },
+  { key: "erfpacht", labelKey: "debtErfpachtLabel", addKey: "debtErfpachtAdd" },
+  { key: "alimony", labelKey: "debtAlimonyLabel", addKey: "debtAlimonyAdd" },
+  { key: "other", labelKey: "debtOtherLabel", addKey: "debtOtherAdd" },
 ];
 
 type DebtKey = "lease" | "student" | "installment" | "revolving" | "erfpacht" | "alimony" | "other";
 const PRIMARY_WORK: WorkType[] = ["permanent", "temporary", "flex", "self_employed"];
 const EXTRA_WORK: WorkType[] = ["dga", "pension", "mix"];
 
-function debtSummary(state: CalculatorState) {
+function debtSummary(state: CalculatorState, t: Translator) {
   const parts: string[] = [];
-  if (state.privateLeaseMonthly) parts.push(`lease ${formatEuro(state.privateLeaseMonthly)}/mnd`);
-  if (state.studentLoanMonthly || state.studentLoanRemaining) parts.push("studieschuld");
-  if (state.revolvingCreditLimit) parts.push("kredietlimiet");
-  if (state.installmentLoanMonthly) parts.push("leningen");
-  if (state.groundLeaseMonthly) parts.push("erfpacht");
-  if (state.alimonyPaidMonthly) parts.push("alimentatie");
-  if (state.otherMonthlyDebts) parts.push("overig");
+  if (state.privateLeaseMonthly) parts.push(t("summaryLease", { amount: formatEuro(state.privateLeaseMonthly) }));
+  if (state.studentLoanMonthly || state.studentLoanRemaining) parts.push(t("summaryStudent"));
+  if (state.revolvingCreditLimit) parts.push(t("summaryCredit"));
+  if (state.installmentLoanMonthly) parts.push(t("summaryLoans"));
+  if (state.groundLeaseMonthly) parts.push(t("summaryErfpacht"));
+  if (state.alimonyPaidMonthly) parts.push(t("summaryAlimony"));
+  if (state.otherMonthlyDebts) parts.push(t("summaryOther"));
   return parts;
 }
 
@@ -84,19 +87,19 @@ function clearDebt(state: CalculatorState, key: DebtKey): CalculatorState {
   return { ...state, otherMonthlyDebts: 0 };
 }
 
-function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurchasePrice: number; askingPrice: number }) {
+function fitCopy(result: { fit: "unknown" | "fits" | "tight" | "over"; maxPurchasePrice: number; askingPrice: number }, t: Translator) {
   if (result.fit === "unknown") return null;
   const gap = Math.round(result.askingPrice - result.maxPurchasePrice);
   if (result.fit === "fits") {
     const room = Math.max(0, -gap);
     return room > 0
-      ? `Deze vraagprijs past. Je hebt ongeveer ${formatEuro(room)} speelruimte tot je maximale koopsom.`
-      : "Deze vraagprijs past binnen de berekende leenruimte.";
+      ? t("fitFitsRoom", { room: formatEuro(room) })
+      : t("fitFits");
   }
   if (result.fit === "tight") {
-    return `Krap: je komt ongeveer ${formatEuro(gap)} tekort. Extra eigen geld of een lager bod kan het gat dichten. Maximale koopsom: ${formatEuro(result.maxPurchasePrice)}.`;
+    return t("fitTight", { gap: formatEuro(gap), max: formatEuro(result.maxPurchasePrice) });
   }
-  return `Dit huis kost ${formatEuro(result.askingPrice)}. Volgens deze schets kun je tot ${formatEuro(result.maxPurchasePrice)} gaan — ${formatEuro(gap)} tekort.`;
+  return t("fitOver", { price: formatEuro(result.askingPrice), max: formatEuro(result.maxPurchasePrice), gap: formatEuro(gap) });
 }
 
 export function MortgageCalculator({
@@ -113,6 +116,7 @@ export function MortgageCalculator({
   onCapacityChange?: (ready: boolean) => void;
 }) {
   const onboarding = variant === "onboarding";
+  const t = useTranslations("hypotheek");
   const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
   const onCapacityChangeRef = useRef(onCapacityChange);
   onCapacityChangeRef.current = onCapacityChange;
@@ -366,7 +370,7 @@ export function MortgageCalculator({
 
   const marketRate = marketIndicativeRate(market, state.fixedPeriodYears, state.nhg);
   const youngSelfEmployed = [state.applicant, state.withPartner ? state.partner : null].some((person) => person && (person.workType === "self_employed" || person.workType === "dga" || person.workType === "mix") && person.monthsActive < 12);
-  const debts = debtSummary(state);
+  const debts = debtSummary(state, t);
   const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
   const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
@@ -374,23 +378,23 @@ export function MortgageCalculator({
 
   return <>
     <div className="mortgage-account-bar" role="status">
-      {saveStatus === "saved" && <span><ShieldCheck size={14} /> Opgeslagen op je account{onboarding ? "" : <> · <Link href="/mijn-aankoop">Open aankoopdashboard</Link></>}</span>}
-      {saveStatus === "saving" && <span>Hypotheek opslaan…</span>}
-      {saveStatus === "local" && <span>Op dit apparaat bewaard{onboarding ? "" : <> · <Link href="/mijn-aankoop">Bekijk dashboard</Link></>}</span>}
-      {saveStatus === "login" && <span><CircleAlert size={14} /> <Link href="/login">Log in</Link> om je hypotheek op je account te bewaren.</span>}
-      {saveStatus === "idle" && !authenticated && <span><Link href="/login">Log in</Link> om je berekening te bewaren tussen apparaten.</span>}
+      {saveStatus === "saved" && <span><ShieldCheck size={14} /> {t("savedAccount")}{onboarding ? "" : <> · <Link href="/mijn-aankoop">{t("openDashboard")}</Link></>}</span>}
+      {saveStatus === "saving" && <span>{t("saving")}</span>}
+      {saveStatus === "local" && <span>{t("savedLocal")}{onboarding ? "" : <> · <Link href="/mijn-aankoop">{t("viewDashboard")}</Link></>}</span>}
+      {saveStatus === "login" && <span><CircleAlert size={14} /> <Link href="/login">{t("login")}</Link> {t("loginToSave")}</span>}
+      {saveStatus === "idle" && !authenticated && <span><Link href="/login">{t("login")}</Link> {t("loginToSync")}</span>}
     </div>
     <div className={`mortgage-layout${onboarding ? " mortgage-layout-onboarding" : ""}`}>
       <section className="mortgage-form-card">
-        <div className="section-kicker">Stap 1 · inkomen</div>
-        <h2>Wat is je inkomen?</h2>
-        <p className="mortgage-lead">Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee; 13e maand en bonus kun je erbij optellen.</p>
-        <div className="work-chips" role="group" aria-label="Kopers">
-          <button type="button" className={!state.withPartner ? "active" : undefined} aria-pressed={!state.withPartner} onClick={() => patch("withPartner", false)}>Alleen</button>
-          <button type="button" className={state.withPartner ? "active" : undefined} aria-pressed={state.withPartner} onClick={() => patch("withPartner", true)}>Met partner</button>
+        <div className="section-kicker">{t("step1Kicker")}</div>
+        <h2>{t("step1Title")}</h2>
+        <p className="mortgage-lead">{t("step1Lead")}</p>
+        <div className="work-chips" role="group" aria-label={t("buyersAria")}>
+          <button type="button" className={!state.withPartner ? "active" : undefined} aria-pressed={!state.withPartner} onClick={() => patch("withPartner", false)}>{t("alone")}</button>
+          <button type="button" className={state.withPartner ? "active" : undefined} aria-pressed={state.withPartner} onClick={() => patch("withPartner", true)}>{t("withPartner")}</button>
         </div>
         <PersonFields
-          title={state.withPartner ? "Jij" : undefined}
+          title={state.withPartner ? t("you") : undefined}
           person={state.applicant}
           workOptions={workOptions}
           showMoreWork={showMoreWork}
@@ -400,7 +404,7 @@ export function MortgageCalculator({
           onChange={(applicant) => patch("applicant", applicant)}
         />
         {state.withPartner && <PersonFields
-          title="Partner"
+          title={t("partner")}
           person={state.partner}
           workOptions={workOptions}
           showMoreWork={showMoreWork}
@@ -409,18 +413,18 @@ export function MortgageCalculator({
           onExtras={() => setShowIncomeExtras(true)}
           onChange={(partner) => patch("partner", partner)}
         />}
-        {youngSelfEmployed && <p className="mortgage-warning"><CircleAlert size={14} /> Onder 12 maanden ondernemerschap nemen de meeste banken dit inkomen niet of nauwelijks mee.</p>}
+        {youngSelfEmployed && <p className="mortgage-warning"><CircleAlert size={14} /> {t("selfEmployedWarning")}</p>}
 
         <div className="mortgage-block">
-          <div className="section-kicker">Stap 2 · hypotheek</div>
-          <h3>Rente en NHG</h3>
-          <p className="mortgage-hint">Kies je rentevastperiode. De startrente volgt actuele DNB/ECB-cijfers; pas die aan als je een offerte hebt.</p>
-          <div className="work-chips mortgage-period-chips" role="group" aria-label="Rentevastperiode">
+          <div className="section-kicker">{t("step2Kicker")}</div>
+          <h3>{t("step2Title")}</h3>
+          <p className="mortgage-hint">{t("step2Hint")}</p>
+          <div className="work-chips mortgage-period-chips" role="group" aria-label={t("periodAria")}>
             {([5, 10, 20, 30] as FixedPeriodYears[]).map((period) => {
               const periodRate = marketIndicativeRate(market, period, state.nhg);
               return (
                 <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} aria-pressed={state.fixedPeriodYears === period} onClick={() => setPeriod(period)}>
-                  <span>{period} jaar</span>
+                  <span>{t("yearsLabel", { period })}</span>
                   <small>{periodRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</small>
                 </button>
               );
@@ -428,13 +432,13 @@ export function MortgageCalculator({
           </div>
           <div className="mortgage-rate-row">
             <span className="mortgage-rate-label">
-              Rente
-              <small>{state.rateTouched ? "Handmatig aangepast" : market?.indicativeRates.live ? `Marktrente ${market.indicativeRates.asOf}` : "Indicatie"}</small>
+              {t("rateLabel")}
+              <small>{state.rateTouched ? t("rateManual") : market?.indicativeRates.live ? t("rateMarketAsOf", { asOf: market.indicativeRates.asOf }) : t("rateIndication")}</small>
             </span>
             <div className="mortgage-rate-controls">
-              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(-0.1)} aria-label="Rente 0,1 procentpunt lager">−</button>
+              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(-0.1)} aria-label={t("rateDownAria")}>−</button>
               <label className="mortgage-rate-input">
-                <span className="sr-only">Rente in procent</span>
+                <span className="sr-only">{t("rateSrOnly")}</span>
                 <input
                   type="number"
                   min="0"
@@ -446,139 +450,140 @@ export function MortgageCalculator({
                 />
                 <em>%</em>
               </label>
-              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(0.1)} aria-label="Rente 0,1 procentpunt hoger">+</button>
+              <button type="button" className="mortgage-rate-nudge" onClick={() => nudgeRate(0.1)} aria-label={t("rateUpAria")}>+</button>
             </div>
           </div>
           {(state.rateTouched || Math.abs(state.interestRate - marketRate) > 0.001) && (
             <button type="button" className="text-link mortgage-toggle" onClick={useMarketRate}>
-              Gebruik marktrente ({marketRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)
+              {t("useMarketRate", { rate: marketRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}
             </button>
           )}
-          <p className="mortgage-hint">{rateHint(market, state.fixedPeriodYears, state.nhg)}</p>
-          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> NHG: vaak iets lagere rente, alleen tot {formatEuro(NHG.limit)}</label>
-          <div className="work-chips" role="group" aria-label="Aflosvorm">
-            <button type="button" className={state.repayment === "annuity" ? "active" : undefined} aria-pressed={state.repayment === "annuity"} onClick={() => patch("repayment", "annuity")}>Annuïteit</button>
-            <button type="button" className={state.repayment === "linear" ? "active" : undefined} aria-pressed={state.repayment === "linear"} onClick={() => patch("repayment", "linear")}>Lineair</button>
+          <p className="mortgage-hint">{rateHint(market, state.fixedPeriodYears, state.nhg, t)}</p>
+          <label className="mortgage-check"><input type="checkbox" checked={state.nhg} onChange={(event) => setNhg(event.target.checked)} /> {t("nhgCheck", { limit: formatEuro(NHG.limit) })}</label>
+          <div className="work-chips" role="group" aria-label={t("repaymentAria")}>
+            <button type="button" className={state.repayment === "annuity" ? "active" : undefined} aria-pressed={state.repayment === "annuity"} onClick={() => patch("repayment", "annuity")}>{t("annuity")}</button>
+            <button type="button" className={state.repayment === "linear" ? "active" : undefined} aria-pressed={state.repayment === "linear"} onClick={() => patch("repayment", "linear")}>{t("linear")}</button>
           </div>
         </div>
 
         <Foldable
-          kicker="Optioneel · eigen geld"
-          title={funds > 0 ? formatEuro(funds) : "Spaargeld of schenking"}
+          kicker={t("fundsKicker")}
+          title={funds > 0 ? formatEuro(funds) : t("fundsFallbackTitle")}
           open={openFunds}
           onToggle={() => setOpenFunds((value) => !value)}
         >
-          <p className="mortgage-hint">Dit verhoogt wat je kunt kopen, niet per se wat je mag lenen.</p>
+          <p className="mortgage-hint">{t("fundsHint")}</p>
           <div className="form-grid">
-            <MoneyField label="Spaargeld" value={state.savings} onChange={(savings) => patch("savings", savings)} step={1000} />
-            <MoneyField label="Schenking" value={state.gift} onChange={(gift) => patch("gift", gift)} step={1000} />
-            <MoneyField label="Overwaarde" value={state.saleEquity} onChange={(saleEquity) => patch("saleEquity", saleEquity)} step={1000} />
+            <MoneyField label={t("savings")} value={state.savings} onChange={(savings) => patch("savings", savings)} step={1000} />
+            <MoneyField label={t("gift")} value={state.gift} onChange={(gift) => patch("gift", gift)} step={1000} />
+            <MoneyField label={t("saleEquity")} value={state.saleEquity} onChange={(saleEquity) => patch("saleEquity", saleEquity)} step={1000} />
           </div>
         </Foldable>
 
         <div className={`mortgage-block ${openDebts || shownDebts.length ? "is-open" : ""}`}>
           <button type="button" className="mortgage-fold" onClick={() => setOpenDebts((value) => !value)} aria-expanded={openDebts}>
             <span>
-              <span className="section-kicker">Optioneel · lasten</span>
-              <strong>{debts.length ? debts.join(" · ") : "Lease, studieschuld of andere lasten"}</strong>
+              <span className="section-kicker">{t("debtsKicker")}</span>
+              <strong>{debts.length ? debts.join(" · ") : t("debtsFallback")}</strong>
             </span>
             <ChevronDown size={16} />
           </button>
-          <p className="mortgage-hint">Voeg toe wat je hebt — een lease van een paar honderd euro kan tienduizenden euro’s schelen.</p>
-          {unusedDebts.length > 0 && <div className="work-chips mortgage-add-debts" role="group" aria-label="Last toevoegen">
+          <p className="mortgage-hint">{t("debtsHint")}</p>
+          {unusedDebts.length > 0 && <div className="work-chips mortgage-add-debts" role="group" aria-label={t("addDebtAria")}>
             {unusedDebts.map((item) => (
               <button type="button" key={item.key} onClick={() => {
                 setAddedDebts((current) => current.includes(item.key) ? current : [...current, item.key]);
                 setOpenDebts(true);
-              }}>+ {item.add}</button>
+              }}>+ {t(item.addKey)}</button>
             ))}
           </div>}
           {(openDebts || shownDebts.length > 0) && shownDebts.map((key) => {
             const field = DEBT_FIELDS.find((item) => item.key === key);
             if (!field) return null;
+            const fieldLabel = t(field.labelKey);
             return <div className="mortgage-debt-row" key={key}>
               {key === "student" ? <>
-                <div className="work-chips" role="group" aria-label="Studieschuld invoer">
-                  <button type="button" className={studentMode === "monthly" ? "active" : undefined} aria-pressed={studentMode === "monthly"} onClick={() => setStudentMode("monthly")}>Maandbedrag DUO</button>
-                  <button type="button" className={studentMode === "remaining" ? "active" : undefined} aria-pressed={studentMode === "remaining"} onClick={() => setStudentMode("remaining")}>Ik ken alleen het restant</button>
+                <div className="work-chips" role="group" aria-label={t("studentInputAria")}>
+                  <button type="button" className={studentMode === "monthly" ? "active" : undefined} aria-pressed={studentMode === "monthly"} onClick={() => setStudentMode("monthly")}>{t("studentMonthly")}</button>
+                  <button type="button" className={studentMode === "remaining" ? "active" : undefined} aria-pressed={studentMode === "remaining"} onClick={() => setStudentMode("remaining")}>{t("studentRemainingMode")}</button>
                 </div>
                 {studentMode === "monthly"
-                  ? <MoneyField label="DUO-termijn per maand" value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
+                  ? <MoneyField label={t("duoMonthlyLabel")} value={state.studentLoanMonthly} onChange={(studentLoanMonthly) => patch("studentLoanMonthly", studentLoanMonthly)} />
                   : <>
-                    <MoneyField label="Openstaande studieschuld" value={state.studentLoanRemaining} onChange={(studentLoanRemaining) => patch("studentLoanRemaining", studentLoanRemaining)} step={500} />
-                    <label className="mortgage-span"><input type="checkbox" checked={state.studentLoanSf35} onChange={(event) => patch("studentLoanSf35", event.target.checked)} /> Studieschuld vanaf 2024 (telt minder zwaar)</label>
+                    <MoneyField label={t("studentRemainingLabel")} value={state.studentLoanRemaining} onChange={(studentLoanRemaining) => patch("studentLoanRemaining", studentLoanRemaining)} step={500} />
+                    <label className="mortgage-span"><input type="checkbox" checked={state.studentLoanSf35} onChange={(event) => patch("studentLoanSf35", event.target.checked)} /> {t("studentSf35")}</label>
                   </>}
-              </> : key === "lease" ? <MoneyField label={field.label} hint={field.hint} value={state.privateLeaseMonthly} onChange={(privateLeaseMonthly) => patch("privateLeaseMonthly", privateLeaseMonthly)} />
-              : key === "installment" ? <MoneyField label={field.label} value={state.installmentLoanMonthly} onChange={(installmentLoanMonthly) => patch("installmentLoanMonthly", installmentLoanMonthly)} />
-              : key === "revolving" ? <MoneyField label={field.label} hint={field.hint} value={state.revolvingCreditLimit} onChange={(revolvingCreditLimit) => patch("revolvingCreditLimit", revolvingCreditLimit)} step={500} />
-              : key === "erfpacht" ? <MoneyField label={field.label} value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
-              : key === "alimony" ? <MoneyField label={field.label} value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
-              : <MoneyField label={field.label} value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />}
-              <button type="button" className="text-link" aria-label={`${field.label} verwijderen`} onClick={() => {
+              </> : key === "lease" ? <MoneyField label={fieldLabel} hint={field.hintKey ? t(field.hintKey) : undefined} value={state.privateLeaseMonthly} onChange={(privateLeaseMonthly) => patch("privateLeaseMonthly", privateLeaseMonthly)} />
+              : key === "installment" ? <MoneyField label={fieldLabel} value={state.installmentLoanMonthly} onChange={(installmentLoanMonthly) => patch("installmentLoanMonthly", installmentLoanMonthly)} />
+              : key === "revolving" ? <MoneyField label={fieldLabel} hint={field.hintKey ? t(field.hintKey) : undefined} value={state.revolvingCreditLimit} onChange={(revolvingCreditLimit) => patch("revolvingCreditLimit", revolvingCreditLimit)} step={500} />
+              : key === "erfpacht" ? <MoneyField label={fieldLabel} value={state.groundLeaseMonthly} onChange={(groundLeaseMonthly) => patch("groundLeaseMonthly", groundLeaseMonthly)} />
+              : key === "alimony" ? <MoneyField label={fieldLabel} value={state.alimonyPaidMonthly} onChange={(alimonyPaidMonthly) => patch("alimonyPaidMonthly", alimonyPaidMonthly)} />
+              : <MoneyField label={fieldLabel} value={state.otherMonthlyDebts} onChange={(otherMonthlyDebts) => patch("otherMonthlyDebts", otherMonthlyDebts)} />}
+              <button type="button" className="text-link" aria-label={t("removeDebtAria", { label: fieldLabel })} onClick={() => {
                 setState((current) => clearDebt(current, key));
                 setAddedDebts((current) => current.filter((item) => item !== key));
-              }}>Verwijder</button>
+              }}>{t("remove")}</button>
             </div>;
           })}
         </div>
 
         <div className="mortgage-block">
-          <div className="section-kicker">Optioneel · deze woning</div>
-          <h3>Past dit huis?</h3>
+          <div className="section-kicker">{t("houseKicker")}</div>
+          <h3>{t("houseTitle")}</h3>
           <div className="form-grid">
-            <MoneyField label="Vraagprijs" value={state.askingPrice} onChange={(askingPrice) => patch("askingPrice", askingPrice)} step={5000} />
-            <label>Energielabel
+            <MoneyField label={t("askingPrice")} value={state.askingPrice} onChange={(askingPrice) => patch("askingPrice", askingPrice)} step={5000} />
+            <label>{t("energyLabelField")}
               <select value={state.energyLabel} onChange={(event) => patch("energyLabel", event.target.value)}>
-                <option value="">Nog niet bekend</option>
+                <option value="">{t("energyUnknown")}</option>
                 {ENERGY_LABELS.map((label) => <option value={label} key={label}>{label}</option>)}
               </select>
             </label>
           </div>
-          <label className="mortgage-check"><input type="checkbox" checked={state.includeEnergyMeasures} onChange={(event) => patch("includeEnergyMeasures", event.target.checked)} /> Extra lenen voor verduurzaming (alleen te gebruiken voor energiebesparing)</label>
+          <label className="mortgage-check"><input type="checkbox" checked={state.includeEnergyMeasures} onChange={(event) => patch("includeEnergyMeasures", event.target.checked)} /> {t("energyMeasuresCheck")}</label>
           {state.askingPrice > 0 && <>
-            <label className="mortgage-check"><input type="checkbox" checked={state.starterExemption} onChange={(event) => patch("starterExemption", event.target.checked)} /> Ik denk recht te hebben op startersvrijstelling (0% overdrachtsbelasting)</label>
-            {state.starterExemption && <div className="form-grid"><label>Je leeftijd
+            <label className="mortgage-check"><input type="checkbox" checked={state.starterExemption} onChange={(event) => patch("starterExemption", event.target.checked)} /> {t("starterExemptionCheck")}</label>
+            {state.starterExemption && <div className="form-grid"><label>{t("yourAge")}
               <input type="number" inputMode="numeric" min="18" max="120" value={state.buyerAge || ""} onChange={(event) => patch("buyerAge", Number(event.target.value) || 0)} />
             </label></div>}
           </>}
-          {state.energyLabel.startsWith("A++++") && <label className="mortgage-check"><input type="checkbox" checked={state.energyPerformanceGuarantee} onChange={(event) => patch("energyPerformanceGuarantee", event.target.checked)} /> Energieprestatiegarantie van minstens 10 jaar</label>}
+          {state.energyLabel.startsWith("A++++") && <label className="mortgage-check"><input type="checkbox" checked={state.energyPerformanceGuarantee} onChange={(event) => patch("energyPerformanceGuarantee", event.target.checked)} /> {t("epgCheck")}</label>}
         </div>
       </section>
 
       <aside className="mortgage-result-card" id="hypotheek-result" aria-live="polite">
         <div className="mortgage-result-head">
-          <span className="section-kicker"><Calculator size={13} /> leennormen {MORTGAGE_NORMS_YEAR}</span>
-          <span className="coverage-pill"><ShieldCheck size={12} /> geen advies</span>
+          <span className="section-kicker"><Calculator size={13} /> {t("normsKicker", { year: MORTGAGE_NORMS_YEAR })}</span>
+          <span className="coverage-pill"><ShieldCheck size={12} /> {t("noAdvicePill")}</span>
         </div>
         {!result.available ? <>
-          <h2>Jouw maximum verschijnt hier</h2>
-          <p>Vul je maandsalaris in. Vakantiegeld rekenen we standaard mee.</p>
+          <h2>{t("resultPlaceholderTitle")}</h2>
+          <p>{t("resultPlaceholderCopy")}</p>
         </> : <>
-          <p className="mortgage-kicker">Maximale hypotheek voor aankoop</p>
+          <p className="mortgage-kicker">{t("maxForPurchaseKicker")}</p>
           <div className="mortgage-amount">{formatEuro(result.maxLoanForPurchase)}</div>
           <p className="mortgage-result-note">
-            Maximale koopsom {formatEuro(result.maxPurchasePrice)}
-            {funds > 0 ? ` inclusief ${formatEuro(funds)} eigen geld` : ""}.
-            {result.energyMeasureExtra > 0 ? ` Plus ${formatEuro(result.energyMeasureExtra)} alleen voor verduurzaming.` : ""}
+            {t("resultNoteMaxPrice", { price: formatEuro(result.maxPurchasePrice) })}
+            {funds > 0 ? t("resultNoteFunds", { funds: formatEuro(funds) }) : ""}
+            {t("resultNotePeriod")}
+            {result.energyMeasureExtra > 0 ? t("resultNoteEnergy", { amount: formatEuro(result.energyMeasureExtra) }) : ""}
           </p>
           {result.nhgCapped && <div className="mortgage-nhg-banner">
             <p>
-              Begrensd door NHG-kostengrens 2026 ({formatEuro(NHG.limit)}).
-              Op inkomen zou {formatEuro(result.uncappedMaxLoanForPurchase)} mogelijk zijn zonder NHG.
+              {t("nhgCappedBanner", { limit: formatEuro(NHG.limit), uncapped: formatEuro(result.uncappedMaxLoanForPurchase) })}
             </p>
-            <button type="button" className="text-link" onClick={() => setNhg(false)}>Toon zonder NHG-plafond</button>
+            <button type="button" className="text-link" onClick={() => setNhg(false)}>{t("showWithoutNhgCap")}</button>
           </div>}
           <div className="mortgage-result-grid">
-            <div className="is-hero"><small>{state.repayment === "linear" ? "Eerste maand bruto" : "Maandlast bruto"}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
-            {housingTax && <div className="is-hero"><small>Netto / maand</small><strong>{formatEuro(housingTax.ongoingMonthlyNet)}</strong></div>}
-            <div><small>Toetsinkomen</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
-            {result.obligationBurden > 0 && <div><small>Lasten in de toets</small><strong>−{formatEuro(result.obligationBurden)}</strong></div>}
-            {detailedCosts != null && <div><small>Kosten koper</small><strong>{formatEuro(detailedCosts.total)}</strong></div>}
+            <div className="is-hero"><small>{state.repayment === "linear" ? t("firstMonthGross") : t("monthlyGross")}</small><strong>{formatEuro(result.monthlyPayment)}</strong></div>
+            {housingTax && <div className="is-hero"><small>{t("netPerMonth")}</small><strong>{formatEuro(housingTax.ongoingMonthlyNet)}</strong></div>}
+            <div><small>{t("testIncome")}</small><strong>{formatEuro(result.toetsinkomen)}</strong></div>
+            {result.obligationBurden > 0 && <div><small>{t("obligationsInTest")}</small><strong>−{formatEuro(result.obligationBurden)}</strong></div>}
+            {detailedCosts != null && <div><small>{t("buyerCosts")}</small><strong>{formatEuro(detailedCosts.total)}</strong></div>}
           </div>
-          {fitCopy(result) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result)}</div>}
-          {!onboarding && detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">Kosten en grafieken bekijken</a>}
+          {fitCopy(result, t) && <div className={`mortgage-fit ${result.fit}`}>{fitCopy(result, t)}</div>}
+          {!onboarding && detailedCosts && <a className="text-link mortgage-toggle" href="#kosten-inzicht">{t("viewCostsCharts")}</a>}
           <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenExplain((value) => !value)} aria-expanded={openExplain}>
-            {openExplain ? "Verberg rekenregels" : "Hoe komen we op dit bedrag?"}
+            {openExplain ? t("hideRules") : t("howCalculated")}
           </button>
           {openExplain && <ul className="mortgage-lines">
             {result.lines.filter((line) => line.key !== "ikv").map((line) => (
@@ -591,10 +596,10 @@ export function MortgageCalculator({
           </ul>}
           {scenarios.length > 0 && <>
             <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenScenarios((value) => !value)} aria-expanded={openScenarios}>
-              {openScenarios ? "Verberg scenario’s" : `Wat als… (${scenarios.length})`}
+              {openScenarios ? t("hideScenarios") : t("whatIf", { count: scenarios.length })}
             </button>
             {openScenarios && <div className="mortgage-scenarios">
-            <p className="mortgage-hint">Andere labels, rentes of lasten — t.o.v. je huidige schets.</p>
+            <p className="mortgage-hint">{t("scenariosHint")}</p>
             <ul>
               {scenarios.map((scenario) => (
                 <li key={scenario.id}>
@@ -616,10 +621,10 @@ export function MortgageCalculator({
         </>}
         {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
         {result.available && market && <p className="mortgage-sources">
-          {market.toetsrente.live ? <>Toetsrente AFM {market.toetsrente.rate.toLocaleString("nl-NL")}% ({market.toetsrente.label}). </> : "Toetsrente: wettelijk minimum 5%. "}
+          {market.toetsrente.live ? <>{t("afmTestRate", { rate: market.toetsrente.rate.toLocaleString("nl-NL"), label: market.toetsrente.label })}</> : t("testRateMin")}
           {market.indicativeRates.live
-            ? <>Startrente uit {market.indicativeRates.source}, {market.indicativeRates.asOf}. Geen bankvergelijking.</>
-            : "Startrente is een ingebouwde indicatie tot de marktrente geladen is."}
+            ? t("startRateSource", { source: market.indicativeRates.source, asOf: market.indicativeRates.asOf })
+            : t("startRateBuiltIn")}
         </p>}
       </aside>
     </div>
@@ -644,20 +649,20 @@ export function MortgageCalculator({
       referenceYear={reference.year}
       maxDeductionRate={maxDeductionRate}
       referenceSources={[
-        { label: "Overdrachtsbelasting", url: reference.sources.transferTax },
-        { label: "NHG", url: reference.sources.nhg },
-        { label: "Kadaster", url: reference.sources.kadaster },
-        { label: "Box 1 aftrek", url: reference.sources.box1 },
-        { label: "Eigenwoningforfait", url: reference.sources.eigenwoningforfait },
+        { label: t("refTransferTax"), url: reference.sources.transferTax },
+        { label: t("refNhg"), url: reference.sources.nhg },
+        { label: t("refKadaster"), url: reference.sources.kadaster },
+        { label: t("refBox1"), url: reference.sources.box1 },
+        { label: t("refEigenwoningforfait"), url: reference.sources.eigenwoningforfait },
       ]}
     />
     )}
     {result.available && <a className="mortgage-mobile-dock" href="#hypotheek-result">
       <span>
-        <small>Maximale hypotheek</small>
+        <small>{t("dockMaxMortgage")}</small>
         <strong>{formatEuro(result.maxLoanForPurchase)}</strong>
       </span>
-      <em>Zie details</em>
+      <em>{t("dockDetails")}</em>
     </a>}
   </>;
 }
@@ -681,6 +686,7 @@ function PersonFields({
   onExtras: () => void;
   onChange: (person: PersonForm) => void;
 }) {
+  const t = useTranslations("hypotheek");
   const work = person.workType;
   const needsHistory = work === "temporary" && !person.intent || work === "flex" && !person.perspectief;
   const needsProfits = work === "self_employed" || work === "mix";
@@ -694,67 +700,67 @@ function PersonFields({
 
   return <div className={title ? "mortgage-person" : "mortgage-person is-first"}>
     {title && <h3>{title}</h3>}
-    <div className="work-chips" role="group" aria-label={title ? `Werktype ${title}` : "Werktype"}>
+    <div className="work-chips" role="group" aria-label={title ? t("workTypeAriaNamed", { title }) : t("workTypeAria")}>
       {workOptions.map((item) => <button type="button" key={item.value} className={work === item.value ? "active" : undefined} aria-pressed={work === item.value} onClick={() => onChange({ ...person, workType: item.value })}>{item.label}</button>)}
-      {!showMoreWork && <button type="button" className="is-quiet" onClick={onMoreWork}>DGA, pensioen of mix</button>}
+      {!showMoreWork && <button type="button" className="is-quiet" onClick={onMoreWork}>{t("moreWork")}</button>}
     </div>
     {needsJob && <>
-      <div className="work-chips" role="group" aria-label="Invoeren als">
-        <button type="button" className={person.incomeEntry === "monthly" ? "active" : undefined} aria-pressed={person.incomeEntry === "monthly"} onClick={() => onChange(switchIncomeEntry(person, "monthly"))}>Maandsalaris</button>
-        <button type="button" className={person.incomeEntry === "annual" ? "active" : undefined} aria-pressed={person.incomeEntry === "annual"} onClick={() => onChange(switchIncomeEntry(person, "annual"))}>Jaaropgave</button>
+      <div className="work-chips" role="group" aria-label={t("entryAria")}>
+        <button type="button" className={person.incomeEntry === "monthly" ? "active" : undefined} aria-pressed={person.incomeEntry === "monthly"} onClick={() => onChange(switchIncomeEntry(person, "monthly"))}>{t("entryMonthly")}</button>
+        <button type="button" className={person.incomeEntry === "annual" ? "active" : undefined} aria-pressed={person.incomeEntry === "annual"} onClick={() => onChange(switchIncomeEntry(person, "annual"))}>{t("entryAnnual")}</button>
       </div>
       {person.incomeEntry === "monthly" ? <>
         <div className="form-grid">
-          <MoneyField className="mortgage-income" label="Bruto maandsalaris" hint="Het bedrag vóór belasting, zoals op je loonstrook." value={person.monthlyGross} onChange={(monthlyGross) => onChange({ ...person, monthlyGross })} step={50} placeholder="3500" />
+          <MoneyField className="mortgage-income" label={t("grossMonthly")} hint={t("grossMonthlyHint")} value={person.monthlyGross} onChange={(monthlyGross) => onChange({ ...person, monthlyGross })} step={50} placeholder="3500" />
         </div>
         <div className="mortgage-subblock">
-          <span className="mortgage-subhead">Vakantiegeld</span>
-          <div className="work-chips" role="group" aria-label="Vakantiegeld">
-            <button type="button" className={person.holidayMode === "standard" ? "active" : undefined} aria-pressed={person.holidayMode === "standard"} onClick={() => onChange({ ...person, holidayMode: "standard" })}>8% wettelijk</button>
-            <button type="button" className={person.holidayMode === "included" ? "active" : undefined} aria-pressed={person.holidayMode === "included"} onClick={() => onChange({ ...person, holidayMode: "included" })}>Al inbegrepen</button>
-            <button type="button" className={person.holidayMode === "custom" ? "active" : undefined} aria-pressed={person.holidayMode === "custom"} onClick={() => onChange({ ...person, holidayMode: "custom" })}>Ander bedrag</button>
+          <span className="mortgage-subhead">{t("holidayHead")}</span>
+          <div className="work-chips" role="group" aria-label={t("holidayAria")}>
+            <button type="button" className={person.holidayMode === "standard" ? "active" : undefined} aria-pressed={person.holidayMode === "standard"} onClick={() => onChange({ ...person, holidayMode: "standard" })}>{t("holidayStandard")}</button>
+            <button type="button" className={person.holidayMode === "included" ? "active" : undefined} aria-pressed={person.holidayMode === "included"} onClick={() => onChange({ ...person, holidayMode: "included" })}>{t("holidayIncluded")}</button>
+            <button type="button" className={person.holidayMode === "custom" ? "active" : undefined} aria-pressed={person.holidayMode === "custom"} onClick={() => onChange({ ...person, holidayMode: "custom" })}>{t("holidayCustomBtn")}</button>
           </div>
-          {person.holidayMode === "custom" && <div className="form-grid"><MoneyField label="Vakantiegeld per jaar" value={person.holidayCustom} onChange={(holidayCustom) => onChange({ ...person, holidayCustom })} step={50} /></div>}
+          {person.holidayMode === "custom" && <div className="form-grid"><MoneyField label={t("holidayCustomYear")} value={person.holidayCustom} onChange={(holidayCustom) => onChange({ ...person, holidayCustom })} step={50} /></div>}
         </div>
       </> : <div className="form-grid">
-        <MoneyField className="mortgage-income" label="Bruto jaarinkomen" hint="Meestal inclusief vakantiegeld. 13e maand en bonus tel je hieronder apart." value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
+        <MoneyField className="mortgage-income" label={t("grossAnnual")} hint={t("grossAnnualHint")} value={person.grossAnnual} onChange={(grossAnnual) => onChange({ ...person, grossAnnual })} step={1000} placeholder="55000" />
       </div>}
       <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenPay((value) => !value)} aria-expanded={openPay}>
-        {openPay ? "Verberg 13e maand, toeslagen en bonus" : "13e maand, toeslagen of bonus toevoegen"}
+        {openPay ? t("payHideExtras") : t("payAddExtras")}
       </button>
       {openPay && <div className="form-grid">
-        <label className="mortgage-span"><input type="checkbox" checked={person.hasThirteenth} onChange={(event) => onChange({ ...person, hasThirteenth: event.target.checked, thirteenthMonth: event.target.checked ? person.thirteenthMonth || person.monthlyGross : person.thirteenthMonth })} /> Ik krijg een 13e maand</label>
-        {person.hasThirteenth && <MoneyField label="13e maand" hint="Leeg laten = één maandsalaris." value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth, hasThirteenth: true })} step={50} />}
-        <MoneyField label="Eindejaarsuitkering per jaar" value={person.yearEndPayout} onChange={(yearEndPayout) => onChange({ ...person, yearEndPayout })} step={50} />
-        <MoneyField label="Vaste toeslag per maand" hint="Ploegen, overwerk of onregelmatig, als dat vast is." value={person.monthlyAllowances} onChange={(monthlyAllowances) => onChange({ ...person, monthlyAllowances })} step={25} />
-        <MoneyField label="Vaste bonus per jaar" value={person.structuralBonus} onChange={(structuralBonus) => onChange({ ...person, structuralBonus, bonus: structuralBonus })} step={100} />
+        <label className="mortgage-span"><input type="checkbox" checked={person.hasThirteenth} onChange={(event) => onChange({ ...person, hasThirteenth: event.target.checked, thirteenthMonth: event.target.checked ? person.thirteenthMonth || person.monthlyGross : person.thirteenthMonth })} /> {t("thirteenthCheck")}</label>
+        {person.hasThirteenth && <MoneyField label={t("thirteenthLabel")} hint={t("thirteenthHint")} value={person.thirteenthMonth} onChange={(thirteenthMonth) => onChange({ ...person, thirteenthMonth, hasThirteenth: true })} step={50} />}
+        <MoneyField label={t("yearEndPayout")} value={person.yearEndPayout} onChange={(yearEndPayout) => onChange({ ...person, yearEndPayout })} step={50} />
+        <MoneyField label={t("fixedAllowance")} hint={t("fixedAllowanceHint")} value={person.monthlyAllowances} onChange={(monthlyAllowances) => onChange({ ...person, monthlyAllowances })} step={25} />
+        <MoneyField label={t("structuralBonus")} value={person.structuralBonus} onChange={(structuralBonus) => onChange({ ...person, structuralBonus, bonus: structuralBonus })} step={100} />
       </div>}
       {openPay && <>
-        <p className="mortgage-hint">Variabele bonus: we nemen het 3-jaarsgemiddelde, gemaximeerd op het laatste jaar.</p>
-        <YearFields label="Variabele bonus per jaar" years={person.variableBonus} onChange={(variableBonus) => onChange({ ...person, variableBonus })} />
+        <p className="mortgage-hint">{t("variableBonusHint")}</p>
+        <YearFields label={t("variableBonusLabel")} years={person.variableBonus} onChange={(variableBonus) => onChange({ ...person, variableBonus })} />
       </>}
       {pay.toetsinkomen > 0 && person.incomeEntry === "monthly" && <ul className="mortgage-pay-lines">
         {pay.lines.map((line) => <li key={line.key}><span>{line.label}</span><strong>{formatEuro(line.amount)}</strong></li>)}
-        <li className="is-total"><span>Toetsinkomen</span><strong>{formatEuro(pay.toetsinkomen)}</strong></li>
+        <li className="is-total"><span>{t("testIncome")}</span><strong>{formatEuro(pay.toetsinkomen)}</strong></li>
       </ul>}
-      {work === "temporary" && <label className="mortgage-span"><input type="checkbox" checked={person.intent} onChange={(event) => onChange({ ...person, intent: event.target.checked })} /> Ik krijg een intentieverklaring voor vast werk</label>}
-      {work === "flex" && <label className="mortgage-span"><input type="checkbox" checked={person.perspectief} onChange={(event) => onChange({ ...person, perspectief: event.target.checked })} /> Ik heb een perspectiefverklaring</label>}
+      {work === "temporary" && <label className="mortgage-span"><input type="checkbox" checked={person.intent} onChange={(event) => onChange({ ...person, intent: event.target.checked })} /> {t("intentCheck")}</label>}
+      {work === "flex" && <label className="mortgage-span"><input type="checkbox" checked={person.perspectief} onChange={(event) => onChange({ ...person, perspectief: event.target.checked })} /> {t("perspectiefCheck")}</label>}
     </>}
-    {!showExtras && <button className="text-link" type="button" onClick={onExtras}>Ontvangen alimentatie of AOW</button>}
+    {!showExtras && <button className="text-link" type="button" onClick={onExtras}>{t("extrasButton")}</button>}
     {showExtras && <div className="form-grid">
-      <MoneyField label="Alimentatie die je ontvangt, per jaar" value={person.alimonyAnnual} onChange={(alimonyAnnual) => onChange({ ...person, alimonyAnnual })} step={100} />
-      <label className="mortgage-span"><input type="checkbox" checked={person.reachedAow} onChange={(event) => onChange({ ...person, reachedAow: event.target.checked })} /> AOW-leeftijd bereikt</label>
+      <MoneyField label={t("alimonyReceived")} value={person.alimonyAnnual} onChange={(alimonyAnnual) => onChange({ ...person, alimonyAnnual })} step={100} />
+      <label className="mortgage-span"><input type="checkbox" checked={person.reachedAow} onChange={(event) => onChange({ ...person, reachedAow: event.target.checked })} /> {t("aowReached")}</label>
     </div>}
-    {needsHistory && <YearFields label="Bruto inkomen van de afgelopen jaren" years={person.history} onChange={(history) => onChange({ ...person, history })} />}
+    {needsHistory && <YearFields label={t("historyLabel")} years={person.history} onChange={(history) => onChange({ ...person, history })} />}
     {needsProfits && <>
-      <label className="mortgage-plain">Hoe lang onderneem je al (jaren)?<input type="number" inputMode="numeric" min="0" max="50" step="0.5" value={person.monthsActive ? person.monthsActive / 12 : ""} onChange={(event) => onChange({ ...person, monthsActive: Math.round((Number(event.target.value) || 0) * 12) })} /></label>
-      <YearFields label="Fiscale winst (IB) per jaar" years={person.profits} onChange={(profits) => onChange({ ...person, profits })} />
+      <label className="mortgage-plain">{t("yearsActiveLabel")}<input type="number" inputMode="numeric" min="0" max="50" step="0.5" value={person.monthsActive ? person.monthsActive / 12 : ""} onChange={(event) => onChange({ ...person, monthsActive: Math.round((Number(event.target.value) || 0) * 12) })} /></label>
+      <YearFields label={t("profitsLabel")} years={person.profits} onChange={(profits) => onChange({ ...person, profits })} />
     </>}
     {work === "dga" && <>
-      <YearFields label="Salaris uit de BV (box 1)" years={person.box1} onChange={(box1) => onChange({ ...person, box1 })} />
-      <YearFields label="Uitgekeerd dividend, als je dat meeneemt" years={person.dividend} onChange={(dividend) => onChange({ ...person, dividend })} />
+      <YearFields label={t("bvSalaryLabel")} years={person.box1} onChange={(box1) => onChange({ ...person, box1 })} />
+      <YearFields label={t("dividendLabel")} years={person.dividend} onChange={(dividend) => onChange({ ...person, dividend })} />
     </>}
-    {work === "pension" && <div className="form-grid"><MoneyField className="mortgage-income" label="Pensioen en AOW per jaar" value={person.pensionAnnual} onChange={(pensionAnnual) => onChange({ ...person, pensionAnnual })} step={1000} /></div>}
+    {work === "pension" && <div className="form-grid"><MoneyField className="mortgage-income" label={t("pensionLabel")} value={person.pensionAnnual} onChange={(pensionAnnual) => onChange({ ...person, pensionAnnual })} step={1000} /></div>}
   </div>;
 }
 
@@ -772,7 +778,8 @@ function Foldable({ kicker, title, open, onToggle, children }: { kicker: string;
 }
 
 function YearFields({ label, years, onChange }: { label: string; years: YearTriple; onChange: (years: YearTriple) => void }) {
-  const captions = ["Laatste jaar", "Jaar daarvoor", "2 jaar geleden"];
+  const t = useTranslations("hypotheek");
+  const captions = [t("yearLast"), t("yearBefore"), t("twoYearsAgo")];
   return <div className="mortgage-years"><span>{label}</span><div className="form-grid">{captions.map((caption, index) => <MoneyField key={caption} label={caption} value={years[index]} onChange={(value) => {
     const next: YearTriple = [...years];
     next[index] = value;
@@ -787,25 +794,26 @@ function MoneyField({ label, value, onChange, step = 50, hint, className, placeh
   }} /></label>;
 }
 
-function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean) {
+function rateHint(market: MortgageMarketSnapshot | null, period: FixedPeriodYears, nhg: boolean, t: Translator) {
   const rate = marketIndicativeRate(market, period, nhg).toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (period < 10) {
-    const floor = market?.toetsrente.live ? `${market.toetsrente.rate.toLocaleString("nl-NL")}% (${market.toetsrente.label})` : "minimaal 5%";
-    return `Startrente rond ${rate}%. Omdat je korter dan 10 jaar vastzet, toetsen we wettelijk op ${floor}.`;
+    const floor = market?.toetsrente.live ? t("toetsLive", { rate: market.toetsrente.rate.toLocaleString("nl-NL"), label: market.toetsrente.label }) : t("toetsMin");
+    return t("rateHintShort", { rate, floor });
   }
   if (market?.indicativeRates.live) {
-    return `Actuele marktrente ${rate}% (DNB/ECB nieuwe woninghypotheken, ${market.indicativeRates.asOf}${nhg ? ", NHG-indicatie" : ""}). Geen bankofferte.`;
+    return t("rateHintMarket", { rate, asOf: market.indicativeRates.asOf, extra: nhg ? t("nhgIndication") : "" });
   }
-  return `Indicatieve startrente ${rate}%. Pas aan als je een offerte hebt.`;
+  return t("rateHintFallback", { rate });
 }
 
 export function MortgagePageIntro() {
+  const t = useTranslations("hypotheek");
   return <div className="mortgage-heading">
     <div>
-      <div className="eyebrow"><Sparkles size={13} /> hypotheek {MORTGAGE_NORMS_YEAR}</div>
-      <h1>Wat kun je lenen — en wat kost het?</h1>
-      <p className="hero-copy">Vul je maandsalaris in. Je ziet meteen wat je mag lenen, wat het maandelijks kost, en welke eenmalige kosten erbij komen. Details en grafieken klap je open als je wilt.</p>
+      <div className="eyebrow"><Sparkles size={13} /> {t("introEyebrow", { year: MORTGAGE_NORMS_YEAR })}</div>
+      <h1>{t("introTitle")}</h1>
+      <p className="hero-copy">{t("introCopy")}</p>
     </div>
-    <div className="mortgage-heading-note"><Wallet size={16} /> Rekenschets, geen advies. Banken toetsen vaak strenger.</div>
+    <div className="mortgage-heading-note"><Wallet size={16} /> {t("introNote")}</div>
   </div>;
 }
