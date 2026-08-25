@@ -64,5 +64,9 @@
   "invalidIdsWarning": "{count, plural, one {{count} address from the link is invalid and was skipped.} other {{count} addresses from the link are invalid and were skipped.}}",
   "shareLabel": "Copy link",
   "copiedLabel": "Copied",
-  "copyPrompt": "Copy the link to this comparison:"
+  "copyPrompt": "Copy the link to this comparison:",
+  "currentHomeBadge": "Current home",
+  "versusCurrentHome": "vs your current home",
+  "currentHomeUnavailable": "Your current home could not be loaded temporarily.",
+  "dashboardCopyWithCurrent": "Your current home is pinned as the reference column; “best value” is decided among the candidates only."
 }

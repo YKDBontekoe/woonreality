@@ -82,7 +82,12 @@
     "notCovered": "Niet gedekt",
     "scoreNoteStrong": "Score",
     "scoreNoteRest": "is een omgevingsindicatie, geen koopadvies.",
-    "disclaimer": "Open data vervangt geen keuring, notaris of hypotheekadvies."
+    "disclaimer": "Open data vervangt geen keuring, notaris of hypotheekadvies.",
+    "setCurrentHome": "Mijn huidige woning",
+    "isCurrentHome": "Huidige woning",
+    "currentHomeSet": "Opgeslagen als je huidige woning. Vergelijk kandidaten via Vergelijk.",
+    "currentHomeCleared": "Je huidige woning is verwijderd.",
+    "currentHomeFailed": "Kon de huidige woning niet opslaan."
   },
   "viewing": {
     "analysisLoadFailed": "Analyse kon niet worden geladen.",

@@ -18,6 +18,7 @@ import { parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
 import { listingHistoryFromRows, type ListingHistoryRow } from "@/src/lib/listing-history";
+import { parseCurrentHome } from "@/src/lib/current-home";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest, isValidBagId } from "@/src/lib/validation/workspace";
 
@@ -83,6 +84,7 @@ async function readWorkspace(locale: Locale = "nl") {
       mortgageSnapshot,
       mortgageConfigured,
       onboardingDismissed: parseOnboardingDismissed(profilePreferences),
+      currentHome: parseCurrentHome(profilePreferences.currentHome),
       saved: savedProperties.map((item): SavedProperty => ({
         bagVboId: item.bag_vbo_id,
         addressLabel: item.address_label,
@@ -161,6 +163,15 @@ export async function POST(request: Request) {
     } else if (body.action === "compare") {
       const compare = body.compare.slice(0, 4);
       const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: compare, p_mortgage: null });
+      if (error) throw error;
+    } else if (body.action === "setCurrentHome") {
+      const currentHomePayload = { bagVboId: body.bagVboId, addressLabel: body.addressLabel, city: body.city, postcode: body.postcode, savedAt: now };
+      if (!preferencesJsonWithinLimit({ currentHome: currentHomePayload })) return NextResponse.json({ error: t("errors.profileTooLarge") }, { status: 413 });
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: null, p_mortgage: null, p_current_home: currentHomePayload });
+      if (error) throw error;
+    } else if (body.action === "clearCurrentHome") {
+      // Een leeg object wist de baseline; parseCurrentHome leest dat als "geen huidige woning".
+      const { error } = await result.supabase.rpc("merge_profile_preferences", { p_preferences: null, p_buyer_profile: null, p_compare_ids: null, p_mortgage: null, p_current_home: {} });
       if (error) throw error;
     } else if (body.action === "profile") {
       if (!preferencesJsonWithinLimit({ personalPreferences: body.preferences, buyerProfile: body.buyerProfile })) return NextResponse.json({ error: t("errors.profileTooLarge") }, { status: 413 });

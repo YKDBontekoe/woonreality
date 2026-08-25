@@ -120,6 +120,16 @@ export const workspaceBodySchema = z.discriminatedUnion("action", [
     stage: propertyStageSchema,
   }).strict(),
   z.object({
+    action: z.literal("setCurrentHome"),
+    bagVboId: bagIdSchema,
+    addressLabel: z.string().min(1).max(240),
+    city: z.string().min(1).max(120),
+    postcode: z.string().min(1).max(12),
+  }).strict(),
+  z.object({
+    action: z.literal("clearCurrentHome"),
+  }).strict(),
+  z.object({
     action: z.literal("compare"),
     compare: z.array(bagIdSchema).max(4),
   }).strict(),

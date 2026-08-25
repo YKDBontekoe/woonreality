@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ListingHistoryItem } from "@/src/lib/listing-history";
 import type { PersonalPreferences, Property } from "@/src/lib/types";
 import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
+import { parseCurrentHome } from "@/src/lib/current-home";
 import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
 import type { CalculatorState } from "@/src/lib/mortgage/calculator-state";
 import { bagIdSchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
@@ -15,6 +16,7 @@ export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string 
 export type WorkspaceAuthStatus = "unknown" | "authenticated" | "anonymous";
 
 const SESSION_COMPARE_KEY = "woonreality.compare";
+const LOCAL_CURRENT_HOME_KEY = "woonreality.currentHome";
 
 function isBagId(value: unknown): value is string {
   return bagIdSchema.safeParse(value).success;
@@ -38,6 +40,24 @@ function saveSessionCompare(compare: string[]) {
   }
 }
 
+function localCurrentHome() {
+  if (typeof window === "undefined") return null;
+  try {
+    return parseCurrentHome(JSON.parse(window.localStorage.getItem(LOCAL_CURRENT_HOME_KEY) ?? "null"));
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalCurrentHome(home: WorkspaceData["currentHome"]) {
+  try {
+    if (home) window.localStorage.setItem(LOCAL_CURRENT_HOME_KEY, JSON.stringify(home));
+    else window.localStorage.removeItem(LOCAL_CURRENT_HOME_KEY);
+  } catch {
+    // The baseline still works in memory if browser storage is unavailable.
+  }
+}
+
 type WorkspaceContextValue = {
   workspace: WorkspaceData;
   workspaceReady: boolean;
@@ -46,6 +66,8 @@ type WorkspaceContextValue = {
   authenticated: boolean;
   toggleSaved: (property: Property, askingPrice?: number | null) => Promise<WorkspaceMutationResult>;
   toggleCompare: (bagVboId: string) => Promise<void>;
+  setCurrentHome: (property: Property) => Promise<WorkspaceMutationResult>;
+  clearCurrentHome: () => Promise<WorkspaceMutationResult>;
   saveHistoryItem: (item: ListingHistoryItem) => Promise<WorkspaceMutationResult>;
   removeListingHistory: (bagVboId: string) => Promise<WorkspaceMutationResult>;
   setPreferences: (preferences: PersonalPreferences) => Promise<WorkspaceMutationResult>;
@@ -74,12 +96,12 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         // A comparison is useful before someone creates an account. Keep that
         // lightweight public workflow available, without suggesting the rest
         // of the purchase workspace is stored for this visitor.
-        setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
+        setWorkspace((current) => ({ ...current, compare: sessionCompare(), currentHome: localCurrentHome() }));
         setWorkspaceError("");
         return;
       }
       if (result.status === 503) {
-        setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
+        setWorkspace((current) => ({ ...current, compare: sessionCompare(), currentHome: localCurrentHome() }));
         setWorkspaceError(t("workspaceUnavailable"));
         return;
       }
@@ -99,12 +121,32 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const mutate = useCallback(async (payload: WorkspaceRequest): Promise<WorkspaceMutationResult> => {
     try {
       const result = await apiFetch<{ workspace?: WorkspaceData; error?: string }>("/api/workspace", { method: "POST", json: payload });
-      if ((result.status === 401 || result.status === 502 || result.status === 503) && payload.action === "compare" && authStatus !== "authenticated") {
+      // Vergelijken en de huidige woning blijven bruikbaar zonder account:
+      // bewaar ze lokaal in plaats van te eisen dat iemand inlogt.
+      const sessionFallback = payload.action === "compare"
+        || payload.action === "setCurrentHome"
+        || payload.action === "clearCurrentHome";
+      if ((result.status === 401 || result.status === 502 || result.status === 503) && sessionFallback && authStatus !== "authenticated") {
         if (result.status === 401) setAuthStatus("anonymous");
-        const compare = payload.compare.filter(isBagId).slice(0, 4);
-        saveSessionCompare(compare);
-        setWorkspace((current) => ({ ...current, compare }));
-        setWorkspaceError(t("compareSessionNotice"));
+        if (payload.action === "compare") {
+          const compare = payload.compare.filter(isBagId).slice(0, 4);
+          saveSessionCompare(compare);
+          setWorkspace((current) => ({ ...current, compare }));
+        } else {
+          const home = payload.action === "setCurrentHome"
+            ? {
+              bagVboId: payload.bagVboId,
+              addressLabel: payload.addressLabel,
+              city: payload.city,
+              postcode: payload.postcode,
+              savedAt: new Date().toISOString(),
+              askingPrice: null,
+            }
+            : null;
+          saveLocalCurrentHome(home);
+          setWorkspace((current) => ({ ...current, currentHome: home }));
+        }
+        setWorkspaceError(payload.action === "compare" ? t("compareSessionNotice") : t("currentHomeSessionNotice"));
         return { ok: true };
       }
       if (result.status === 401) {
@@ -142,6 +184,16 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const compare = workspace.compare.includes(bagVboId) ? workspace.compare.filter((id) => id !== bagVboId) : workspace.compare.length >= 4 ? workspace.compare : [...workspace.compare, bagVboId];
     await mutate({ action: "compare", compare });
   }, [mutate, workspace.compare]);
+
+  const setCurrentHome = useCallback(async (property: Property) => mutate({
+    action: "setCurrentHome",
+    bagVboId: property.bagVboId,
+    addressLabel: property.addressLabel,
+    city: property.city,
+    postcode: property.postcode,
+  }), [mutate]);
+
+  const clearCurrentHome = useCallback(async () => mutate({ action: "clearCurrentHome" }), [mutate]);
 
   const saveHistoryItem = useCallback(async (item: ListingHistoryItem) => {
     const exists = workspace.saved.some((saved) => saved.bagVboId === item.bagVboId);
@@ -197,6 +249,8 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     authenticated: authStatus === "authenticated",
     toggleSaved,
     toggleCompare,
+    setCurrentHome,
+    clearCurrentHome,
     saveHistoryItem,
     removeListingHistory,
     setPreferences,
@@ -206,7 +260,7 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setListingPrice,
     dismissOnboarding,
     refresh,
-  }), [workspace, workspaceReady, workspaceError, authStatus, toggleSaved, toggleCompare, saveHistoryItem, removeListingHistory, setPreferences, setBuyerProfile, setPropertyStage, setMortgageState, setListingPrice, dismissOnboarding, refresh]);
+  }), [workspace, workspaceReady, workspaceError, authStatus, toggleSaved, toggleCompare, setCurrentHome, clearCurrentHome, saveHistoryItem, removeListingHistory, setPreferences, setBuyerProfile, setPropertyStage, setMortgageState, setListingPrice, dismissOnboarding, refresh]);
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

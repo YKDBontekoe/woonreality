@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, GitCompare, Heart, Link2, Check, X } from "lucide-react";
+import { ArrowLeft, GitCompare, Heart, Link2, Check, House, X } from "lucide-react";
 import { Link, usePathname } from "@/src/lib/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { comparisonListingFromUserRow, comparisonListingFromSessionDraft, type C
 import { apiFetch } from "@/components/hooks/use-api";
 import { calculatePersonalFit } from "@/src/lib/personalization";
 import { normalizeLocale } from "@/src/lib/i18n/config";
+import { scoreDelta } from "@/src/lib/current-home";
 import type { Analysis } from "@/src/lib/types";
 import { formatScore } from "@/src/lib/math";
 import { formatEuro } from "@/src/lib/purchase";
@@ -26,16 +27,31 @@ const EMPTY_LISTING: ComparisonListingFacts = {
   vveContribution: null,
 };
 
+async function fetchAnalysis(bagVboId: string, signal: AbortSignal): Promise<Analysis | null> {
+  try {
+    const result = await apiFetch<Analysis>(`/api/analysis/${encodeURIComponent(bagVboId)}`, { signal, cache: "no-store" });
+    return result.ok ? result.data ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: string[]; invalidCount?: number }) {
   const t = useTranslations("vergelijken");
   const locale = normalizeLocale(useLocale());
   const pathname = usePathname();
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [baseline, setBaseline] = useState<Analysis | null>(null);
   const [listings, setListings] = useState<Record<string, ComparisonListing>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const { workspace, workspaceReady, authStatus, toggleCompare } = usePropertyWorkspace();
   const selectedBagIdsKey = (bagIds.length > 0 ? bagIds : workspace.compare).join(",");
+  // De huidige woning is de vaste referentiekolom; hij telt niet mee voor het
+  // maximum van vier kandidaten en staat nooit in de ?ids= link.
+  const currentHomeId = workspace.currentHome?.bagVboId ?? null;
+  const baselineNeeded = Boolean(currentHomeId && !selectedBagIdsKey.split(",").includes(currentHomeId));
+  const baselineIdKey = baselineNeeded ? currentHomeId : "";
 
   const { copied, share } = useShareUrl(() => {
     const ids = analyses.map((analysis) => analysis.property.bagVboId).join(",");
@@ -56,30 +72,35 @@ export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: stri
     async function loadAnalyses() {
       setLoading(true);
       setLoadError("");
-      if (selectedBagIds.length < 2) {
+      if (selectedBagIds.length < 2 && !baselineIdKey) {
         setAnalyses([]);
+        setBaseline(null);
         setLoading(false);
         window.clearTimeout(timeout);
         return;
       }
       try {
-        const items = await Promise.all(selectedBagIds.map(async (id) => {
-          try {
-            const result = await apiFetch<Analysis>(`/api/analysis/${encodeURIComponent(id)}`, { signal: controller.signal, cache: "no-store" });
-            return result.ok ? result.data : null;
-          } catch {
-            return null;
-          }
-        }));
+        const items = await Promise.all(selectedBagIds.map(async (id) => fetchAnalysis(id, controller.signal)));
         const available = items.filter((item): item is Analysis => Boolean(item));
         if (active) {
           setAnalyses(available);
           if (available.length !== items.length) setLoadError(t("errorPartial"));
         }
+        // De baseline komt uit een eigen fetch of, als de huidige woning al
+        // tussen de kandidaten staat, uit diezelfde resultaten.
+        const baselineAnalysis = baselineIdKey
+          ? await fetchAnalysis(baselineIdKey, controller.signal)
+          : currentHomeId
+            ? available.find((item) => item.property.bagVboId === currentHomeId) ?? null
+            : null;
+        if (active) {
+          setBaseline(baselineAnalysis);
+          if (baselineIdKey && !baselineAnalysis) setLoadError(t("currentHomeUnavailable"));
+        }
         // Vraagprijzen zijn optioneel (login vereist voor bewaarde advertentiegegevens);
         // ontbrekende data mag de vergelijking zelf niet blokkeren.
-        const listingEntries = await Promise.all(available.map(async (analysis) => {
-          const id = analysis.property.bagVboId;
+        const listingIds = [...available.map((analysis) => analysis.property.bagVboId), ...(baselineIdKey ? [baselineIdKey] : [])];
+        const listingEntries = await Promise.all(listingIds.map(async (id) => {
           try {
             const result = await apiFetch<{ listing?: { asking_price: number | null; extracted_json?: unknown } | null }>(`/api/listing/user/${encodeURIComponent(id)}`, { signal: controller.signal, cache: "no-store" });
             if (!result.ok || !result.data) {
@@ -103,10 +124,13 @@ export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: stri
 
     void loadAnalyses();
     return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
-  }, [bagIds.length, selectedBagIdsKey, workspaceReady, t]);
+  }, [bagIds.length, selectedBagIdsKey, baselineIdKey, currentHomeId, workspaceReady, t]);
 
   if (loading) return <ComparisonSkeleton />;
-  if (analyses.length < 2) {
+  const columns: Analysis[] = baseline && !analyses.some((analysis) => analysis.property.bagVboId === baseline.property.bagVboId)
+    ? [baseline, ...analyses]
+    : analyses;
+  if (columns.length < 2 || !analyses[0]) {
     return (
       <CompareEmptyState
         titleId="comparison-empty-title"
@@ -126,6 +150,7 @@ export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: stri
   }
 
   const domains = analyses[0].domains;
+  const isBaseline = (analysis: Analysis) => baseline?.property.bagVboId === analysis.property.bagVboId;
   const listingFor = (analysis: Analysis) => {
     const fetched = listings[analysis.property.bagVboId];
     const history = workspace.listingHistory.find((item) => item.bagVboId === analysis.property.bagVboId);
@@ -152,6 +177,8 @@ export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: stri
     if (listing.bedroomCount != null) return t("bedroomsCount", { count: listing.bedroomCount });
     return t("unknown");
   };
+  // "Beste waarde" wordt alleen onder de kandidaten bepaald: de huidige woning
+  // is de referentie, geen deelnemer aan de keuze.
   const factRows: { key: string; label: string; render: (analysis: Analysis) => string; best?: (analysis: Analysis) => boolean }[] = [
     {
       key: "asking-price",
@@ -193,5 +220,91 @@ export function ComparisonDashboard({ bagIds, invalidCount = 0 }: { bagIds: stri
     },
   ];
   const comparisonStorageLabel = authStatus === "authenticated" ? t("storedInAccount") : t("storedInSession");
-  return <PageShell current="vergelijken" containerClassName="comparison-page"><Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link><div className="eyebrow"><GitCompare size={13} /> {t("dashboardEyebrow")}</div><div className="compare-heading-row"><h1>{t("dashboardTitle")}</h1><button className="secondary-button" type="button" onClick={() => void share()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button></div><p className="hero-copy">{t("dashboardCopy")}</p>{invalidCount > 0 && <p className="compare-alert" role="status">{t("invalidIdsWarning", { count: invalidCount })}</p>}{loadError && <p className="compare-alert" role="alert">{loadError}</p>}<section className="comparison-cards">{analyses.map((analysis) => { const selected = workspace.compare.includes(analysis.property.bagVboId); return <article className="comparison-card" key={analysis.property.bagVboId}><div className="comparison-card-top"><div><h2>{analysis.property.street} {analysis.property.houseNumber}</h2><span>{analysis.property.postcode} {analysis.property.city}</span></div><button className="icon-button" type="button" aria-label={t("removeFromCompareAria")} onClick={async () => { await toggleCompare(analysis.property.bagVboId); const remaining = analyses.filter((item) => item.property.bagVboId !== analysis.property.bagVboId); removeIdsFromUrl(remaining.map((item) => item.property.bagVboId), "ids", 2); }}><X size={15} /></button></div><div className="comparison-scores"><div><small>{t("realityScore")}</small><strong>{formatScore(analysis.overallScore)}</strong></div><div><small>{t("yourFit")}</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div></div><div className="comparison-card-footer"><span><Heart size={13} /> {comparisonStorageLabel}</span>{selected && <span className="selected-label">{t("selectedLabel")}</span>}</div></article>; })}</section><section className="comparison-table-wrap"><table className="comparison-table"><thead><tr><th>{t("colFeature")}</th>{analyses.map((analysis) => <th key={analysis.property.bagVboId}>{analysis.property.street} {analysis.property.houseNumber}</th>)}</tr></thead><tbody>{factRows.map((row) => <tr key={row.key}><th>{row.label}</th>{analyses.map((analysis) => <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>)}</tr>)}{domains.map((domain) => <tr key={domain.key}><th>{domain.label}</th>{analyses.map((analysis) => { const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score; const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value); return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? t("noData") : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>; })}</tr>)}</tbody></table><p className="muted-copy">{t("footnote")}</p></section></PageShell>;
+  return (
+    <PageShell current="vergelijken" containerClassName="comparison-page">
+      <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backToSearch")}</Link>
+      <div className="eyebrow"><GitCompare size={13} /> {t("dashboardEyebrow")}</div>
+      <div className="compare-heading-row">
+        <h1>{t("dashboardTitle")}</h1>
+        <button className="secondary-button" type="button" onClick={() => void share()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button>
+      </div>
+      <p className="hero-copy">{baseline ? t("dashboardCopyWithCurrent") : t("dashboardCopy")}</p>
+      {invalidCount > 0 && <p className="compare-alert" role="status">{t("invalidIdsWarning", { count: invalidCount })}</p>}
+      {loadError && <p className="compare-alert" role="alert">{loadError}</p>}
+      <section className="comparison-cards">
+        {columns.map((analysis) => {
+          const currentHome = isBaseline(analysis);
+          const selected = workspace.compare.includes(analysis.property.bagVboId);
+          const delta = baseline && !currentHome ? scoreDelta(baseline.overallScore, analysis.overallScore) : null;
+          return (
+            <article className={`comparison-card ${currentHome ? "is-baseline" : ""}`} key={analysis.property.bagVboId}>
+              <div className="comparison-card-top">
+                <div>
+                  <h2>{analysis.property.street} {analysis.property.houseNumber}</h2>
+                  <span>{analysis.property.postcode} {analysis.property.city}</span>
+                </div>
+                {currentHome ? (
+                  <span className="baseline-badge"><House size={12} /> {t("currentHomeBadge")}</span>
+                ) : (
+                  <button className="icon-button" type="button" aria-label={t("removeFromCompareAria")} onClick={async () => {
+                    await toggleCompare(analysis.property.bagVboId);
+                    const remaining = analyses.filter((item) => item.property.bagVboId !== analysis.property.bagVboId);
+                    removeIdsFromUrl(remaining.map((item) => item.property.bagVboId), "ids", 2);
+                  }}><X size={15} /></button>
+                )}
+              </div>
+              <div className="comparison-scores">
+                <div><small>{t("realityScore")}</small><strong>{formatScore(analysis.overallScore)}</strong></div>
+                <div><small>{t("yourFit")}</small><strong>{calculatePersonalFit(analysis, workspace.preferences) != null ? formatScore(calculatePersonalFit(analysis, workspace.preferences) as number) : "—"}</strong></div>
+              </div>
+              {delta != null && (
+                <p className={`compare-delta ${delta > 0 ? "is-better" : delta < 0 ? "is-worse" : ""}`} role="status">
+                  {delta >= 0 ? "+" : ""}{formatScore(delta)} {t("versusCurrentHome")}
+                </p>
+              )}
+              <div className="comparison-card-footer">
+                <span><Heart size={13} /> {comparisonStorageLabel}</span>
+                {!currentHome && selected && <span className="selected-label">{t("selectedLabel")}</span>}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+      <section className="comparison-table-wrap">
+        <table className="comparison-table">
+          <thead>
+            <tr>
+              <th>{t("colFeature")}</th>
+              {columns.map((analysis) => (
+                <th key={analysis.property.bagVboId} className={isBaseline(analysis) ? "is-baseline-col" : ""}>
+                  {isBaseline(analysis) ? `${t("currentHomeBadge")}: ${analysis.property.street} ${analysis.property.houseNumber}` : `${analysis.property.street} ${analysis.property.houseNumber}`}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {factRows.map((row) => (
+              <tr key={row.key}>
+                <th>{row.label}</th>
+                {columns.map((analysis) => (
+                  <td className={row.best?.(analysis) ? "best-value" : ""} key={analysis.property.bagVboId}>{row.render(analysis)}</td>
+                ))}
+              </tr>
+            ))}
+            {domains.map((domain) => (
+              <tr key={domain.key}>
+                <th>{domain.label}</th>
+                {columns.map((analysis) => {
+                  const value = analysis.domains.find((candidate) => candidate.key === domain.key)?.score;
+                  const best = value != null && analyses.every((other) => (other.domains.find((candidate) => candidate.key === domain.key)?.score ?? -1) <= value);
+                  return <td className={best ? "best-value" : ""} key={analysis.property.bagVboId}>{value == null ? t("noData") : `${value.toLocaleString("nl-NL", { maximumFractionDigits: 1 })} / 10`}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="muted-copy">{t("footnote")}</p>
+      </section>
+    </PageShell>
+  );
 }

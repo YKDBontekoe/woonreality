@@ -15,6 +15,7 @@ export type WorkspaceData = {
   mortgageSnapshot: MortgageSnapshot | null;
   mortgageConfigured: boolean;
   onboardingDismissed: boolean;
+  currentHome: SavedProperty | null;
   saved: SavedProperty[];
   listingHistory: ListingHistoryItem[];
   compare: string[];
@@ -31,6 +32,7 @@ export const emptyWorkspace = (): WorkspaceData => ({
   mortgageSnapshot: null,
   mortgageConfigured: false,
   onboardingDismissed: false,
+  currentHome: null,
   saved: [],
   listingHistory: [],
   compare: [],

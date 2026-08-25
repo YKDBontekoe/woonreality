@@ -589,6 +589,12 @@ button.coverage-strip.is-clickable:hover { border-color: var(--accent); }
 .comparison-table tbody th { color: var(--ink); font-weight: 600; }
 .comparison-table tbody td { color: var(--ink-soft); font-family: "DM Sans", sans-serif; }
 .comparison-table .best-value { color: var(--moss); background: var(--ok-soft); font-weight: 600; }
+.baseline-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--accent-deep); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.comparison-card.is-baseline { border-color: var(--moss); }
+.compare-delta { margin: -6px 0 10px; color: var(--muted); font-size: 11px; }
+.compare-delta.is-better { color: var(--moss); }
+.compare-delta.is-worse { color: var(--attention-deep); }
+.comparison-table .is-baseline-col { color: var(--ink); }
 
 /* Comparison is a decision workspace: the empty state is still a designed entry point. */
 .comparison-page { padding-top: 2.2rem; }

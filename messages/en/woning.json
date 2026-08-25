@@ -82,7 +82,12 @@
     "notCovered": "Not covered",
     "scoreNoteStrong": "Score",
     "scoreNoteRest": "is an indication of the surroundings, not purchase advice.",
-    "disclaimer": "Open data does not replace a survey, notary or mortgage advice."
+    "disclaimer": "Open data does not replace a survey, notary or mortgage advice.",
+    "setCurrentHome": "My current home",
+    "isCurrentHome": "Current home",
+    "currentHomeSet": "Saved as your current home. Compare candidates via Compare.",
+    "currentHomeCleared": "Your current home has been removed.",
+    "currentHomeFailed": "Could not save your current home."
   },
   "viewing": {
     "analysisLoadFailed": "Analysis could not be loaded.",

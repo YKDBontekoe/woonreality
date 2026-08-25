@@ -66,5 +66,6 @@
   "paletteClose": "sluiten",
   "paletteOpenHint": "kiezen",
   "paletteThemeToggle": "Wissel licht / donker",
-  "paletteTriggerAria": "Zoek of navigeer (⌘K)"
+  "paletteTriggerAria": "Zoek of navigeer (⌘K)",
+  "currentHomeSessionNotice": "Niet ingelogd: je huidige woning bewaren we alleen in deze browser."
 }

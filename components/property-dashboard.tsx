@@ -5,6 +5,7 @@ import {
   Check,
   GitCompare,
   Heart,
+  Home as HomeIcon,
   MapPinned,
   Printer,
   RefreshCw,
@@ -93,7 +94,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
   const [focusDomain, setFocusDomain] = useState<SignalCategory | null>(null);
   const [mapFocusId, setMapFocusId] = useState<string | null>(null);
-  const { authStatus, workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
+  const { authStatus, workspace, toggleSaved, toggleCompare, setCurrentHome, clearCurrentHome, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
   const [caseId, setCaseId] = useState<string | null>(null);
@@ -310,6 +311,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const isSaved = workspace.saved.some(
     (item) => item.bagVboId === property.bagVboId,
   );
+  const isCurrentHome = workspace.currentHome?.bagVboId === property.bagVboId;
   const isCompared = workspace.compare.includes(property.bagVboId);
   const comparisonIsFull = !isCompared && workspace.compare.length >= 4;
   const personalFit = calculatePersonalFit(analysis, preferences);
@@ -361,6 +363,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     }
   }
 
+  async function toggleCurrentHome() {
+    setActionNotice("");
+    const result = isCurrentHome ? await clearCurrentHome() : await setCurrentHome(property);
+    if (result.ok) {
+      setActionNotice(isCurrentHome ? t("dashboard.currentHomeCleared") : t("dashboard.currentHomeSet"));
+      window.setTimeout(() => setActionNotice(""), 4200);
+    } else {
+      setActionNotice(t("dashboard.currentHomeFailed"));
+      window.setTimeout(() => setActionNotice(""), 4200);
+    }
+  }
+
   function jumpToSignal(thing: TopThing) {
     setFocusSignalKey(thing.signalKeys[0] ?? null);
     setFocusDomain(null);
@@ -404,6 +418,14 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             >
               {isSaved ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}
               {isSaved ? t("saved") : t("save")}
+            </button>
+            <button
+              className={`ghost-button ${isCurrentHome ? "selected" : ""}`}
+              type="button"
+              onClick={() => { void toggleCurrentHome(); }}
+            >
+              <HomeIcon size={14} />
+              {isCurrentHome ? t("dashboard.isCurrentHome") : t("dashboard.setCurrentHome")}
             </button>
             <button
               className={`ghost-button ${isCompared ? "selected" : ""}`}

@@ -64,5 +64,9 @@
   "invalidIdsWarning": "{count, plural, one {{count} adres uit de link bestaat niet en is overgeslagen.} other {{count} adressen uit de link bestaan niet en zijn overgeslagen.}}",
   "shareLabel": "Kopieer link",
   "copiedLabel": "Gekopieerd",
-  "copyPrompt": "Kopieer de link naar deze vergelijking:"
+  "copyPrompt": "Kopieer de link naar deze vergelijking:",
+  "currentHomeBadge": "Huidige woning",
+  "versusCurrentHome": "t.o.v. je huidige woning",
+  "currentHomeUnavailable": "Je huidige woning kon tijdelijk niet worden geladen.",
+  "dashboardCopyWithCurrent": "Je huidige woning staat als referentiekolom vast; \"beste waarde\" wordt alleen onder de kandidaten bepaald."
 }

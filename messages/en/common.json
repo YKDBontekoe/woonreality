@@ -66,5 +66,6 @@
   "paletteClose": "close",
   "paletteOpenHint": "select",
   "paletteThemeToggle": "Toggle light / dark",
-  "paletteTriggerAria": "Search or navigate (⌘K)"
+  "paletteTriggerAria": "Search or navigate (⌘K)",
+  "currentHomeSessionNotice": "Not signed in: we'll keep your current home in this browser only."
 }
