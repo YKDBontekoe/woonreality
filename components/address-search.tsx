@@ -4,11 +4,11 @@ import { Building2, Clock, Home, Link2, MapPin, Search, Sparkles, X } from "luci
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
+import { writeListingDraft } from "@/src/lib/listing-draft";
 import { readRecentSearches, recentSearchKey, recentSearchesLimit, writeRecentSearches } from "@/src/lib/recent-searches";
 import type { AddressSearchResult, LocationSearchResult, PropertyListing } from "@/src/lib/types";
-import { loginHref } from "@/src/lib/login-href";
+import { apiFetch, redirectToLogin } from "@/components/hooks/use-api";
 
 type Translate = (key: string) => string;
 
@@ -62,23 +62,13 @@ function storeDraft(
   blocked?: boolean,
   notice?: string,
 ) {
-  let existing: UserListingDraft | null = null;
-  try {
-    const raw = sessionStorage.getItem(listingStorageKey(bagId));
-    existing = raw ? JSON.parse(raw) as UserListingDraft : null;
-  } catch { /* private mode */ }
-  const draft: UserListingDraft = {
-    ...existing,
-    bagVboId: bagId,
-    askingPrice: listing?.askingPrice ?? facts?.askingPrice ?? existing?.askingPrice,
+  void writeListingDraft(bagId, {
     sourceUrl,
-    facts: facts ?? existing?.facts,
-    blocked: blocked ?? existing?.blocked,
-    notice: notice ?? existing?.notice,
-  };
-  try {
-    sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
-  } catch { /* private mode */ }
+    askingPrice: listing?.askingPrice ?? facts?.askingPrice,
+    facts,
+    blocked,
+    notice,
+  });
 }
 
 export function AddressSearch({
@@ -174,12 +164,11 @@ export function AddressSearch({
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/address/search?q=${encodeURIComponent(query)}${addressesOnlyParam}`, { signal: controller.signal });
-        if (response.status === 401) { window.location.href = loginHref(); return; }
-        const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
+        const result = await apiFetch<{ results?: LocationSearchResult[]; error?: string }>(`/api/address/search?q=${encodeURIComponent(query)}${addressesOnlyParam}`, { signal: controller.signal });
+        if (result.status === 401) { redirectToLogin(); return; }
         if (requestId !== requestIdRef.current || dismissedRef.current) return;
-        if (!response.ok) throw new Error(body.error ?? t("errorSearchUnavailable"));
-        setResults(body.results ?? []);
+        if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("errorSearchUnavailable"));
+        setResults(result.data?.results ?? []);
         setError("");
         setSearched(true);
         setActiveIndex(-1);
@@ -221,15 +210,15 @@ export function AddressSearch({
     setSearched(false);
     setSearching(true);
     try {
-      const response = await fetch(`/api/address/search?q=${encodeURIComponent(example)}${addressesOnlyParam}`);
-      if (response.status === 401) { window.location.href = loginHref(); return; }
-      const body = await response.json() as { results?: LocationSearchResult[]; error?: string };
-      if (!response.ok) throw new Error(body.error ?? t("errorSearchUnavailable"));
-      const result = requireAddress || addressesOnly
-        ? body.results?.find((item) => item.kind === "adres")
-        : body.results?.[0];
-      if (!result) throw new Error(t("errorExampleUnavailable"));
-      openResult(result);
+      const result = await apiFetch<{ results?: LocationSearchResult[]; error?: string }>(`/api/address/search?q=${encodeURIComponent(example)}${addressesOnlyParam}`);
+      if (result.status === 401) { redirectToLogin(); return; }
+      if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("errorSearchUnavailable"));
+      const found = result.data?.results;
+      const picked = requireAddress || addressesOnly
+        ? found?.find((item) => item.kind === "adres")
+        : found?.[0];
+      if (!picked) throw new Error(t("errorExampleUnavailable"));
+      openResult(picked);
     } catch (caught) {
       directAddressRef.current = null;
       setError(caught instanceof Error ? caught.message : t("errorSearchUnavailable"));
@@ -243,22 +232,20 @@ export function AddressSearch({
     setSearching(true);
     setError("");
     try {
-      const response = await fetch("/api/listing/from-url", {
+      const result = await apiFetch<FromUrlResponse>("/api/listing/from-url", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sourceUrl }),
+        json: { sourceUrl },
       });
-      if (response.status === 401) { window.location.href = loginHref(); return; }
-      const body = await response.json() as FromUrlResponse;
-      if (!response.ok || !body.address) {
-        setError(body.error ?? t("errorFundaReadFailed"));
+      if (result.status === 401) { redirectToLogin(); return; }
+      if (!result.ok || !result.data?.address) {
+        setError(result.data?.error ?? result.error ?? t("errorFundaReadFailed"));
         return;
       }
-      const notice = body.blocked
+      const notice = result.data.blocked
         ? t("fundaBlockedNotice")
         : undefined;
-      storeDraft(body.address.bagVboId, sourceUrl, body.listing, body.facts, body.blocked, notice);
-      openResult(body.address);
+      storeDraft(result.data.address.bagVboId, sourceUrl, result.data.listing, result.data.facts, result.data.blocked, notice);
+      openResult(result.data.address);
     } catch {
       setError(t("errorNoConnection"));
     } finally {

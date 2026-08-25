@@ -1,7 +1,7 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { clamp, round1, roundToStep } from "@/src/lib/math";
-import { scoreSeverity } from "@/src/lib/scoring/score";
 import { ndovHaltesUrl, type NdovContext } from "@/src/lib/sources/ndov";
 import { dsoOnderwerpenUrl, type DsoContext } from "@/src/lib/sources/dso";
 import type { Locale } from "@/src/lib/i18n/config";
@@ -41,13 +41,12 @@ export function transitSignal(input: { ndov: NdovContext | null; evidence: Evide
     : ndov
       ? t("mobility.transit.summaryNoStop")
       : t("mobility.transit.summaryUnavailable");
-  return {
+  return createSignal({
     key: "transit",
     label: t("mobility.transit.label"),
     category: "mobiliteit",
     value: ndov?.nearestDistanceM != null ? `${roundToStep(ndov.nearestDistanceM, 10)} m` : ndov ? t("mobility.transit.valueNoneNearby") : t("common.noData"),
     score,
-    severity: ndov ? scoreSeverity(score!) : "neutral",
     summary,
     action: t("mobility.transit.action"),
     raw: ndov?.nearestDistanceM != null
@@ -55,9 +54,9 @@ export function transitSignal(input: { ndov: NdovContext | null; evidence: Evide
       : undefined,
     confidence: "high",
     spatialScale: "haltecoördinaat",
-    evidence: [evidence],
-    availability: available ? "available" : "unavailable",
-  };
+    available,
+    evidence,
+  });
 }
 
 export function dsoEvidence(context: DsoContext | null, locale: Locale = "nl"): Evidence {
@@ -81,7 +80,7 @@ export function futureScoreForTopics(topicCount: number) {
 export function futureSignal(input: { dso: DsoContext | null; evidence: Evidence; available: boolean }, locale: Locale = "nl"): Signal {
   const { dso, evidence, available } = input;
   const t = getLibTranslator(locale, "lib-analysis");
-  return {
+  return createSignal({
     key: "future",
     label: t("mobility.future.label"),
     category: "toekomst",
@@ -97,9 +96,9 @@ export function futureSignal(input: { dso: DsoContext | null; evidence: Evidence
     action: t("mobility.future.action"),
     confidence: "medium",
     spatialScale: "puntbevraging",
-    evidence: [evidence],
-    availability: available ? "available" : "unavailable",
-  };
+    available,
+    evidence,
+  });
 }
 
 export function roundDistance(value: number) {

@@ -1,6 +1,7 @@
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import type { BuyerProfile } from "@/src/lib/purchase";
 import type { Analysis } from "@/src/lib/types";
 
@@ -40,7 +41,7 @@ function clampToBudget(amount: number, budget?: number) {
 }
 
 function euroFormatter(locale: Locale) {
-  return new Intl.NumberFormat(locale === "en" ? "en-IE" : "nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  return new Intl.NumberFormat(formatLocaleTag(locale), { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 }
 
 export function attentionSignals(analysis?: Analysis | null) {

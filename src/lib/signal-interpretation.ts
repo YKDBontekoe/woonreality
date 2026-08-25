@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import { NL_CRIME_PER_1000 } from "@/src/lib/sources/politie";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import type { DomainSummary, Severity, Signal } from "@/src/lib/types";
@@ -43,7 +44,7 @@ const NOISE_AVERAGE = 65;
 const NOISE_LOUD = 70;
 const SES_TYPICAL = 0.5;
 
-const numberTag = (locale: Locale) => (locale === "en" ? "en-IE" : "nl-NL");
+const numberTag = (locale: Locale) => formatLocaleTag(locale);
 
 function buildBenchmark(input: {
   referenceLabel: string;

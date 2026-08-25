@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 export type PropertyStage =
   | "saved"
@@ -116,7 +117,7 @@ export const PROPERTY_TYPE_LABELS: Record<SoughtPropertyType, string> = Object.f
 
 export function formatEuro(value: number | null | undefined, locale: Locale = "nl") {
   if (value == null || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat(locale === "en" ? "en-IE" : "nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat(formatLocaleTag(locale), { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

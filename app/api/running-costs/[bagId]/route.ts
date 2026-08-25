@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, jsonError, routeError } from "@/src/lib/api/handlers";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { fetchLatestEnergyTariffs, fetchEnergyConsumption } from "@/src/lib/sources/cbs-energy";
 import { estimateRunningCosts } from "@/src/lib/running-costs";
-import { redactError, toUserMessage } from "@/src/lib/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
 
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { locale, t } = apiContext(request);
   const { bagId } = await context.params;
   const url = new URL(request.url);
   const vveParam = url.searchParams.get("vveContribution");
@@ -32,7 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
 
     const parsedVve = parseVveContribution(vveParam);
     if (parsedVve === null) {
-      return NextResponse.json({ error: t("errors.invalidVveContribution") }, { status: 400 });
+      return jsonError(t("errors.invalidVveContribution"), 400);
     }
 
     const property = await getPropertyById(decodeURIComponent(bagId));
@@ -58,10 +54,6 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
       headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800", Vary: "Cookie" },
     });
   } catch (error) {
-    console.error("Running costs estimation failed", redactError(error));
-    return NextResponse.json(
-      { error: toUserMessage(error, t("errors.runningCosts")) },
-      { status: 502 },
-    );
+    return routeError(error, t("errors.runningCosts"));
   }
 }

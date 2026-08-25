@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CASE_STAGES } from "../src/lib/journey";
-import { JOURNEY_CHECKLIST, journeyChecklistForStage, journeyStageStatus } from "../src/lib/journey-checklist";
+import { journeyChecklist, journeyChecklistForStage, journeyStageStatus } from "../src/lib/journey-checklist";
 
-test("JOURNEY_CHECKLIST covers every case stage exactly once", () => {
-  assert.equal(JOURNEY_CHECKLIST.length, CASE_STAGES.length);
-  const stages = JOURNEY_CHECKLIST.map((entry) => entry.stage);
+test("journeyChecklist covers every case stage exactly once", () => {
+  const checklist = journeyChecklist();
+  assert.equal(checklist.length, CASE_STAGES.length);
+  const stages = checklist.map((entry) => entry.stage);
   assert.deepEqual([...stages].sort(), [...CASE_STAGES].sort());
 });
 

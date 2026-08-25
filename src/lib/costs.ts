@@ -2,6 +2,7 @@ import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { currentMortgageReference, type MortgageReference } from "@/src/lib/mortgage/reference";
 import type { BuyerProfile } from "@/src/lib/purchase";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 export type TransferTaxProfile = Pick<BuyerProfile, "firstTimeBuyer"> & Partial<Pick<BuyerProfile, "buyerAge" | "selfOccupied" | "priorExemptionUsed">>;
 
@@ -59,7 +60,7 @@ function roundEuro(value: number) {
 }
 
 function numberTag(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
+  return formatLocaleTag(locale);
 }
 
 function euroLabel(value: number, locale: Locale = "nl") {

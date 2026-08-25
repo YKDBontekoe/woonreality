@@ -4,8 +4,9 @@ import { Link2, Puzzle, RefreshCw } from "lucide-react";
 import { Link } from "@/src/lib/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
+import { readListingDraft, writeListingDraft } from "@/src/lib/listing-draft";
+import { apiFetch } from "@/components/hooks/use-api";
 import type { PropertyListing } from "@/src/lib/types";
 
 type ImportResponse = {
@@ -24,23 +25,14 @@ function storeDraft(
   blocked?: boolean,
   notice?: string,
 ) {
-  let existing: UserListingDraft | null = null;
-  try {
-    const raw = sessionStorage.getItem(listingStorageKey(bagId));
-    existing = raw ? JSON.parse(raw) as UserListingDraft : null;
-  } catch { /* private mode */ }
-  const draft: UserListingDraft = {
-    ...existing,
-    bagVboId: bagId,
-    askingPrice: listing.askingPrice ?? existing?.askingPrice,
+  // Without a fresh notice an unblocked re-import must clear the stale one.
+  void writeListingDraft(bagId, {
     sourceUrl,
-    facts: facts ?? existing?.facts,
-    blocked: blocked ?? existing?.blocked,
-    notice: notice ?? (blocked ? existing?.notice : undefined),
-  };
-  try {
-    sessionStorage.setItem(listingStorageKey(bagId), JSON.stringify(draft));
-  } catch { /* private mode */ }
+    askingPrice: listing.askingPrice,
+    facts,
+    blocked,
+    notice,
+  }, blocked ? {} : { resetKeys: ["notice"] });
 }
 
 export function FundaListingPanel({
@@ -64,11 +56,8 @@ export function FundaListingPanel({
   }, [listing?.sourceUrl]);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(listingStorageKey(bagId));
-      const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
-      if (draft?.notice) setMessage(draft.notice);
-    } catch { /* private mode */ }
+    const draft = readListingDraft(bagId);
+    if (draft?.notice) setMessage(draft.notice);
   }, [bagId]);
 
   async function importListing() {
@@ -80,20 +69,18 @@ export function FundaListingPanel({
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/listing/user/${encodeURIComponent(bagId)}/import`, {
+      const result = await apiFetch<ImportResponse>(`/api/listing/user/${encodeURIComponent(bagId)}/import`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sourceUrl: url }),
+        json: { sourceUrl: url },
       });
-      const body = await response.json() as ImportResponse;
-      if (!response.ok) {
-        setMessage(body.error ?? t("funda.linkFailed"));
+      if (!result.ok) {
+        setMessage(result.data?.error ?? result.error ?? t("funda.linkFailed"));
         return;
       }
-      if (body.listing) {
-        onListingChange(body.listing);
+      if (result.data?.listing) {
+        onListingChange(result.data.listing);
         const notice = t("funda.savedNotice");
-        storeDraft(bagId, url, body.listing, body.facts, body.blocked, notice);
+        storeDraft(bagId, url, result.data.listing, result.data.facts, result.data.blocked, notice);
         setMessage(notice);
       }
     } catch {

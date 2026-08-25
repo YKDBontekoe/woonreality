@@ -40,6 +40,7 @@ export {
   deductionRefund,
   eigenwoningforfait,
   formatDeductionRate,
+  formatRatePct,
   housingDeductionRate,
   housingTaxForYear,
   summarizeHousingTax,

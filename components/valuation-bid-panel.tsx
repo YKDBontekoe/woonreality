@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { buildBidStrategy, negotiationGuidance, type BidScenarioKey } from "@/src/lib/bid-strategy";
 import { estimateBuyerCosts } from "@/src/lib/costs";
-import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
+import { readListingDraft } from "@/src/lib/listing-draft";
 import { formatEuro } from "@/src/lib/purchase";
 import type { Analysis, PropertyListing } from "@/src/lib/types";
 import { formatScore } from "@/src/lib/math";
@@ -46,11 +46,7 @@ export function ValuationBidPanel({ bagId, analysis, listing, caseId }: { bagId:
           if (body.draft?.selected_scenario) draftScenario = body.draft.selected_scenario;
         }
         if (!userEditedAskingPriceRef.current) {
-          try {
-            const raw = sessionStorage.getItem(listingStorageKey(bagId));
-            const sessionDraft = raw ? JSON.parse(raw) as UserListingDraft : null;
-            sessionAsking = sessionDraft?.askingPrice;
-          } catch { /* ignore */ }
+          sessionAsking = readListingDraft(bagId)?.askingPrice;
         }
         if (!cancelled) {
           const resolved = draftAsking ?? sessionAsking;

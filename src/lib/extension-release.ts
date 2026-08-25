@@ -1,4 +1,5 @@
 import { list } from "@vercel/blob";
+import { fetchJson } from "@/src/lib/http/fetch-json";
 
 export type ExtensionRelease = {
   version: string;
@@ -19,10 +20,7 @@ export async function getLatestExtensionRelease(): Promise<ExtensionRelease | nu
     const manifestBlob = blobs.find((blob) => blob.pathname === releaseManifestPath);
     if (!manifestBlob) return null;
 
-    const response = await fetch(manifestBlob.url, { next: { revalidate: 300 } });
-    if (!response.ok) return null;
-
-    const release = (await response.json()) as Partial<ExtensionRelease>;
+    const release = await fetchJson<Partial<ExtensionRelease>>(manifestBlob.url, "Extension release manifest", { revalidate: 300 });
     if (!release.version || !release.releasedAt || !release.chromeDownloadUrl || !release.firefoxDownloadUrl) return null;
 
     return {

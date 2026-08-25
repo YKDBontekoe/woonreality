@@ -154,10 +154,8 @@ async function fetchFollowingRedirects(url: string, property: Property, signal: 
 }
 
 async function fetchDocument(source: ResearchSource, property: Property): Promise<Document | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6_000);
   try {
-    const response = await fetchFollowingRedirects(source.url, property, controller.signal);
+    const response = await fetchFollowingRedirects(source.url, property, AbortSignal.timeout(6_000));
     if (!response || !response.ok) return null;
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     const length = Number(response.headers.get("content-length") ?? 0);
@@ -180,8 +178,6 @@ async function fetchDocument(source: ResearchSource, property: Property): Promis
     return { source, text: text.replace(/\s+/g, " ").trim().slice(0, SOURCE_MAX_DOC_CHARS) };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

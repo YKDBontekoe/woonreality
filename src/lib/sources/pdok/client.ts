@@ -3,18 +3,11 @@ import { bboxString, type LatLng } from "@/src/lib/geo/bbox";
 import { fetchJson } from "@/src/lib/http/fetch-json";
 
 const PDOK_LOCATION_BASE = "https://api.pdok.nl/kadaster/location-api/v1";
-const PDOK_BAG_BASE = "https://api.pdok.nl/kadaster/bag/ogc/v2";
+export const PDOK_BAG_BASE = "https://api.pdok.nl/kadaster/bag/ogc/v2";
 const PDOK_BGT_BASE = "https://api.pdok.nl/lv/bgt/ogc/v1";
 
 /** PDOK tolerates a week of staleness; analyses are regenerated daily at most. */
 const PDOK_REVALIDATE_SECONDS = 604_800;
-
-export async function pdokFetch<T>(url: string, label: string, revalidate = PDOK_REVALIDATE_SECONDS): Promise<T> {
-  return fetchJson<T>(url, label, {
-    revalidate,
-    accept: "application/json, application/geo+json",
-  });
-}
 
 const PDOK_LOCATION_COLLECTIONS = ["adres", "woonplaats", "gemeentegebied", "plaats"] as const;
 
@@ -49,13 +42,16 @@ export function pdokBagFeatureUrl(collection: "verblijfsobject" | "pand", id: st
   return `${PDOK_BAG_BASE}/collections/${collection}/items/${encodeURIComponent(id)}?f=json`;
 }
 
-export function pdokBgtItemsUrl(collection: string, coordinates: LatLng, radiusM = 250, limit = 100) {
+function pdokBgtItemsUrl(collection: string, coordinates: LatLng, radiusM = 250, limit = 100) {
   const params = new URLSearchParams({ f: "json", bbox: bboxString(coordinates, radiusM), limit: String(limit) });
   return `${PDOK_BGT_BASE}/collections/${collection}/items?${params.toString()}`;
 }
 
-export async function getJson<T>(url: string, label = "PDOK", revalidate?: number) {
-  return pdokFetch<T>(url, label, revalidate);
+export async function getJson<T>(url: string, label = "PDOK", revalidate: number = PDOK_REVALIDATE_SECONDS): Promise<T> {
+  return fetchJson<T>(url, label, {
+    revalidate,
+    accept: "application/json, application/geo+json",
+  });
 }
 
 export async function getBgtFeatures(
@@ -64,7 +60,7 @@ export async function getBgtFeatures(
   radiusM = 250,
   limit = 100,
 ) {
-  const result = await pdokFetch<GeoJsonFeatureCollection>(pdokBgtItemsUrl(collection, coordinates, radiusM, limit), `PDOK BGT ${collection}`);
+  const result = await getJson<GeoJsonFeatureCollection>(pdokBgtItemsUrl(collection, coordinates, radiusM, limit), `PDOK BGT ${collection}`);
   return result.features;
 }
 

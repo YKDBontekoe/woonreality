@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
+import { apiContext, invalidBagIdResponse, jsonError, parseJsonBody, routeError } from "@/src/lib/api/handlers";
 import { viewingDebriefStage } from "@/src/lib/journey";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { applyWorkflowUpdate } from "@/src/lib/cases/apply-workflow";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { viewingDebriefSchema, isValidBagId } from "@/src/lib/validation/workspace";
@@ -10,28 +8,22 @@ import { viewingDebriefSchema, isValidBagId } from "@/src/lib/validation/workspa
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { bagId } = await context.params;
-    if (!isValidBagId(bagId)) return NextResponse.json({ error: t("errors.invalidBagAddress") }, { status: 400 });
+    if (!isValidBagId(bagId)) return invalidBagIdResponse(t("errors.invalidBagAddress"));
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return NextResponse.json({ error: t("errors.loginToFinishViewing") }, { status: 401 });
-    let raw: unknown;
-    try {
-      raw = await request.json();
-    } catch {
-      return NextResponse.json({ error: t("errors.chooseDebriefOutcome") }, { status: 400 });
-    }
-    const parsed = viewingDebriefSchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: t("errors.chooseDebriefOutcome") }, { status: 400 });
-    const result = viewingDebriefStage(parsed.data.decision);
+    if (!auth.user) return jsonError(t("errors.loginToFinishViewing"), 401);
+    const parsedBody = await parseJsonBody(request, viewingDebriefSchema, t("errors.chooseDebriefOutcome"));
+    if (!parsedBody.ok) return parsedBody.response;
+    const parsed = parsedBody.data;
+    const result = viewingDebriefStage(parsed.decision);
     const now = new Date().toISOString();
     const { data: stageRows, error: stageError } = await supabase.from("saved_properties").update({ stage: result.propertyStage, updated_at: now }).eq("user_id", auth.user.id).eq("bag_vbo_id", bagId).select("bag_vbo_id");
-    if (stageError || !stageRows?.length) return NextResponse.json({ error: t("errors.savePropertyFirst") }, { status: 400 });
+    if (stageError || !stageRows?.length) return jsonError(t("errors.savePropertyFirst"), 400);
 
-    let caseId = parsed.data.caseId;
+    let caseId = parsed.caseId;
     if (caseId) {
       const { data: ownedCase } = await supabase.from("purchase_cases").select("id").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
       if (!ownedCase) caseId = undefined;
@@ -51,7 +43,7 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
           status: result.caseStatus,
           event: {
             eventType: "viewing_debrief",
-            payload: { decision: parsed.data.decision, propertyStage: result.propertyStage, caseStage: result.caseStage },
+            payload: { decision: parsed.decision, propertyStage: result.propertyStage, caseStage: result.caseStage },
           },
         });
       } else {
@@ -61,8 +53,8 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     return NextResponse.json({ ...result, caseId: caseId ?? null });
   } catch (error) {
     if (error instanceof Error && error.message === "Supabase is nog niet geconfigureerd.") {
-      return NextResponse.json({ error: t("errors.viewingStorageUnavailable") }, { status: 503 });
+      return jsonError(t("errors.viewingStorageUnavailable"), 503);
     }
-    return NextResponse.json({ error: t("errors.viewingFinishFailed") }, { status: 502 });
+    return routeError(error, t("errors.viewingFinishFailed"));
   }
 }

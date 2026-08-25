@@ -1,10 +1,12 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
-import { fetchJson } from "@/src/lib/http/fetch-json";
+import type { SourceContextBase } from "@/src/lib/source-context";
+import { assertPositiveInteger, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { fetchCbsRegionRows, regionCandidates, spatialScaleFromCode, type RegionScaleCodes } from "@/src/lib/sources/cbs-region";
+import { createInflightDeduper, createTtlCache, runPool } from "@/src/lib/cache/ttl";
 
 export const sesStatLineUrl = "https://opendata.cbs.nl/ODataApi/OData/86296NED";
 export const sesStatLineTableUrl = "https://opendata.cbs.nl/#/CBS/nl/dataset/86296NED";
 
-export type SesContext = {
+export type SesContext = SourceContextBase & {
   regionCode: string;
   spatialScale: "buurt" | "wijk" | "gemeente";
   period: string;
@@ -16,7 +18,6 @@ export type SesContext = {
   educationLowPct?: number;
   educationMidPct?: number;
   educationHighPct?: number;
-  fetchedAt: string;
 };
 
 type SesRow = {
@@ -73,14 +74,8 @@ export type SesLookupEntry = {
 };
 
 const SES_LOOKUP_TTL_MS = 6 * 60 * 60 * 1000;
-const sesLookupCache = new Map<string, { value: SesLookupEntry; expiresAt: number }>();
-const sesLookupInflight = new Map<string, Promise<SesLookupEntry | undefined>>();
-
-function spatialScaleFromCode(code: string): SesContext["spatialScale"] {
-  if (code.startsWith("BU")) return "buurt";
-  if (code.startsWith("WK")) return "wijk";
-  return "gemeente";
-}
+const sesLookupCache = createTtlCache<SesLookupEntry>({ ttlMs: SES_LOOKUP_TTL_MS });
+const dedupeSesLookup = createInflightDeduper<SesLookupEntry | undefined>();
 
 function sesEntryFromContext(context: SesContext): SesLookupEntry {
   return {
@@ -99,42 +94,27 @@ async function fetchSesEntry(regionCode: string): Promise<SesLookupEntry | undef
   const normalized = normalizeRegionCode(regionCode);
   if (!normalized) return undefined;
   const cached = sesLookupCache.get(normalized);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  const inflight = sesLookupInflight.get(normalized);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
+  if (cached) return cached;
+  return dedupeSesLookup(normalized, async () => {
     const rows = await fetchSesRows(normalized);
     const parsed = parseSesRows(rows, normalized, spatialScaleFromCode(normalized));
-    if (parsed) {
-      const value = sesEntryFromContext(parsed);
-      sesLookupCache.set(normalized, { value, expiresAt: Date.now() + SES_LOOKUP_TTL_MS });
-      return value;
-    }
-    return undefined;
-  })().finally(() => { sesLookupInflight.delete(normalized); });
-
-  sesLookupInflight.set(normalized, promise);
-  return promise;
+    if (!parsed) return undefined;
+    const value = sesEntryFromContext(parsed);
+    sesLookupCache.set(normalized, value);
+    return value;
+  });
 }
 
 export async function preloadSesEntries(regionCodes: string[], concurrency = 12) {
   assertPositiveInteger(concurrency, "concurrency");
   const queue = [...new Set(regionCodes.map((code) => normalizeRegionCode(code)).filter(Boolean))] as string[];
-  // Sliding window: start the next lookup as soon as one finishes instead of
-  // waiting for whole batches, keeping upstream concurrency at `concurrency`.
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    for (let code = queue.shift(); code; code = queue.shift()) {
-      await fetchSesEntry(code).catch(() => undefined);
-    }
-  });
-  await Promise.all(workers);
+  await runPool(queue, (code) => fetchSesEntry(code).catch(() => undefined), concurrency);
 }
 
 export function lookupSesEntry(lookup: Map<string, SesLookupEntry>, regionCode: string | undefined) {
   const normalized = normalizeRegionCode(regionCode);
   if (!normalized) return undefined;
-  return lookup.get(normalized) ?? sesLookupCache.get(normalized)?.value;
+  return lookup.get(normalized) ?? sesLookupCache.get(normalized);
 }
 
 export async function getSesLookupForCodes(regionCodes: string[]) {
@@ -143,7 +123,7 @@ export async function getSesLookupForCodes(regionCodes: string[]) {
   for (const code of regionCodes) {
     const normalized = normalizeRegionCode(code);
     if (!normalized) continue;
-    const entry = sesLookupCache.get(normalized)?.value;
+    const entry = sesLookupCache.get(normalized);
     if (entry) lookup.set(normalized, entry);
   }
   const periodYear = [...lookup.values()].find((entry) => entry.periodYear)?.periodYear;
@@ -151,25 +131,11 @@ export async function getSesLookupForCodes(regionCodes: string[]) {
 }
 
 async function fetchSesRows(regionCode: string): Promise<SesRow[]> {
-  // One request covers both the raw and right-padded key variants instead of
-  // probing them sequentially.
-  const variants = cbsODataRegionVariants(regionCode);
-  if (!variants.length) return [];
-  const filter = variants.map((variant) => cbsODataEq("WijkenEnBuurten", variant)).join(" or ");
-  const params = new URLSearchParams({
-    $filter: filter,
-    $format: "json",
-  });
-  const payload = await fetchJson<{ value?: SesRow[] }>(`${sesStatLineUrl}/TypedDataSet?${params}`, "CBS SES-WOA", { revalidate: 86400 });
-  return payload.value ?? [];
+  return fetchCbsRegionRows<SesRow>(sesStatLineUrl, "CBS SES-WOA", regionCode);
 }
 
-export async function getSesContext(codes: { buurtcode?: string; wijkcode?: string; gemeentecode?: string }): Promise<SesContext | null> {
-  const candidates: { code: string; spatialScale: SesContext["spatialScale"] }[] = [
-    ...(codes.buurtcode ? [{ code: codes.buurtcode, spatialScale: "buurt" as const }] : []),
-    ...(codes.wijkcode ? [{ code: codes.wijkcode, spatialScale: "wijk" as const }] : []),
-    ...(codes.gemeentecode ? [{ code: codes.gemeentecode, spatialScale: "gemeente" as const }] : []),
-  ];
+export async function getSesContext(codes: RegionScaleCodes): Promise<SesContext | null> {
+  const candidates = regionCandidates(codes);
   const fetchedAt = new Date().toISOString();
   // Fetch all candidate scales in parallel, then prefer the finest scale with
   // data instead of paying a serial round trip per fallback level.

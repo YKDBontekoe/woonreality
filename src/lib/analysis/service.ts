@@ -2,6 +2,7 @@ import { ANALYSIS_VERSION, analyzeProperty } from "@/src/lib/analysis/analyze";
 import { analyzePlace } from "@/src/lib/analysis/analyze-place";
 import { SCORING_VERSION } from "@/src/lib/scoring/score";
 import type { Locale } from "@/src/lib/i18n/config";
+import { createInflightDeduper, createTtlCache } from "@/src/lib/cache/ttl";
 import { getSourceCache, persistAnalysis, putSourceCache } from "@/src/lib/db/repository";
 import type { Analysis, PlaceAnalysis, PlaceKind, Property } from "@/src/lib/types";
 
@@ -17,32 +18,10 @@ const TTL_SECONDS = 60 * 60 * 24;
  * a burst of visitors triggers one computation instead of N.
  */
 const MEMO_LIMIT = 200;
-type MemoEntry<T> = { value: T; expiresAt: number };
-const analysisMemo = new Map<string, MemoEntry<Analysis>>();
-const placeMemo = new Map<string, MemoEntry<PlaceAnalysis>>();
-const inflightAnalyses = new Map<string, Promise<Analysis>>();
-const inflightPlaces = new Map<string, Promise<PlaceAnalysis | null>>();
-
-function memoGet<T>(store: Map<string, MemoEntry<T>>, key: string): T | undefined {
-  const entry = store.get(key);
-  if (!entry) return undefined;
-  if (entry.expiresAt <= Date.now()) {
-    store.delete(key);
-    return undefined;
-  }
-  // Refresh recency for LRU eviction ordering.
-  store.delete(key);
-  store.set(key, entry);
-  return entry.value;
-}
-
-function memoSet<T>(store: Map<string, MemoEntry<T>>, key: string, value: T) {
-  if (store.size >= MEMO_LIMIT && !store.has(key)) {
-    const oldest = store.keys().next().value;
-    if (oldest !== undefined) store.delete(oldest);
-  }
-  store.set(key, { value, expiresAt: Date.now() + TTL_SECONDS * 1000 });
-}
+const analysisMemo = createTtlCache<Analysis>({ ttlMs: TTL_SECONDS * 1000, limit: MEMO_LIMIT });
+const placeMemo = createTtlCache<PlaceAnalysis>({ ttlMs: TTL_SECONDS * 1000, limit: MEMO_LIMIT });
+const dedupeAnalysis = createInflightDeduper<Analysis>();
+const dedupePlace = createInflightDeduper<PlaceAnalysis | null>();
 
 function schemaVersion() {
   return `${ANALYSIS_VERSION}:${SCORING_VERSION}`;
@@ -59,19 +38,15 @@ export async function getSharedAnalysis(property: Property, locale: Locale = "nl
   const key = property.bagVboId;
   // Localized copy is baked into the analysis payload, so the cache is
   // partitioned per locale alongside the analysis/scoring version.
-  const version = `${schemaVersion()}:${locale}`;
-  const memoKey = `${version}:${key}`;
-  const memoized = memoGet(analysisMemo, memoKey);
-  if (memoized) return memoized;
-  const inflight = inflightAnalyses.get(memoKey);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
+  const memoKey = `${schemaVersion()}:${locale}:${key}`;
+  return dedupeAnalysis(memoKey, async () => {
+    const memoized = analysisMemo.get(memoKey);
+    if (memoized) return memoized;
     try {
-      const cached = await getSourceCache<Analysis>(CACHE_SOURCE, key, version);
+      const cached = await getSourceCache<Analysis>(CACHE_SOURCE, key, `${schemaVersion()}:${locale}`);
       if (cached && cached.property?.bagVboId === key && typeof cached.overallScore === "number") {
         const result = { ...cached, persistence: "database" as const };
-        memoSet(analysisMemo, memoKey, result);
+        analysisMemo.set(memoKey, result);
         return result;
       }
     } catch {
@@ -83,13 +58,10 @@ export async function getSharedAnalysis(property: Property, locale: Locale = "nl
     } catch {
       analysis.persistence = "cache-only";
     }
-    void putSourceCache(CACHE_SOURCE, key, analysis, version, TTL_SECONDS);
-    memoSet(analysisMemo, memoKey, analysis);
+    void putSourceCache(CACHE_SOURCE, key, analysis, `${schemaVersion()}:${locale}`, TTL_SECONDS);
+    analysisMemo.set(memoKey, analysis);
     return analysis;
-  })().finally(() => { inflightAnalyses.delete(memoKey); });
-
-  inflightAnalyses.set(memoKey, promise);
-  return promise;
+  });
 }
 
 /**
@@ -101,16 +73,13 @@ export async function getSharedPlaceAnalysis(kind: PlaceKind, code: string, loca
   const key = `${kind}:${code}`;
   const version = `${schemaVersion()}:${locale}`;
   const memoKey = `${version}:${key}`;
-  const memoized = memoGet(placeMemo, memoKey);
-  if (memoized) return memoized;
-  const inflight = inflightPlaces.get(memoKey);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
+  return dedupePlace(memoKey, async () => {
+    const memoized = placeMemo.get(memoKey);
+    if (memoized) return memoized;
     try {
       const cached = await getSourceCache<PlaceAnalysis>(PLACE_CACHE_SOURCE, key, version);
       if (cached && cached.code === code && Array.isArray(cached.signals)) {
-        memoSet(placeMemo, memoKey, cached);
+        placeMemo.set(memoKey, cached);
         return cached;
       }
     } catch {
@@ -119,11 +88,8 @@ export async function getSharedPlaceAnalysis(kind: PlaceKind, code: string, loca
     const place = await analyzePlace(kind, code, locale);
     if (place) {
       void putSourceCache(PLACE_CACHE_SOURCE, key, place, version, TTL_SECONDS);
-      memoSet(placeMemo, memoKey, place);
+      placeMemo.set(memoKey, place);
     }
     return place;
-  })().finally(() => { inflightPlaces.delete(memoKey); });
-
-  inflightPlaces.set(memoKey, promise);
-  return promise;
+  });
 }

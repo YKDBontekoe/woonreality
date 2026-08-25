@@ -3,28 +3,25 @@ import { createEvidence } from "@/src/lib/analysis/evidence";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { schoolScoreFromCbs, type CbsContext } from "@/src/lib/sources/cbs";
-import { scoreSeverity } from "@/src/lib/scoring/score";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { crimeScoreFromRatePer1000, type CrimeContext } from "@/src/lib/sources/politie";
 import { type SesContext } from "@/src/lib/sources/ses";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 function clamp(value: number, min = 0, max = 10) {
   return Math.min(max, Math.max(min, value));
 }
 
-function numberLocale(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
-}
-
 function formatKm(distanceKm: number, locale: Locale) {
-  return `${distanceKm.toLocaleString(numberLocale(locale), { maximumFractionDigits: 1 })} km`;
+  return `${distanceKm.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 })} km`;
 }
 
 function formatPct(value: number, locale: Locale) {
-  return `${value.toLocaleString(numberLocale(locale), { maximumFractionDigits: 0 })}%`;
+  return `${value.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 0 })}%`;
 }
 
 function formatSesScore(value: number, locale: Locale) {
-  return value.toLocaleString(numberLocale(locale), { signDisplay: "exceptZero", maximumFractionDigits: 3 });
+  return value.toLocaleString(formatLocaleTag(locale), { signDisplay: "exceptZero", maximumFractionDigits: 3 });
 }
 
 export function createCbsEvidence(cbs: CbsContext | null, sourceUrl: string, locale: Locale = "nl"): Evidence {
@@ -78,13 +75,12 @@ export function cbsContextSignal(input: {
   const t = getLibTranslator(locale, "lib-analysis");
   const { cbs, cbsEvidence, spatialScale = t("common.spatialBuurt") } = input;
   const cbsAvailable = Boolean(cbs);
-  return {
+  return createSignal({
     key: "cbs-context",
     label: t("neighborhood.context.label"),
     category: "buurt",
     value: cbs?.buurtName ?? cbs?.municipalityName ?? t("common.noData"),
     score: cbs?.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : cbs ? 6 : undefined,
-    severity: cbs ? scoreSeverity(cbs.supermarketDistanceKm != null ? clamp(9 - cbs.supermarketDistanceKm * 1.5) : 6) : "neutral",
     summary: cbs?.buurtName || cbs?.municipalityName
       ? t("neighborhood.context.summaryAvailable", {
         name: `${cbs.buurtName ?? cbs.municipalityName}${cbs.buurtName && cbs.municipalityName ? ` (${cbs.municipalityName})` : ""}`,
@@ -96,9 +92,9 @@ export function cbsContextSignal(input: {
     raw: cbs?.supermarketDistanceKm != null ? { value: cbs.supermarketDistanceKm, unit: "km", metric: "CBS gemiddelde afstand supermarkt" } : undefined,
     confidence: "medium",
     spatialScale,
-    evidence: [cbsEvidence],
-    availability: cbsAvailable ? "available" : "unavailable",
-  };
+    available: cbsAvailable,
+    evidence: cbsEvidence,
+  });
 }
 
 export function neighborhoodSignals(input: {
@@ -121,7 +117,7 @@ export function neighborhoodSignals(input: {
   const crimeScore = crime?.per1000 != null ? crimeScoreFromRatePer1000(crime.per1000) : undefined;
   const schoolParts = [
     cbs?.primarySchoolDistanceKm != null ? t("neighborhood.parts.primarySchool", { distance: formatKm(cbs.primarySchoolDistanceKm, locale) }) : undefined,
-    cbs?.primarySchoolsWithin1km != null ? t("neighborhood.parts.schoolsWithin1km", { count: cbs.primarySchoolsWithin1km.toLocaleString(numberLocale(locale), { maximumFractionDigits: 1 }) }) : undefined,
+    cbs?.primarySchoolsWithin1km != null ? t("neighborhood.parts.schoolsWithin1km", { count: cbs.primarySchoolsWithin1km.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 }) }) : undefined,
     cbs?.secondarySchoolDistanceKm != null ? t("neighborhood.parts.secondarySchool", { distance: formatKm(cbs.secondarySchoolDistanceKm, locale) }) : undefined,
     cbs?.childcareDistanceKm != null ? t("neighborhood.parts.childcare", { distance: formatKm(cbs.childcareDistanceKm, locale) }) : undefined,
     cbs?.afterSchoolCareDistanceKm != null ? t("neighborhood.parts.afterSchoolCare", { distance: formatKm(cbs.afterSchoolCareDistanceKm, locale) }) : undefined,
@@ -129,8 +125,8 @@ export function neighborhoodSignals(input: {
   const childrenParts = [
     cbs?.shareAge0to15Pct != null ? t("neighborhood.parts.childrenAge0to15", { share: formatPct(cbs.shareAge0to15Pct, locale) }) : undefined,
     cbs?.shareHouseholdsWithChildrenPct != null ? t("neighborhood.parts.householdsWithChildren", { share: formatPct(cbs.shareHouseholdsWithChildrenPct, locale) }) : undefined,
-    cbs?.primaryPupils != null ? t("neighborhood.parts.primaryPupils", { count: cbs.primaryPupils.toLocaleString(numberLocale(locale)) }) : undefined,
-    cbs?.secondaryPupils != null ? t("neighborhood.parts.secondaryPupils", { count: cbs.secondaryPupils.toLocaleString(numberLocale(locale)) }) : undefined,
+    cbs?.primaryPupils != null ? t("neighborhood.parts.primaryPupils", { count: cbs.primaryPupils.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+    cbs?.secondaryPupils != null ? t("neighborhood.parts.secondaryPupils", { count: cbs.secondaryPupils.toLocaleString(formatLocaleTag(locale)) }) : undefined,
   ].filter(Boolean);
   const educationParts = educationFromSes
     ? [
@@ -139,27 +135,26 @@ export function neighborhoodSignals(input: {
       ses.educationHighPct != null ? t("neighborhood.parts.educationHigh", { share: formatPct(ses.educationHighPct, locale) }) : undefined,
     ].filter(Boolean)
     : [
-      cbs?.primaryPupils != null ? t("neighborhood.parts.poPupils", { count: cbs.primaryPupils.toLocaleString(numberLocale(locale)) }) : undefined,
-      cbs?.secondaryPupils != null ? t("neighborhood.parts.voPupils", { count: cbs.secondaryPupils.toLocaleString(numberLocale(locale)) }) : undefined,
-      cbs?.mboStudents != null ? t("neighborhood.parts.mboStudents", { count: cbs.mboStudents.toLocaleString(numberLocale(locale)) }) : undefined,
-      cbs?.hboStudents != null ? t("neighborhood.parts.hboStudents", { count: cbs.hboStudents.toLocaleString(numberLocale(locale)) }) : undefined,
-      cbs?.woStudents != null ? t("neighborhood.parts.woStudents", { count: cbs.woStudents.toLocaleString(numberLocale(locale)) }) : undefined,
+      cbs?.primaryPupils != null ? t("neighborhood.parts.poPupils", { count: cbs.primaryPupils.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+      cbs?.secondaryPupils != null ? t("neighborhood.parts.voPupils", { count: cbs.secondaryPupils.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+      cbs?.mboStudents != null ? t("neighborhood.parts.mboStudents", { count: cbs.mboStudents.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+      cbs?.hboStudents != null ? t("neighborhood.parts.hboStudents", { count: cbs.hboStudents.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+      cbs?.woStudents != null ? t("neighborhood.parts.woStudents", { count: cbs.woStudents.toLocaleString(formatLocaleTag(locale)) }) : undefined,
     ].filter(Boolean);
   const crimeBits = [
-    crime?.total != null ? t("neighborhood.parts.crimeTotal", { count: crime.total.toLocaleString(numberLocale(locale)) }) : undefined,
-    crime?.per1000 != null ? t("neighborhood.parts.crimePer1000", { rate: crime.per1000.toLocaleString(numberLocale(locale), { maximumFractionDigits: 1 }) }) : undefined,
-    crime?.burglary != null ? t("neighborhood.parts.crimeBurglary", { count: crime.burglary.toLocaleString(numberLocale(locale)) }) : undefined,
-    crime?.assault != null ? t("neighborhood.parts.crimeAssault", { count: crime.assault.toLocaleString(numberLocale(locale)) }) : undefined,
+    crime?.total != null ? t("neighborhood.parts.crimeTotal", { count: crime.total.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+    crime?.per1000 != null ? t("neighborhood.parts.crimePer1000", { rate: crime.per1000.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 }) }) : undefined,
+    crime?.burglary != null ? t("neighborhood.parts.crimeBurglary", { count: crime.burglary.toLocaleString(formatLocaleTag(locale)) }) : undefined,
+    crime?.assault != null ? t("neighborhood.parts.crimeAssault", { count: crime.assault.toLocaleString(formatLocaleTag(locale)) }) : undefined,
   ].filter(Boolean);
 
   return [
-    {
+    createSignal({
       key: "schools",
       label: t("neighborhood.schools.label"),
       category: "buurt",
       value: cbs?.primarySchoolDistanceKm != null ? formatKm(cbs.primarySchoolDistanceKm, locale) : cbs?.childcareDistanceKm != null ? formatKm(cbs.childcareDistanceKm, locale) : t("common.noData"),
       score: schoolScore,
-      severity: schoolScore != null ? scoreSeverity(schoolScore) : "neutral",
       summary: schoolAvailable
         ? t("neighborhood.schools.summaryAvailable", { parts: schoolParts.join("; ") })
         : t("neighborhood.schools.noDataSummary"),
@@ -167,15 +162,14 @@ export function neighborhoodSignals(input: {
       raw: cbs?.primarySchoolDistanceKm != null ? { value: cbs.primarySchoolDistanceKm, unit: "km", metric: "CBS gemiddelde afstand basisschool" } : undefined,
       confidence: "medium",
       spatialScale,
-      evidence: [cbsEvidence],
-      availability: schoolAvailable ? "available" : "unavailable",
-    },
-    {
+      available: schoolAvailable,
+      evidence: cbsEvidence,
+    }),
+    createSignal({
       key: "children",
       label: t("neighborhood.children.label"),
       category: "buurt",
       value: cbs?.shareAge0to15Pct != null ? formatPct(cbs.shareAge0to15Pct, locale) : cbs?.shareHouseholdsWithChildrenPct != null ? formatPct(cbs.shareHouseholdsWithChildrenPct, locale) : t("common.noData"),
-      severity: "neutral",
       summary: childrenAvailable
         ? t("neighborhood.children.summaryAvailable", { parts: childrenParts.join("; ") })
         : t("neighborhood.children.noDataSummary"),
@@ -183,15 +177,14 @@ export function neighborhoodSignals(input: {
       raw: cbs?.shareAge0to15Pct != null ? { value: cbs.shareAge0to15Pct, unit: "%", metric: "CBS aandeel 0 tot 15 jaar" } : undefined,
       confidence: "medium",
       spatialScale,
-      evidence: [cbsEvidence],
-      availability: childrenAvailable ? "available" : "unavailable",
-    },
-    {
+      available: childrenAvailable,
+      evidence: cbsEvidence,
+    }),
+    createSignal({
       key: "education",
       label: t("neighborhood.education.label"),
       category: "buurt",
-      value: ses?.educationHighPct != null ? t("neighborhood.parts.educationHigh", { share: formatPct(ses.educationHighPct, locale) }) : cbs?.primaryPupils != null ? t("neighborhood.parts.poPupils", { count: cbs.primaryPupils.toLocaleString(numberLocale(locale)) }) : t("common.noData"),
-      severity: "neutral",
+      value: ses?.educationHighPct != null ? t("neighborhood.parts.educationHigh", { share: formatPct(ses.educationHighPct, locale) }) : cbs?.primaryPupils != null ? t("neighborhood.parts.poPupils", { count: cbs.primaryPupils.toLocaleString(formatLocaleTag(locale)) }) : t("common.noData"),
       summary: educationAvailable
         ? educationFromSes
           ? t("neighborhood.education.summarySes", { year: ses?.periodYear ? t("common.yearSuffix", { year: ses.periodYear }) : "", parts: educationParts.join(", ") })
@@ -201,15 +194,14 @@ export function neighborhoodSignals(input: {
       raw: ses?.educationHighPct != null ? { value: ses.educationHighPct, unit: "%", metric: "CBS SES-WOA aandeel hbo/wo" } : undefined,
       confidence: "medium",
       spatialScale: ses?.spatialScale ?? t("common.spatialBuurt"),
-      evidence: educationFromSes ? [sesEvidence] : [cbsEvidence],
-      availability: educationAvailable ? "available" : "unavailable",
-    },
-    {
+      available: educationAvailable,
+      evidence: educationFromSes ? sesEvidence : cbsEvidence,
+    }),
+    createSignal({
       key: "ses",
       label: t("neighborhood.ses.label"),
       category: "buurt",
       value: ses?.sesScore != null ? formatSesScore(ses.sesScore, locale) : t("common.noData"),
-      severity: "neutral",
       summary: ses?.sesScore != null
         ? t("neighborhood.ses.summaryAvailable", {
           score: formatSesScore(ses.sesScore, locale),
@@ -227,16 +219,15 @@ export function neighborhoodSignals(input: {
       raw: ses?.sesScore != null ? { value: ses.sesScore, unit: "SES-WOA", metric: "CBS gemiddelde totaalscore" } : undefined,
       confidence: "medium",
       spatialScale: ses?.spatialScale ?? t("common.spatialBuurt"),
-      evidence: [sesEvidence],
-      availability: ses ? "available" : "unavailable",
-    },
-    {
+      available: Boolean(ses),
+      evidence: sesEvidence,
+    }),
+    createSignal({
       key: "crime",
       label: t("neighborhood.crime.label"),
       category: "buurt",
-      value: crime?.per1000 != null ? t("neighborhood.crime.valuePer1000", { rate: crime.per1000.toLocaleString(numberLocale(locale), { maximumFractionDigits: 1 }) }) : crime?.total != null ? crime.total.toLocaleString(numberLocale(locale)) : t("common.noData"),
+      value: crime?.per1000 != null ? t("neighborhood.crime.valuePer1000", { rate: crime.per1000.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 }) }) : crime?.total != null ? crime.total.toLocaleString(formatLocaleTag(locale)) : t("common.noData"),
       score: crimeScore,
-      severity: crimeScore != null ? scoreSeverity(crimeScore) : "neutral",
       summary: crime
         ? t("neighborhood.crime.summaryAvailable", {
           bits: crimeBits.join("; "),
@@ -247,9 +238,9 @@ export function neighborhoodSignals(input: {
       raw: crime?.per1000 != null ? { value: crime.per1000, unit: "per 1.000 inwoners", metric: "geregistreerde misdrijven" } : crime?.total != null ? { value: crime.total, unit: "aantal", metric: "geregistreerde misdrijven" } : undefined,
       confidence: "medium",
       spatialScale: crime?.spatialScale ?? t("common.spatialBuurt"),
-      evidence: [crimeEvidence],
-      availability: crime ? "available" : "unavailable",
-    },
+      available: Boolean(crime),
+      evidence: crimeEvidence,
+    }),
   ];
 }
 

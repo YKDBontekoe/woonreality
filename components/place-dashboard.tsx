@@ -9,20 +9,10 @@ import { AddressSearch } from "@/components/address-search";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PageShell } from "@/components/ui/page-shell";
 import { domainsFromSignals } from "@/src/lib/analysis/signal-domains";
-import { saveStoredPlace } from "@/src/lib/place-compare";
+import { saveStoredPlace, formatInhabitants, formatWoz } from "@/src/lib/place-compare";
 import { placeKindLabels } from "@/src/lib/place-labels";
 import type { Analysis, PlaceAnalysis, PlaceKind } from "@/src/lib/types";
-import { loginHref } from "@/src/lib/login-href";
-
-function formatInhabitants(value?: number) {
-  if (value == null) return "—";
-  return value.toLocaleString("nl-NL");
-}
-
-function formatWoz(value?: number) {
-  if (value == null) return "—";
-  return `€ ${Math.round(value * 1000).toLocaleString("nl-NL")}`;
-}
+import { apiFetch, redirectToLogin } from "@/components/hooks/use-api";
 
 export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }) {
   const [place, setPlace] = useState<PlaceAnalysis | null>(null);
@@ -42,15 +32,14 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
     let cancelled = false;
     setLoading(true);
     setError("");
-    void fetch(`/api/place/${encodeURIComponent(kind)}/${encodeURIComponent(code)}?retry=${retryCount}`, { cache: "no-store" })
-      .then(async (response) => {
-        if (response.status === 401) {
-          window.location.href = loginHref();
+    void apiFetch<{ place?: PlaceAnalysis; error?: string }>(`/api/place/${encodeURIComponent(kind)}/${encodeURIComponent(code)}?retry=${retryCount}`, { cache: "no-store" })
+      .then((result) => {
+        if (result.status === 401) {
+          redirectToLogin();
           return null;
         }
-        const body = await response.json() as { place?: PlaceAnalysis; error?: string };
-        if (!response.ok) throw new Error(body.error ?? t("loadFailedError"));
-        return body.place ?? null;
+        if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("loadFailedError"));
+        return result.data?.place ?? null;
       })
       .then((next) => {
         if (cancelled) return;

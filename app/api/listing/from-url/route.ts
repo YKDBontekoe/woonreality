@@ -1,33 +1,24 @@
 import { NextResponse } from "next/server";
-import { extractListingFacts, isHttpUrl } from "@/src/lib/listing-intake";
+import { isHttpUrl } from "@/src/lib/listing-intake";
 import {
   addressQueryFromFacts,
-  factsFromUnknown,
   inspectFundaListing,
   listingFromImportedFacts,
   ListingImportError,
-  mergeListingFacts,
   normalizeFundaListingUrl,
+  persistImportedListingFacts,
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
 import { requireSearchLogin } from "@/src/lib/search-auth";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
-import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
+import { apiContext, currentUser, privateHeaders } from "@/src/lib/api/handlers";
+import { isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { userListingImportBodySchema } from "@/src/lib/validation/workspace";
+import { logWarn } from "@/src/lib/logger";
 
 export const runtime = "nodejs";
 
-async function currentUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  return { supabase, user: error ? null : data.user };
-}
-
 export async function POST(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   let raw: unknown;
   try {
     raw = await request.json();
@@ -47,10 +38,11 @@ export async function POST(request: Request) {
   try {
     inspected = inspectFundaListing(sourceUrl);
   } catch (error) {
-    const message = error instanceof ListingImportError
-      ? error.message
-      : t("errors.fundaLinkUnrecognized");
-    return NextResponse.json({ error: message }, { status: error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 502 });
+    if (!(error instanceof ListingImportError)) {
+      return NextResponse.json({ error: t("errors.fundaLinkUnrecognized") }, { status: 502 });
+    }
+    const status = error.code === "invalid_url" ? 400 : 502;
+    return NextResponse.json({ error: error.message }, { status });
   }
 
   const query = addressQueryFromFacts(inspected.facts, inspected.sourceUrl)?.trim();
@@ -81,33 +73,13 @@ export async function POST(request: Request) {
     if (isSupabaseConfigured()) {
       const { supabase, user } = await currentUser();
       if (user) {
-        const { data: existing } = await supabase
-          .from("user_listings")
-          .select("asking_price, extracted_json, pasted_text")
-          .eq("user_id", user.id)
-          .eq("bag_vbo_id", address.bagVboId)
-          .maybeSingle();
-        const existingFacts = mergeListingFacts(
-          factsFromUnknown(existing?.extracted_json),
-          extractListingFacts(existing?.pasted_text ?? ""),
-          { prefer: "existing" },
-        );
-        if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-        facts = mergeListingFacts(existingFacts, inspected.facts);
-        const { error } = await supabase.from("user_listings").upsert({
-          user_id: user.id,
-          bag_vbo_id: address.bagVboId,
-          source_url: inspected.sourceUrl,
-          asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
-          extracted_json: facts,
-          updated_at: fetchedAt,
-        }, { onConflict: "user_id,bag_vbo_id" });
-        if (error) throw error;
-        persisted = true;
+        const result = await persistImportedListingFacts(supabase, user.id, address.bagVboId, inspected, fetchedAt);
+        facts = result.facts;
+        persisted = result.persisted;
       }
     }
   } catch (error) {
-    console.warn("user_listings persistence unavailable after from-url import", error);
+    logWarn("user_listings persistence unavailable after from-url import", error);
     persisted = false;
   }
 
@@ -117,5 +89,5 @@ export async function POST(request: Request) {
     facts,
     blocked: inspected.blocked,
     persisted,
-  }, { headers: { "Cache-Control": "private, no-store" } });
+  }, { headers: privateHeaders() });
 }

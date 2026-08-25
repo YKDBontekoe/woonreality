@@ -5,6 +5,7 @@ import {
 import type { LayerLegend, NationalLayerId, RegionScale } from "@/src/lib/map/national-layers";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import {
   CBS_REGION_LIMIT,
   fetchCbsRegionsInBbox,
@@ -91,7 +92,7 @@ export function regionScaleForRequest(zoom: number | null, scaleParam: string | 
 }
 
 function localeTag(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
+  return formatLocaleTag(locale);
 }
 
 function formatNumber(value: number, precision = 1, locale: Locale = "nl") {

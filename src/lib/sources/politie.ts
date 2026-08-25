@@ -1,5 +1,7 @@
-import { cbsODataEq, cbsODataRegionVariants, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel, assertPositiveInteger } from "@/src/lib/sources/cbs-odata";
-import { fetchJson } from "@/src/lib/http/fetch-json";
+import type { SourceContextBase } from "@/src/lib/source-context";
+import { assertPositiveInteger, cbsODataEq, latestCbsPeriodKey, normalizeRegionCode, periodYearLabel } from "@/src/lib/sources/cbs-odata";
+import { fetchCbsRegionRows, regionCandidates, spatialScaleFromCode, type RegionScaleCodes } from "@/src/lib/sources/cbs-region";
+import { createInflightDeduper, createTtlCache, runPool } from "@/src/lib/cache/ttl";
 
 export const politieMisdrijvenUrl = "https://dataderden.cbs.nl/ODataApi/OData/47018NED";
 export const politieMisdrijvenTableUrl = "https://data.politie.nl/#/Politie/nl/dataset/47018NED/table";
@@ -13,7 +15,7 @@ const CRIME_TYPES = {
   assault: "1.4.5",
 } as const;
 
-export type CrimeContext = {
+export type CrimeContext = SourceContextBase & {
   regionCode: string;
   spatialScale: "buurt" | "wijk" | "gemeente";
   period: string;
@@ -22,7 +24,6 @@ export type CrimeContext = {
   burglary?: number;
   assault?: number;
   per1000?: number;
-  fetchedAt: string;
 };
 
 type CrimeRow = {
@@ -78,12 +79,6 @@ export function parseCrimeRows(
   };
 }
 
-function soortFilter() {
-  return Object.values(CRIME_TYPES)
-    .map((key) => cbsODataEq("SoortMisdrijf", `${key} `))
-    .join(" or ");
-}
-
 export type CrimeLookupEntry = {
   total?: number;
   per1000?: number;
@@ -91,41 +86,31 @@ export type CrimeLookupEntry = {
 };
 
 const CRIME_LOOKUP_TTL_MS = 6 * 60 * 60 * 1000;
-const crimeLookupCache = new Map<string, { value: CrimeLookupEntry; expiresAt: number }>();
-const crimeLookupInflight = new Map<string, Promise<CrimeLookupEntry | undefined>>();
+const crimeLookupCache = createTtlCache<CrimeLookupEntry>({ ttlMs: CRIME_LOOKUP_TTL_MS });
+const dedupeCrimeLookup = createInflightDeduper<CrimeLookupEntry | undefined>();
 
-function spatialScaleFromCode(code: string): CrimeContext["spatialScale"] {
-  if (code.startsWith("BU")) return "buurt";
-  if (code.startsWith("WK")) return "wijk";
-  return "gemeente";
+function crimeCacheKey(normalized: string, inhabitants?: number) {
+  return `${normalized}:${inhabitants ?? 0}`;
 }
 
 async function fetchCrimeEntry(regionCode: string, inhabitants?: number): Promise<CrimeLookupEntry | undefined> {
   const normalized = normalizeRegionCode(regionCode);
   if (!normalized) return undefined;
-  const cacheKey = `${normalized}:${inhabitants ?? 0}`;
+  const cacheKey = crimeCacheKey(normalized, inhabitants);
   const cached = crimeLookupCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  const inflight = crimeLookupInflight.get(cacheKey);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
+  if (cached) return cached;
+  return dedupeCrimeLookup(cacheKey, async () => {
     const rows = await fetchCrimeRows(normalized);
     const parsed = parseCrimeRows(rows, normalized, spatialScaleFromCode(normalized), inhabitants);
-    if (parsed) {
-      const value: CrimeLookupEntry = {
-        total: parsed.total,
-        per1000: parsed.per1000,
-        periodYear: parsed.periodYear,
-      };
-      crimeLookupCache.set(cacheKey, { value, expiresAt: Date.now() + CRIME_LOOKUP_TTL_MS });
-      return value;
-    }
-    return undefined;
-  })().finally(() => { crimeLookupInflight.delete(cacheKey); });
-
-  crimeLookupInflight.set(cacheKey, promise);
-  return promise;
+    if (!parsed) return undefined;
+    const value: CrimeLookupEntry = {
+      total: parsed.total,
+      per1000: parsed.per1000,
+      periodYear: parsed.periodYear,
+    };
+    crimeLookupCache.set(cacheKey, value);
+    return value;
+  });
 }
 
 export async function preloadCrimeEntries(
@@ -137,23 +122,16 @@ export async function preloadCrimeEntries(
     const code = normalizeRegionCode(entry.regionCode);
     return [`${code}:${entry.inhabitants ?? 0}`, { regionCode: code ?? "", inhabitants: entry.inhabitants }];
   })).values()].filter((entry) => entry.regionCode);
-  // Sliding window: start the next lookup as soon as one finishes instead of
-  // waiting for whole batches, keeping upstream concurrency at `concurrency`.
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    for (let entry = queue.shift(); entry; entry = queue.shift()) {
-      await fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined);
-    }
-  });
-  await Promise.all(workers);
+  await runPool(queue, (entry) => fetchCrimeEntry(entry.regionCode, entry.inhabitants).catch(() => undefined), concurrency);
 }
 
 export function lookupCrimeEntry(lookup: Map<string, CrimeLookupEntry>, regionCode: string | undefined, inhabitants?: number) {
   const normalized = normalizeRegionCode(regionCode);
   if (!normalized) return undefined;
-  return lookup.get(`${normalized}:${inhabitants ?? 0}`)
+  return lookup.get(crimeCacheKey(normalized, inhabitants))
     ?? lookup.get(normalized)
-    ?? crimeLookupCache.get(`${normalized}:${inhabitants ?? 0}`)?.value
-    ?? crimeLookupCache.get(`${normalized}:0`)?.value;
+    ?? crimeLookupCache.get(crimeCacheKey(normalized, inhabitants))
+    ?? crimeLookupCache.get(crimeCacheKey(normalized));
 }
 
 export async function getCrimeLookupForEntries(entries: { regionCode: string; inhabitants?: number }[]) {
@@ -173,30 +151,15 @@ export async function getCrimeLookupForEntries(entries: { regionCode: string; in
 }
 
 async function fetchCrimeRows(regionCode: string): Promise<CrimeRow[]> {
-  // One request covers both the raw and right-padded key variants instead of
-  // probing them sequentially.
-  const variants = cbsODataRegionVariants(regionCode);
-  if (!variants.length) return [];
-  const filter = `${variants.map((variant) => cbsODataEq("WijkenEnBuurten", variant)).join(" or ")} and (${soortFilter()})`;
-  const params = new URLSearchParams({
-    $filter: filter,
-    $format: "json",
+  return fetchCbsRegionRows<CrimeRow>(politieMisdrijvenUrl, "Politie misdrijven", regionCode, {
+    extraFilter: Object.values(CRIME_TYPES)
+      .map((key) => cbsODataEq("SoortMisdrijf", `${key} `))
+      .join(" or "),
   });
-  const payload = await fetchJson<{ value?: CrimeRow[] }>(`${politieMisdrijvenUrl}/TypedDataSet?${params}`, "Politie misdrijven", { revalidate: 86400 });
-  return payload.value ?? [];
 }
 
-export async function getCrimeContext(codes: {
-  buurtcode?: string;
-  wijkcode?: string;
-  gemeentecode?: string;
-  inhabitants?: number;
-}): Promise<CrimeContext | null> {
-  const candidates: { code: string; spatialScale: CrimeContext["spatialScale"] }[] = [
-    ...(codes.buurtcode ? [{ code: codes.buurtcode, spatialScale: "buurt" as const }] : []),
-    ...(codes.wijkcode ? [{ code: codes.wijkcode, spatialScale: "wijk" as const }] : []),
-    ...(codes.gemeentecode ? [{ code: codes.gemeentecode, spatialScale: "gemeente" as const }] : []),
-  ];
+export async function getCrimeContext(codes: RegionScaleCodes & { inhabitants?: number }): Promise<CrimeContext | null> {
+  const candidates = regionCandidates(codes);
   const fetchedAt = new Date().toISOString();
   // Fetch all candidate scales in parallel, then prefer the finest scale with
   // data instead of paying a serial round trip per fallback level.

@@ -195,23 +195,59 @@ type ReportPersistInput = {
   usage?: AiPropertyReport["usage"];
 };
 
+type AiReportUpsertInput = {
+  bagVboId: string;
+  userId: string | null;
+  reportVersion: string;
+  promptVersion?: string;
+  inputFingerprint?: string;
+  values: Record<string, unknown>;
+};
+
+/**
+ * Shared "existing row → update, otherwise insert" writer for ai_reports so
+ * every status transition (ready/generating/failed) follows one code path.
+ */
+async function upsertAiReport(input: AiReportUpsertInput, warnLabel: string): Promise<"database" | "cache-only"> {
+  const db = createSupabaseAdminClient();
+  if (!db) return "cache-only";
+  try {
+    const id = await propertyId(db, input.bagVboId);
+    if (!id) return "cache-only";
+    const payload = {
+      property_id: id,
+      user_id: input.userId,
+      report_version: input.reportVersion,
+      ...(input.promptVersion !== undefined ? { prompt_version: input.promptVersion } : {}),
+      ...(input.inputFingerprint !== undefined ? { input_fingerprint: input.inputFingerprint } : {}),
+      ...input.values,
+      updated_at: new Date().toISOString(),
+    };
+    const existing = await getAiReport(input.bagVboId, input.reportVersion, input.userId);
+    const { error } = existing?.id
+      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
+      : await db.from("ai_reports").insert(payload);
+    if (error) throw error;
+    return "database";
+  } catch (error) {
+    logWarn(warnLabel, error);
+    return "cache-only";
+  }
+}
+
 async function persistReadyReport(
   analysis: Analysis,
   input: ReportPersistInput,
   inputFingerprint: string,
   userId: string | null,
 ): Promise<"database" | "cache-only"> {
-  const db = createSupabaseAdminClient();
-  if (!db) return "cache-only";
-  try {
-    const id = await propertyId(db, analysis.property.bagVboId);
-    if (!id) return "cache-only";
-    const payload = {
-      property_id: id,
-      user_id: userId,
-      report_version: input.reportVersion,
-      prompt_version: input.promptVersion,
-      input_fingerprint: inputFingerprint,
+  return upsertAiReport({
+    bagVboId: analysis.property.bagVboId,
+    userId,
+    reportVersion: input.reportVersion,
+    promptVersion: input.promptVersion,
+    inputFingerprint,
+    values: {
       status: "ready",
       report_json: asJson(input.reportJson),
       source_manifest_json: asJson(input.sourceManifest),
@@ -220,47 +256,20 @@ async function persistReadyReport(
       generated_at: input.generatedAt,
       expires_at: input.expiresAt,
       usage_json: input.usage ? asJson(input.usage) : null,
-      updated_at: new Date().toISOString(),
       error_code: null,
-    };
-    const existing = await getAiReport(analysis.property.bagVboId, input.reportVersion, userId);
-    const { error } = existing?.id
-      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
-      : await db.from("ai_reports").insert(payload);
-    if (error) throw error;
-    return "database";
-  } catch (error) {
-    logWarn("Supabase AI report persistence unavailable", error);
-    return "cache-only";
-  }
+    },
+  }, "Supabase AI report persistence unavailable");
 }
 
-async function updateAiReport(analysis: Analysis, values: Record<string, unknown>, reportVersion: string, promptVersion: string, inputFingerprint: string, userId: string | null = null) {
-  const db = createSupabaseAdminClient();
-  if (!db) return "cache-only" as const;
-  try {
-    const id = await propertyId(db, analysis.property.bagVboId);
-    if (!id) return "cache-only" as const;
-    const payload = {
-      property_id: id,
-      user_id: userId,
-      report_version: reportVersion,
-      prompt_version: promptVersion,
-      input_fingerprint: inputFingerprint,
-      status: values.status as string,
-      ...values,
-      updated_at: new Date().toISOString(),
-    };
-    const existing = await getAiReport(analysis.property.bagVboId, reportVersion, userId);
-    const { error } = existing?.id
-      ? await db.from("ai_reports").update(payload).eq("id", existing.id)
-      : await db.from("ai_reports").insert(payload);
-    if (error) throw error;
-    return "database" as const;
-  } catch (error) {
-    logWarn("Supabase AI report status persistence unavailable", error);
-    return "cache-only" as const;
-  }
+function updateAiReport(analysis: Analysis, values: Record<string, unknown>, reportVersion: string, promptVersion: string, inputFingerprint: string, userId: string | null = null) {
+  return upsertAiReport({
+    bagVboId: analysis.property.bagVboId,
+    userId,
+    reportVersion,
+    promptVersion,
+    inputFingerprint,
+    values,
+  }, "Supabase AI report status persistence unavailable");
 }
 
 export type GenerationClaim = "claimed" | "in-flight" | "cache-only";

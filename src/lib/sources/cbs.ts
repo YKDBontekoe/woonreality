@@ -1,10 +1,11 @@
 import type { RegionScale } from "@/src/lib/map/national-layers";
 import type { Coordinates, GeoJsonFeature, GeoJsonFeatureCollection } from "@/src/lib/types";
+import type { SourceContextBase } from "@/src/lib/source-context";
 import { fetchJson } from "@/src/lib/http/fetch-json";
 
-export const cbsOgcBase = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections";
+const cbsOgcBase = "https://api.pdok.nl/cbs/wijken-en-buurten-2024/ogc/v1/collections";
 export const cbsBuurtenUrl = `${cbsOgcBase}/buurten/items`;
-export const cbsWijkenUrl = `${cbsOgcBase}/wijken/items`;
+const cbsWijkenUrl = `${cbsOgcBase}/wijken/items`;
 export const cbsGemeentenUrl = `${cbsOgcBase}/gemeenten/items`;
 
 export const CBS_REGION_LIMIT = 1000;
@@ -25,7 +26,7 @@ export type CbsBuurtSummary = {
   inhabitants?: number;
 };
 
-export function cbsCollectionUrl(scale: RegionScale) {
+function cbsCollectionUrl(scale: RegionScale) {
   if (scale === "gemeente") return cbsGemeentenUrl;
   if (scale === "wijk") return cbsWijkenUrl;
   return cbsBuurtenUrl;
@@ -47,7 +48,7 @@ export function regionCodeFromProperties(properties: Record<string, unknown>, sc
 const CBS_SENTINEL_MAX = -99990;
 const CBS_FETCH_TIMEOUT_MS = 15_000;
 
-export type CbsContext = {
+export type CbsContext = SourceContextBase & {
   buurtName?: string;
   municipalityName?: string;
   buurtcode?: string;
@@ -72,7 +73,6 @@ export type CbsContext = {
   mboStudents?: number;
   hboStudents?: number;
   woStudents?: number;
-  fetchedAt: string;
 };
 
 export function isCbsNumber(value: unknown): value is number {
@@ -248,9 +248,9 @@ function fetchCbsFeature(url: string) {
   );
 }
 
-export async function getCbsByBuurtCode(buurtcode: string): Promise<CbsAreaLookup | null> {
-  const params = new URLSearchParams({ f: "json", buurtcode, limit: "1" });
-  const payload = await fetchCbsFeature(`${cbsBuurtenUrl}?${params}`);
+async function getCbsByRegionKey(url: string, keyField: string, keyValue: string): Promise<CbsAreaLookup | null> {
+  const params = new URLSearchParams({ f: "json", [keyField]: keyValue, limit: "1" });
+  const payload = await fetchCbsFeature(`${url}?${params}`);
   const feature = payload.features?.[0];
   if (!feature?.properties) return null;
   const coordinates = coordinatesFromFeature(feature);
@@ -258,14 +258,12 @@ export async function getCbsByBuurtCode(buurtcode: string): Promise<CbsAreaLooku
   return { context: parseCbsProperties(feature.properties), coordinates };
 }
 
+export async function getCbsByBuurtCode(buurtcode: string): Promise<CbsAreaLookup | null> {
+  return getCbsByRegionKey(cbsBuurtenUrl, "buurtcode", buurtcode);
+}
+
 export async function getCbsByGemeenteCode(gemeentecode: string): Promise<CbsAreaLookup | null> {
-  const params = new URLSearchParams({ f: "json", gemeentecode, limit: "1" });
-  const payload = await fetchCbsFeature(`${cbsGemeentenUrl}?${params}`);
-  const feature = payload.features?.[0];
-  if (!feature?.properties) return null;
-  const coordinates = coordinatesFromFeature(feature);
-  if (!coordinates) return null;
-  return { context: parseCbsProperties(feature.properties), coordinates };
+  return getCbsByRegionKey(cbsGemeentenUrl, "gemeentecode", gemeentecode);
 }
 
 export async function listBuurtenByGemeente(gemeentecode: string, limit = 200): Promise<CbsBuurtList> {

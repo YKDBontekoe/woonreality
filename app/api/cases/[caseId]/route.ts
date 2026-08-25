@@ -1,34 +1,23 @@
 import { NextResponse } from "next/server";
+import { apiContext, jsonError, loadOwnedCase, routeError } from "@/src/lib/api/handlers";
 import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { isAcceptedCaseStageInput, normalizeCaseStage } from "@/src/lib/journey";
-import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-async function ownedCase(caseId: string) {
-  const supabase = await createSupabaseServerClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { supabase, user: null, purchaseCase: null };
-  const { data: purchaseCase } = await supabase.from("purchase_cases").select("*, properties(bag_vbo_id, address_label, area_m2, build_year)").eq("id", caseId).eq("user_id", auth.user.id).maybeSingle();
-  return { supabase, user: auth.user, purchaseCase };
-}
-
-function bagFromCase(purchaseCase: { properties?: unknown }) {
-  const property = Array.isArray(purchaseCase.properties) ? purchaseCase.properties[0] : purchaseCase.properties;
+function bagFromCase(purchaseCase: unknown) {
+  const row = (purchaseCase && typeof purchaseCase === "object" ? purchaseCase : {}) as { properties?: unknown };
+  const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
   return property && typeof property === "object" && "bag_vbo_id" in property ? String((property as { bag_vbo_id: string }).bag_vbo_id) : null;
 }
 
 export async function GET(request: Request, context: { params: Promise<{ caseId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   const { caseId } = await context.params;
   try {
-    const { supabase, user, purchaseCase } = await ownedCase(caseId);
-    if (!user) return NextResponse.json({ error: t("errors.loginToViewCase") }, { status: 401 });
-    if (!purchaseCase) return NextResponse.json({ error: t("errors.caseNotFound") }, { status: 404 });
+    const { supabase, user, purchaseCase } = await loadOwnedCase(caseId);
+    if (!user) return jsonError(t("errors.loginToViewCase"), 401);
+    if (!purchaseCase) return jsonError(t("errors.caseNotFound"), 404);
     const [{ data: tasks }, { data: documents }, { data: findings }, { data: events }] = await Promise.all([
       supabase.from("case_tasks").select("*").eq("case_id", caseId).eq("user_id", user.id).order("due_at", { ascending: true, nullsFirst: false }),
       supabase.from("case_documents").select("*").eq("case_id", caseId).eq("user_id", user.id).order("created_at", { ascending: false }),
@@ -43,21 +32,20 @@ export async function GET(request: Request, context: { params: Promise<{ caseId:
       events: events ?? [],
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.caseLoadFailed") }, { status: 502 });
+    return routeError(error, t("errors.caseLoadFailed"), 502);
   }
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ caseId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   const { caseId } = await context.params;
   try {
-    const { supabase, user, purchaseCase } = await ownedCase(caseId);
-    if (!user) return NextResponse.json({ error: t("errors.loginToUpdateCase") }, { status: 401 });
-    if (!purchaseCase) return NextResponse.json({ error: t("errors.caseNotFound") }, { status: 404 });
+    const { supabase, user, purchaseCase } = await loadOwnedCase(caseId);
+    if (!user) return jsonError(t("errors.loginToUpdateCase"), 401);
+    if (!purchaseCase) return jsonError(t("errors.caseNotFound"), 404);
     const body = await request.json() as { title?: string; stage?: string; status?: string };
     if (typeof body.stage === "string" && body.stage.trim() && !isAcceptedCaseStageInput(body.stage)) {
-      return NextResponse.json({ error: "Onbekende dossierstap." }, { status: 400 });
+      return jsonError("Onbekende dossierstap.", 400);
     }
     const { data, error } = await supabase.rpc("apply_case_stage", {
       p_case_id: caseId,
@@ -75,6 +63,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ caseI
     }));
     return NextResponse.json({ case: { ...updated, stage, bagVboId: bagFromCase(purchaseCase) } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.caseUpdateFailed") }, { status: 502 });
+    return routeError(error, t("errors.caseUpdateFailed"), 502);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { privateHeaders, routeError } from "@/src/lib/api/handlers";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getListingProvider } from "@/src/lib/sources/listings";
 
@@ -15,8 +16,8 @@ export async function GET(_request: Request, context: { params: Promise<{ bagId:
     const property = await getPropertyById(decodeURIComponent(bagId));
     const listing = await provider.lookup(property);
     if (!listing) return NextResponse.json({ listing: null }, { status: 404 });
-    return NextResponse.json({ listing }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ listing }, { headers: privateHeaders() });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Listing lookup failed" }, { status: 502 });
+    return routeError(error, "Listing lookup failed");
   }
 }

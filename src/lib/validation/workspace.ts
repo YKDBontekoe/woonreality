@@ -205,3 +205,8 @@ export const viewingDebriefSchema = z.object({
   decision: z.enum(["continue", "doubt", "drop"]),
   caseId: z.string().uuid().optional(),
 }).strict();
+
+export const caseCreateBodySchema = z.object({
+  bagVboId: z.string().optional(),
+  title: z.string().optional(),
+});

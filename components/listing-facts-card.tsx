@@ -1,15 +1,14 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { isFundaListingUrl } from "@/src/lib/listing-import";
 import { isHttpsUrl } from "@/src/lib/listing-intake";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
+import { formatDate as formatLocaleDate } from "@/src/lib/format-locale";
 import { formatEuro } from "@/src/lib/purchase";
 import type { PropertyListing } from "@/src/lib/types";
 
-function formatDate(value?: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium" }).format(date);
+function formatDate(value: string | undefined, locale: string) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "—";
+  return formatLocaleDate(value, locale);
 }
 
 function sourceIsOpenable(url: string) {
@@ -39,6 +38,7 @@ export function ListingFactsCard({
   id?: string;
 }) {
   const t = useTranslations("woning");
+  const locale = useLocale();
   const resolvedEyebrow = eyebrow ?? t("factsCard.eyebrowDefault");
   const resolvedTitle = title ?? t("factsCard.titleDefault");
   const resolvedDescription = description ?? t("factsCard.descriptionDefault");
@@ -112,9 +112,9 @@ export function ListingFactsCard({
           </div>
         </div>
         <div className="listing-meta">
-          <span>{t("factsCard.publishedAt", { date: formatDate(listing.firstPublishedAt) })}</span>
-          <span>{t("factsCard.updatedAt", { date: formatDate(listing.fetchedAt) })}</span>
-          {listing.offerDeadline && <span>{t("factsCard.offerDeadlineUntil", { date: formatDate(listing.offerDeadline) })}</span>}
+          <span>{t("factsCard.publishedAt", { date: formatDate(listing.firstPublishedAt, locale) })}</span>
+          <span>{t("factsCard.updatedAt", { date: formatDate(listing.fetchedAt, locale) })}</span>
+          {listing.offerDeadline && <span>{t("factsCard.offerDeadlineUntil", { date: formatDate(listing.offerDeadline, locale) })}</span>}
         </div>
         {riskFlags.length > 0 && (
           <div className="listing-risk-flags">
@@ -184,7 +184,7 @@ export function ListingFactsCard({
         ) : null}
         <div className="listing-footer">
           <span>
-            {t("factsCard.sourceFetched", { provider: listing.provider, date: formatDate(listing.fetchedAt) })}
+            {t("factsCard.sourceFetched", { provider: listing.provider, date: formatDate(listing.fetchedAt, locale) })}
           </span>
           {sourceIsOpenable(listing.sourceUrl) && (
             <a href={listing.sourceUrl} target="_blank" rel="noreferrer">{t("factsCard.openSource")}</a>

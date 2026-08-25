@@ -2,6 +2,7 @@ import type { Analysis, Evidence, Property, Signal } from "@/src/lib/types";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { fetchAnalysisContexts, siblingResidentialUnits, type AnalysisContexts } from "@/src/lib/analysis/context";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import {
   accessSignal,
   bgtGreenEvidence,
@@ -23,10 +24,11 @@ import { cbsContextSignal, createCbsEvidence, createCrimeEvidence, createSesEvid
 import { analysisHighlights, domainSummaries } from "@/src/lib/analysis/domains";
 import { everydayInsights } from "@/src/lib/analysis/everyday-insights";
 import { knownGaps, sourceStatuses } from "@/src/lib/analysis/statuses";
-import { calculateOverallScore, componentFromSignal, scoreSeverity, SCORING_VERSION } from "@/src/lib/scoring/score";
+import { calculateOverallScore, componentFromSignal, SCORING_VERSION } from "@/src/lib/scoring/score";
 import { cbsBuurtenUrl } from "@/src/lib/sources/cbs";
 import { sesStatLineTableUrl } from "@/src/lib/sources/ses";
 import { politieMisdrijvenTableUrl } from "@/src/lib/sources/politie";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 export const ANALYSIS_VERSION = "2026.08.v2";
 
@@ -54,38 +56,35 @@ function buildSignals(contexts: AnalysisContexts, property: Property, locale: Lo
     : undefined;
   const noiseScore = hasRivmNoise ? noiseScoreFromLden(contexts.rivm!.noiseLden!) : fallbackParts?.score;
   const noiseSignal: Signal = hasRivmNoise
-    ? {
+    ? createSignal({
       key: "noise",
       label: t("noise.label"),
       category: "gezondheid",
       value: Math.round(noiseScore! * 10) / 10,
       unit: "/ 10",
       score: noiseScore,
-      severity: scoreSeverity(noiseScore!),
-      summary: t("noise.summaryDb", { db: contexts.rivm!.noiseLden!.toLocaleString(locale === "en" ? "en-IE" : "nl-NL", { maximumFractionDigits: 1 }) }),
+      summary: t("noise.summaryDb", { db: contexts.rivm!.noiseLden!.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 }) }),
       action: t("noise.action"),
       raw: { value: contexts.rivm!.noiseLden!, unit: "dB Lden", metric: "RIVM wegverkeersgeluid" },
       confidence: "medium",
       spatialScale: "RIVM rastercel",
-      evidence: [rivmEvi],
-      availability: "available",
-    }
-    : {
+      evidence: rivmEvi,
+    })
+    : createSignal({
       key: "noise",
       label: t("noise.label"),
       category: "gezondheid",
       value: fallbackParts?.value ?? t("common.noData"),
       unit: fallbackParts ? "/ 10" : undefined,
       score: fallbackParts?.score,
-      severity: fallbackParts?.severity ?? "neutral",
       summary: fallbackParts?.summary ?? t("bgt.noiseFallback.noRoad"),
       action: t("noise.action"),
       raw: fallbackParts?.raw,
       confidence: "medium",
       spatialScale: fallbackParts?.spatialScale ?? "circa 250 m zoekbuffer",
-      evidence: fallbackParts ? [roadEvi!] : [rivmEvi],
-      availability: fallbackParts?.availability ?? "unavailable",
-    };
+      evidence: fallbackParts ? roadEvi! : rivmEvi,
+      available: fallbackParts?.availability === "available",
+    });
 
   return [
     noiseSignal,

@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, currentUser, parseJsonBody } from "@/src/lib/api/handlers";
 import { calculateMortgageCapacity } from "@/src/lib/mortgage/capacity";
 import { caseStageFromProperty, normalizeCaseStage } from "@/src/lib/journey";
 import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
 import { logWarn } from "@/src/lib/logger";
+import type { Locale } from "@/src/lib/i18n/config";
 import {
   buyerProfileFromMortgageCapacity,
   buildMortgageSnapshot,
@@ -18,7 +17,6 @@ import {
 import { parseOnboardingDismissed } from "@/src/lib/onboarding";
 import { DEFAULT_PREFERENCES } from "@/src/lib/personalization";
 import { buyerProfileIsConfigured, EMPTY_BUYER_PROFILE, PROPERTY_STAGE_LABELS, normalizeBuyerProfile, type PropertyStage } from "@/src/lib/purchase";
-import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { listingHistoryFromRows, type ListingHistoryRow } from "@/src/lib/listing-history";
 import type { PersonalPreferences, SavedProperty } from "@/src/lib/types";
 import { preferencesJsonWithinLimit, workspaceBodySchema, type WorkspaceRequest, isValidBagId } from "@/src/lib/validation/workspace";
@@ -35,14 +33,6 @@ function isStage(value: unknown): value is PropertyStage {
 
 function isBagId(value: unknown): value is string {
   return typeof value === "string" && isValidBagId(value);
-}
-
-async function currentUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  // Supabase returns AuthSessionMissingError for a visitor without a session.
-  // That is an expected state, not an unavailable workspace service.
-  return { supabase, user: error ? null : data.user };
 }
 
 async function readWorkspace(locale: Locale = "nl") {
@@ -110,8 +100,7 @@ async function readWorkspace(locale: Locale = "nl") {
 }
 
 export async function GET(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { locale, t } = apiContext(request);
   try {
     const result = await readWorkspace(locale);
     if (!result.user || !result.workspace) return NextResponse.json({ error: t("errors.loginToSaveWorkspace") }, { status: 401 });
@@ -122,13 +111,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { locale, t } = apiContext(request);
   try {
     const result = await readWorkspace(locale);
     if (!result.user || !result.workspace) return NextResponse.json({ error: t("errors.loginToSaveChanges") }, { status: 401 });
-    const parsed = workspaceBodySchema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: t("errors.workspaceInvalidData") }, { status: 400 });
+    const parsed = await parseJsonBody(request, workspaceBodySchema, t("errors.workspaceInvalidData"));
+    if (!parsed.ok) return parsed.response;
     const body: WorkspaceRequest = parsed.data;
     const now = new Date().toISOString();
 

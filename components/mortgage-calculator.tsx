@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
-  MORTGAGE_STORAGE_KEY,
   NHG,
   WORK_TYPES,
   buildMortgageScenarios,
@@ -18,11 +17,10 @@ import {
   currentMortgageReference,
   defaultCalculatorState,
   buildSalaryBreakdown,
+  formatRatePct,
   marketIndicativeRate,
-  mortgageStateHasCapacity,
   parseCanonicalEnergyLabel,
   rateImpactRows,
-  restoreCalculatorState,
   summarizeHousingTax,
   switchIncomeEntry,
   type CalculatorState,
@@ -35,7 +33,9 @@ import {
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import { formatEuro } from "@/src/lib/purchase";
 import { MortgageCostInsight, type CostInsightOptions } from "@/components/mortgage-cost-insight";
-import { usePropertyWorkspace } from "@/components/use-property-workspace";
+import { apiFetch } from "@/components/hooks/use-api";
+import { useMortgagePersistence } from "@/components/hooks/use-mortgage-persistence";
+import { MortgageScenarios } from "@/components/mortgage/result-panel";
 
 type Translator = ReturnType<typeof useTranslations>;
 
@@ -119,7 +119,6 @@ export function MortgageCalculator({
   const t = useTranslations("hypotheek");
   const locale = useLocale();
   const pathname = usePathname();
-  const { workspace, workspaceReady, authenticated, setMortgageState } = usePropertyWorkspace();
   const onCapacityChangeRef = useRef(onCapacityChange);
   onCapacityChangeRef.current = onCapacityChange;
   const [state, setState] = useState<CalculatorState>(() => {
@@ -133,13 +132,9 @@ export function MortgageCalculator({
     }
     return defaults;
   });
-  const [ready, setReady] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "login">("idle");
   const [market, setMarket] = useState<MortgageMarketSnapshot | null>(null);
   const marketRef = useRef<MortgageMarketSnapshot | null>(null);
   marketRef.current = market;
-  const migratedLocalRef = useRef(false);
-  const accountHydratedRef = useRef(false);
   const [showIncomeExtras, setShowIncomeExtras] = useState(false);
   const [showMoreWork, setShowMoreWork] = useState(false);
   const [openFunds, setOpenFunds] = useState(false);
@@ -194,61 +189,14 @@ export function MortgageCalculator({
     if (restored.applicant.alimonyAnnual || restored.applicant.reachedAow || restored.partner.alimonyAnnual || restored.partner.reachedAow) setShowIncomeExtras(true);
   }, [initialAskingPrice, initialEnergyLabel, initialNhg]);
 
-  useEffect(() => {
-    if (!workspaceReady || accountHydratedRef.current) return;
-    if (authenticated && workspace.mortgageState && mortgageStateHasCapacity(workspace.mortgageState)) {
-      accountHydratedRef.current = true;
-      applyRestored(restoreCalculatorState(workspace.mortgageState));
-      setSaveStatus("saved");
-      setReady(true);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(MORTGAGE_STORAGE_KEY);
-      if (raw) {
-        const restored = restoreCalculatorState(JSON.parse(raw), defaultCalculatorState());
-        applyRestored(restored);
-        if (authenticated && !workspace.mortgageConfigured && mortgageStateHasCapacity(restored) && !migratedLocalRef.current) {
-          migratedLocalRef.current = true;
-          accountHydratedRef.current = true;
-          void setMortgageState(restored).then((result) => {
-            if (result.ok) {
-              setSaveStatus("saved");
-            }
-          });
-        } else {
-          setSaveStatus(authenticated ? "local" : "login");
-        }
-      } else {
-        setSaveStatus(authenticated ? "local" : "login");
-      }
-    } catch { /* ignore */ }
-    accountHydratedRef.current = true;
-    setReady(true);
-  }, [applyRestored, authenticated, setMortgageState, workspace.mortgageConfigured, workspace.mortgageState, workspaceReady]);
-
-  useEffect(() => {
-    if (!ready) return;
-    try { localStorage.setItem(MORTGAGE_STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
-  }, [ready, state]);
-
-  useEffect(() => {
-    if (!ready || !authenticated || !mortgageStateHasCapacity(state)) return;
-    const handle = window.setTimeout(() => {
-      setSaveStatus("saving");
-      void setMortgageState(state).then((result) => {
-        setSaveStatus(result.ok ? "saved" : authenticated ? "local" : "login");
-      });
-    }, 900);
-    return () => window.clearTimeout(handle);
-  }, [authenticated, ready, setMortgageState, state]);
+  const { authenticated, saveStatus } = useMortgagePersistence({ state, applyRestored });
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    fetch("/api/mortgage/market", { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((snapshot: MortgageMarketSnapshot | null) => {
+    apiFetch<MortgageMarketSnapshot>("/api/mortgage/market", { signal: controller.signal })
+      .then((response) => {
+        const snapshot = response.ok ? response.data : null;
         if (cancelled || !snapshot?.indicativeRates) return;
         setMarket(snapshot);
         setState((current) => {
@@ -445,7 +393,7 @@ export function MortgageCalculator({
               return (
                 <button type="button" key={period} className={state.fixedPeriodYears === period ? "active" : undefined} aria-pressed={state.fixedPeriodYears === period} onClick={() => setPeriod(period)}>
                   <span>{t("yearsLabel", { period })}</span>
-                  <small>{periodRate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</small>
+                  <small>{formatRatePct(periodRate)}</small>
                 </button>
               );
             })}
@@ -615,30 +563,7 @@ export function MortgageCalculator({
               </li>
             ))}
           </ul>}
-          {scenarios.length > 0 && <>
-            <button className="text-link mortgage-toggle" type="button" onClick={() => setOpenScenarios((value) => !value)} aria-expanded={openScenarios}>
-              {openScenarios ? t("hideScenarios") : t("whatIf", { count: scenarios.length })}
-            </button>
-            {openScenarios && <div className="mortgage-scenarios">
-            <p className="mortgage-hint">{t("scenariosHint")}</p>
-            <ul>
-              {scenarios.map((scenario) => (
-                <li key={scenario.id}>
-                  <span>
-                    {scenario.label}
-                    {scenario.note ? <small>{scenario.note}</small> : null}
-                  </span>
-                  <strong>
-                    {formatEuro(scenario.maxLoanForPurchase)}
-                    <em className={scenario.delta > 0 ? "is-up" : scenario.delta < 0 ? "is-down" : undefined}>
-                      {scenario.delta === 0 ? "±0" : `${scenario.delta > 0 ? "+" : "−"}${formatEuro(Math.abs(scenario.delta))}`}
-                    </em>
-                  </strong>
-                </li>
-              ))}
-            </ul>
-          </div>}
-          </>}
+          <MortgageScenarios scenarios={scenarios} open={openScenarios} onToggle={() => setOpenScenarios((value) => !value)} />
         </>}
         {!result.available ? null : <p className="mortgage-disclaimer"><Landmark size={14} /> {result.disclaimer}</p>}
         {result.available && market && <p className="mortgage-sources">

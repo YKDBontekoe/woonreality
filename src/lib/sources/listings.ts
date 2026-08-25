@@ -1,4 +1,5 @@
 import type { Property, PropertyListing } from "@/src/lib/types";
+import { fetchJson, SourceFetchError } from "@/src/lib/http/fetch-json";
 
 export type { PropertyListing } from "@/src/lib/types";
 
@@ -153,25 +154,21 @@ export function createLicensedListingProvider(options: ListingProviderOptions): 
   return {
     name,
     async lookup(property) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8_000);
       try {
-        const response = await fetch(providerUrl(endpoint, property), {
-          headers: {
-            accept: "application/json",
-            ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {}),
-          },
+        const payload = await fetchJson<unknown>(providerUrl(endpoint, property), name, {
           cache: "no-store",
-          signal: controller.signal,
+          timeoutMs: 8_000,
+          accept: "application/json",
+          ...(options.apiKey ? { headers: { authorization: `Bearer ${options.apiKey}` } } : {}),
         });
-        if (response.status === 204 || response.status === 404) return null;
-        if (!response.ok) throw new Error(`${name} responded with HTTP ${response.status}`);
-        const payload = await response.json() as unknown;
         const listing = normalizeListing(payload, name);
         if (!listing) throw new Error(`${name} returned an invalid listing payload`);
         return listing;
-      } finally {
-        clearTimeout(timeout);
+      } catch (error) {
+        // A licensed feed that simply has no record for this address is not
+        // an error — only real transport/status failures propagate.
+        if (error instanceof SourceFetchError && (error.status === 404 || error.status === 204)) return null;
+        throw error;
       }
     },
   };

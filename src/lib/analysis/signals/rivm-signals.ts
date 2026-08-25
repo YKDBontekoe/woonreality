@@ -1,5 +1,6 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { clamp, round1 } from "@/src/lib/math";
 import { scoreSeverity } from "@/src/lib/scoring/score";
 import { rivmFloodLayer, rivmUrls, type RivmContext } from "@/src/lib/sources/rivm";
@@ -49,7 +50,7 @@ export function noiseSignal(input: { rivm: RivmContext | null; evidence: Evidenc
   const t = getLibTranslator(locale, "lib-analysis");
   const hasModelValue = rivm?.noiseLden != null;
   const score = hasModelValue ? noiseScoreFromLden(rivm!.noiseLden!) : undefined;
-  return {
+  return createSignal({
     key: "noise",
     label: t("noise.label"),
     category: "gezondheid",
@@ -66,9 +67,9 @@ export function noiseSignal(input: { rivm: RivmContext | null; evidence: Evidenc
       : fallback?.raw,
     confidence: "medium",
     spatialScale: hasModelValue ? "RIVM rastercel" : (fallback?.spatialScale ?? "onbekend"),
-    evidence: [evidence],
-    availability: hasModelValue || (fallback?.availability != null && fallback.availability !== "unavailable") ? "available" : "unavailable",
-  };
+    available: hasModelValue || (fallback?.availability != null && fallback.availability !== "unavailable"),
+    evidence,
+  });
 }
 
 export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence }, locale: Locale = "nl"): Signal {
@@ -77,7 +78,7 @@ export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence 
   const no2Score = rivm?.no2 != null ? clamp(10 - Math.max(0, rivm.no2 - 10) / 3) : undefined;
   const pm25Score = rivm?.pm25 != null ? clamp(10 - Math.max(0, rivm.pm25 - 5) / 2) : undefined;
   const score = no2Score ?? pm25Score;
-  return {
+  return createSignal({
     key: "air",
     label: t("air.label"),
     category: "gezondheid",
@@ -87,7 +88,6 @@ export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence 
         ? t("air.valuePm25", { db: formatDb(rivm.pm25) })
         : t("common.noData"),
     score,
-    severity: score != null ? scoreSeverity(score) : "neutral",
     summary: rivm?.no2 != null
       ? t("air.summaryNo2", { db: formatDb(rivm.no2) })
       : rivm?.pm25 != null
@@ -101,9 +101,8 @@ export function airSignal(input: { rivm: RivmContext | null; evidence: Evidence 
         : undefined,
     confidence: "medium",
     spatialScale: "RIVM rastercel",
-    evidence: [evidence],
-    availability: score != null ? "available" : "unavailable",
-  };
+    evidence,
+  });
 }
 
 /**
@@ -134,14 +133,13 @@ export function floodSignal(input: { rivm: RivmContext | null; evidence: Evidenc
   const entry = floodClass != null ? FLOOD_RISK_CLASSES[floodClass] : undefined;
   const classLabel = floodClass != null ? t(`flood.class.${floodClass}`) : undefined;
   const score = entry?.score ?? undefined;
-  return {
+  return createSignal({
     key: "flood",
     label: t("flood.label"),
     category: "klimaat",
     value: classLabel ?? t("common.noData"),
     unit: score != null ? "/ 10" : undefined,
     score,
-    severity: score != null ? scoreSeverity(score) : "neutral",
     summary: floodClass != null && entry && classLabel
       ? t("flood.summary", { label: classLabel })
       : t("flood.noDataSummary"),
@@ -151,7 +149,6 @@ export function floodSignal(input: { rivm: RivmContext | null; evidence: Evidenc
       : undefined,
     confidence: "low",
     spatialScale: "landelijke rastercel (Klimaateffectenatlas)",
-    evidence: [evidence],
-    availability: floodClass != null ? "available" : "unavailable",
-  };
+    evidence,
+  });
 }

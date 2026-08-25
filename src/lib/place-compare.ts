@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import type { PlaceAnalysis, PlaceKind } from "@/src/lib/types";
 
 export const PLACE_COMPARE_STORAGE_KEY = "woonreality.placeCompare";
@@ -125,17 +126,27 @@ export type PlaceFactRow = {
   values: (string | null)[];
 };
 
+/** CBS gemiddelde_woningwaarde is uitgedrukt in duizenden euros (x1000). */
+export function formatInhabitants(value: number | null | undefined): string {
+  return value != null && Number.isFinite(value) ? value.toLocaleString("nl-NL") : "—";
+}
+
+/** CBS gemiddelde_woningwaarde is uitgedrukt in duizenden euros (x1000). */
+export function formatWoz(value: number | null | undefined): string {
+  return value != null && Number.isFinite(value) ? `€ ${Math.round(value * 1000).toLocaleString("nl-NL")}` : "—";
+}
+
 function localeTag(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
+  return formatLocaleTag(locale);
 }
 
 function factFormatters(locale: Locale) {
   const t = getLibTranslator(locale, "lib-domain");
   const tag = localeTag(locale);
   return [
-    { key: "inhabitants", label: t("placeCompare.inhabitants"), get: (place: PlaceAnalysis) => place.cbs?.inhabitants, fmt: (value: number) => value.toLocaleString(tag) },
+    { key: "inhabitants", label: t("placeCompare.inhabitants"), get: (place: PlaceAnalysis) => place.cbs?.inhabitants, fmt: formatInhabitants },
     { key: "density", label: t("placeCompare.densityPerKm2"), get: (place: PlaceAnalysis) => place.cbs?.populationDensity, fmt: (value: number) => Math.round(value).toLocaleString(tag) },
-    { key: "woz", label: t("placeCompare.avgWozValue"), get: (place: PlaceAnalysis) => place.cbs?.averageWoz, fmt: (value: number) => `€ ${Math.round(value).toLocaleString(tag)}` },
+    { key: "woz", label: t("placeCompare.avgWozValue"), get: (place: PlaceAnalysis) => place.cbs?.averageWoz, fmt: formatWoz },
     { key: "children", label: t("placeCompare.householdsWithChildren"), get: (place: PlaceAnalysis) => place.cbs?.shareHouseholdsWithChildrenPct, fmt: (value: number) => `${Math.round(value)}%` },
     { key: "school-distance", label: t("placeCompare.primarySchoolDistance"), get: (place: PlaceAnalysis) => place.cbs?.primarySchoolDistanceKm, fmt: (value: number) => `${value.toLocaleString(tag, { maximumFractionDigits: 1 })} km` },
   ] as const;

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { addLayerIfMissing, addSourceIfMissing, setVisible } from "@/src/lib/map/mapbox-helpers";
 import {
   NATIONAL_LAYERS,
   NATIONAL_RASTERS,
@@ -18,6 +19,7 @@ import {
 } from "@/src/lib/map/national-layers";
 import type { RegionFeatureProperties } from "@/src/lib/map/regions";
 import { regionInspectSummary } from "@/src/lib/map/regions";
+import { apiFetch } from "@/components/hooks/use-api";
 import { MAP_COLORS, applyMapLighting, isMapboxStandardStyle, mapStyleUrl, woonrealityBasemapConfig } from "@/src/lib/map/style";
 import type { AddressSearchResult, GeoJsonFeatureCollection } from "@/src/lib/types";
 
@@ -58,18 +60,6 @@ const EMPTY_REGIONS: RegionsResponse = {
 };
 
 const DEFAULT_RASTERS: RasterState = { noise: false, no2: false, pm25: false };
-
-function addSourceIfMissing(map: mapboxgl.Map, id: string, source: mapboxgl.AnySourceData) {
-  if (!map.getSource(id)) map.addSource(id, source);
-}
-
-function addLayerIfMissing(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
-  if (!map.getLayer(layer.id)) map.addLayer(layer);
-}
-
-function setVisible(map: mapboxgl.Map, layerId: string, visible: boolean) {
-  if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
-}
 
 function choroplethFillColor(legend: LayerLegend): mapboxgl.ExpressionSpecification {
   const [stopA, stopB, stopC] = legend.stops;
@@ -198,13 +188,13 @@ export function NetherlandsMap({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const result = await apiFetch<RegionsResponse & { error?: string }>(
         `/api/map/regions?bbox=${encodeURIComponent(bbox)}&layer=${encodeURIComponent(nextLayer)}&zoom=${encodeURIComponent(String(zoom))}`,
         { signal: controller.signal },
       );
-      const body = await response.json() as RegionsResponse & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? t("layerLoadFailed"));
-      if (controller.signal.aborted || mapInstance.current !== map) return;
+      if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("layerLoadFailed"));
+      const body = result.data;
+      if (!body || controller.signal.aborted || mapInstance.current !== map) return;
       const source = map.getSource("regions") as mapboxgl.GeoJSONSource | undefined;
       source?.setData(body);
       const legendMeta = body.meta?.legend ?? EMPTY_REGIONS.meta.legend;

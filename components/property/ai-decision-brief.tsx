@@ -7,21 +7,18 @@ import {
   ScanSearch,
   Sparkles,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { confidenceLabel } from "@/src/lib/analysis/evidence";
+import { normalizeLocale } from "@/src/lib/i18n/config";
+import type { Locale } from "@/src/lib/i18n/config";
+import { formatEuro } from "@/src/lib/purchase";
 import type { AiPropertyReport, AiReportStatus, Analysis, PropertyListing } from "@/src/lib/types";
 
-function formatEuro(value: number | undefined) {
-  return value == null
-    ? null
-    : new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
-}
-
-function propertyFacts(analysis: Analysis, listing: PropertyListing | null) {
+function propertyFacts(analysis: Analysis, listing: PropertyListing | null, locale: Locale) {
   const facts = [
     analysis.property.areaM2 ? { key: "bagArea", value: `${analysis.property.areaM2} m²` } : null,
     analysis.property.buildingYear ? { key: "yearBuilt", value: String(analysis.property.buildingYear) } : null,
-    listing?.askingPrice ? { key: "askingPrice", value: formatEuro(listing.askingPrice) ?? "—" } : null,
+    listing?.askingPrice ? { key: "askingPrice", value: formatEuro(listing.askingPrice, locale) } : null,
     listing?.energyLabel ? { key: "energyLabel", value: listing.energyLabel } : null,
   ].filter((fact): fact is { key: string; value: string } => fact != null);
 
@@ -44,9 +41,10 @@ export function AiDecisionBrief({
   onOpenChecklist: () => void;
 }) {
   const t = useTranslations("woning");
+  const locale = normalizeLocale(useLocale());
   if (status === "unavailable") return null;
 
-  const facts = propertyFacts(analysis, listing);
+  const facts = propertyFacts(analysis, listing, locale);
   const attention = report?.findings.filter((finding) => finding.impact === "attention").slice(0, 3) ?? [];
   const positives = report?.findings.filter((finding) => finding.impact === "positive").slice(0, 2) ?? [];
   const questions = report?.questions.slice(0, 3) ?? [];

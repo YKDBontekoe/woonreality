@@ -1,5 +1,6 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import type { BodemContext } from "@/src/lib/sources/bodem";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
@@ -43,7 +44,7 @@ export function soilSignal(input: { bodem: BodemContext; evidence: Evidence }, l
   if (bodem.totalMatches <= 0) return null;
   const t = getLibTranslator(locale, "lib-analysis");
   const labels = hitsByLayerLabel(bodem);
-  return {
+  return createSignal({
     key: "soil-contamination",
     label: t("soil.label"),
     category: "klimaat",
@@ -61,7 +62,7 @@ export function soilSignal(input: { bodem: BodemContext; evidence: Evidence }, l
       unit: "locaties",
       metric: "Aantal WFS-bbox matches (screening)",
     },
-    evidence: [evidence],
-    availability: "available",
-  };
+    available: true,
+    evidence,
+  });
 }

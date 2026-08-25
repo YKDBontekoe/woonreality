@@ -26,6 +26,11 @@ import {
   type IsochroneProfile,
 } from "@/src/lib/map/isochrone";
 import {
+  addLayerIfMissing,
+  addSourceIfMissing,
+  setVisible,
+} from "@/src/lib/map/mapbox-helpers";
+import {
   BAG_EXTRUSION_HEIGHT_M,
   DEFAULT_MAP_HOUR,
   MAP_CAMERA,
@@ -75,20 +80,6 @@ const OVERLAY_GROUPS: { label: string; ids: OverlayId[] }[] = [
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char));
-}
-
-function setVisible(map: mapboxgl.Map, layerId: string, visible: boolean) {
-  if (map.getLayer(layerId)) {
-    map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
-  }
-}
-
-function addSourceIfMissing(map: mapboxgl.Map, id: string, source: mapboxgl.AnySourceData) {
-  if (!map.getSource(id)) map.addSource(id, source);
-}
-
-function addLayerIfMissing(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
-  if (!map.getLayer(layer.id)) map.addLayer(layer);
 }
 
 function whenStyleReady(map: mapboxgl.Map, fn: () => void | Promise<void>) {
@@ -190,24 +181,18 @@ export function PropertyMap({
     const modes = reachModesRef.current;
     const walkIsochrone = next.walk && (modes.walk || modes.transit);
     const driveIsochrone = next.walk && modes.drive;
-    setVisible(map, "nearby-homes", next.nearby);
-    setVisible(map, "nearby-labels", next.nearby);
-    setVisible(map, "walk-fill", walkIsochrone);
-    setVisible(map, "walk-line", walkIsochrone);
-    setVisible(map, "drive-fill", driveIsochrone);
-    setVisible(map, "drive-line", driveIsochrone);
+    setVisible(map, ["nearby-homes", "nearby-labels"], next.nearby);
+    setVisible(map, ["walk-fill", "walk-line"], walkIsochrone);
+    setVisible(map, ["drive-fill", "drive-line"], driveIsochrone);
     setVisible(map, "ndov-stops", next.transit || (next.walk && modes.transit));
-    setVisible(map, "search-radius-fill", !next.walk);
-    setVisible(map, "search-radius", !next.walk);
+    setVisible(map, ["search-radius-fill", "search-radius"], !next.walk);
     setVisible(map, "rivm-noise", next.noise);
     setVisible(map, "rivm-no2", next.no2);
     setVisible(map, "rivm-pm25", next.pm25);
     setVisible(map, "bgt-green", next.green);
     setVisible(map, "bgt-water", next.water);
-    setVisible(map, "bgt-roads", next.roads);
-    setVisible(map, "bgt-roads-outline", next.roads);
-    setVisible(map, "garden-line", next.garden);
-    setVisible(map, "garden-point", next.garden);
+    setVisible(map, ["bgt-roads", "bgt-roads-outline"], next.roads);
+    setVisible(map, ["garden-line", "garden-point"], next.garden);
   }, []);
 
   const ensureRivmLayer = useCallback((map: mapboxgl.Map, overlay: "noise" | "no2" | "pm25") => {

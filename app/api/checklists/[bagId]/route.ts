@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/src/lib/supabase/server";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, currentUser, invalidBagIdResponse } from "@/src/lib/api/handlers";
 import { checklistBodySchema, MAX_CHECKLIST_BODY_BYTES, isValidBagId } from "@/src/lib/validation/workspace";
 import { loadTaskEngineInput, syncEngineTasks } from "@/src/lib/cases/sync-tasks";
 import { logWarn } from "@/src/lib/logger";
 
 export const runtime = "nodejs";
 
-async function userForBag(bagId: string) {
-  const supabase = await createSupabaseServerClient();
-  const { data: auth } = await supabase.auth.getUser();
-  return { supabase, user: auth.user, valid: isValidBagId(bagId) };
-}
-
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { bagId: rawBagId } = await context.params;
     const decodedBagId = decodeURIComponent(rawBagId);
-    const { supabase, user, valid } = await userForBag(decodedBagId);
-    if (!valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
+    const valid = isValidBagId(decodedBagId);
+    const { supabase, user } = await currentUser();
+    if (!valid) return invalidBagIdResponse(t("errors.invalidPropertyAddress"));
     if (!user) return NextResponse.json({ error: t("errors.loginToSaveChecklist") }, { status: 401 });
     const { data, error } = await supabase.from("property_checklists").select("items_json").eq("user_id", user.id).eq("bag_vbo_id", decodedBagId).maybeSingle();
     if (error) throw error;
@@ -34,13 +25,13 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
 }
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { bagId: rawBagId } = await context.params;
     const decodedBagId = decodeURIComponent(rawBagId);
-    const { supabase, user, valid } = await userForBag(decodedBagId);
-    if (!valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
+    const valid = isValidBagId(decodedBagId);
+    const { supabase, user } = await currentUser();
+    if (!valid) return invalidBagIdResponse(t("errors.invalidPropertyAddress"));
     if (!user) return NextResponse.json({ error: t("errors.loginToSaveChecklist") }, { status: 401 });
     const rawBody = await request.text();
     if (rawBody.length > MAX_CHECKLIST_BODY_BYTES) return NextResponse.json({ error: "Checklist is te groot." }, { status: 413 });

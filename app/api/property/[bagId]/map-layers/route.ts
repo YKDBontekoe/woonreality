@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { redactError, toUserMessage } from "@/src/lib/errors";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, routeError } from "@/src/lib/api/handlers";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
 import { getBgtContext } from "@/src/lib/sources/pdok/bgt";
 import { getNearbyNdovStops } from "@/src/lib/sources/ndov";
@@ -11,8 +8,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   const { bagId } = await context.params;
   try {
     const property = await getPropertyById(decodeURIComponent(bagId));
@@ -37,10 +33,6 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
       { headers: { "Cache-Control": "public, s-maxage=604800, stale-while-revalidate=86400" } },
     );
   } catch (error) {
-    console.error("Map layers lookup failed", redactError(error));
-    return NextResponse.json(
-      { error: toUserMessage(error, t("errors.mapLayers")) },
-      { status: 502 },
-    );
+    return routeError(error, t("errors.mapLayers"));
   }
 }

@@ -15,12 +15,10 @@ import {
   listBuurtenByGemeente,
   type CbsContext,
 } from "@/src/lib/sources/cbs";
-import { getJson } from "@/src/lib/sources/pdok/client";
-import { getCrimeContext } from "@/src/lib/sources/politie";
+import { PDOK_BAG_BASE, getJson } from "@/src/lib/sources/pdok/client";
+import { getCrimeContext, politieMisdrijvenTableUrl } from "@/src/lib/sources/politie";
 import { getSesContext, sesStatLineTableUrl } from "@/src/lib/sources/ses";
-import { politieMisdrijvenTableUrl } from "@/src/lib/sources/politie";
-
-const PDOK_BAG_BASE = "https://api.pdok.nl/kadaster/bag/ogc/v2";
+import { logWarn } from "@/src/lib/logger";
 
 type WoonplaatsFeature = {
   properties?: {
@@ -122,8 +120,8 @@ export async function analyzePlace(kind: PlaceKind, code: string, locale: Locale
   ]);
   const ses = sesResult.status === "fulfilled" ? sesResult.value : null;
   const crime = crimeResult.status === "fulfilled" ? crimeResult.value : null;
-  if (sesResult.status === "rejected") console.warn("CBS SES-WOA unavailable", sesResult.reason);
-  if (crimeResult.status === "rejected") console.warn("Politie misdrijven unavailable", crimeResult.reason);
+  if (sesResult.status === "rejected") logWarn("CBS SES-WOA unavailable", sesResult.reason);
+  if (crimeResult.status === "rejected") logWarn("Politie misdrijven unavailable", crimeResult.reason);
 
   const signals = placeNeighborhoodSignals({
     cbs,

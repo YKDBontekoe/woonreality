@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { redactError, toUserMessage } from "@/src/lib/errors";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, jsonError, routeError } from "@/src/lib/api/handlers";
 import { parseNationalLayer } from "@/src/lib/map/national-layers";
 import { clientKeyFromRequest, isRegionsRateLimited } from "@/src/lib/map/regions-rate-limit";
 import { buildRegionsPayload, parseRegionBBox, parseRegionZoom, regionScaleForRequest } from "@/src/lib/map/regions";
@@ -11,11 +8,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   const clientKey = clientKeyFromRequest(request);
   if (isRegionsRateLimited(clientKey)) {
-    return NextResponse.json({ error: "Te veel kaartverzoeken. Probeer het over een minuut opnieuw." }, { status: 429 });
+    return jsonError("Te veel kaartverzoeken. Probeer het over een minuut opnieuw.", 429);
   }
 
   const url = new URL(request.url);
@@ -25,7 +21,7 @@ export async function GET(request: Request) {
   const scale = regionScaleForRequest(zoom, url.searchParams.get("scale"));
 
   if (!bbox) {
-    return NextResponse.json({ error: t("errors.invalidBbox") }, { status: 400 });
+    return jsonError(t("errors.invalidBbox"), 400);
   }
 
   try {
@@ -34,10 +30,6 @@ export async function GET(request: Request) {
       headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" },
     });
   } catch (error) {
-    console.error("Region map layers failed", redactError(error));
-    return NextResponse.json(
-      { error: toUserMessage(error, t("errors.mapRegions")) },
-      { status: 502 },
-    );
+    return routeError(error, t("errors.mapRegions"));
   }
 }

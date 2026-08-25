@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext } from "@/src/lib/api/handlers";
 import { logError } from "@/src/lib/logger";
 import {
   generateListingInsights,
@@ -25,7 +23,7 @@ function asInsights(value: unknown): ListingInsights | null {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const t = getLibTranslator(getLocaleFromRequest(request), "lib-api");
+  const { t } = apiContext(request);
   if (!process.env.AI_GATEWAY_API_KEY) {
     return NextResponse.json({ status: "unavailable", message: t("errors.aiKeyRequired") }, { status: 503 });
   }
@@ -52,8 +50,7 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
 }
 
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { locale, t } = apiContext(request);
   if (!process.env.AI_GATEWAY_API_KEY) {
     return NextResponse.json({ status: "unavailable", message: t("errors.aiKeyRequired") }, { status: 503 });
   }

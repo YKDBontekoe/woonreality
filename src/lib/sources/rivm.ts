@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/src/lib/types";
+import type { SourceContextBase } from "@/src/lib/source-context";
 import { fetchJson } from "@/src/lib/http/fetch-json";
 
 const noiseUrl = "https://data.rivm.nl/geo/alo/wms";
@@ -17,16 +18,15 @@ export const rivmUrls = {
   flood: `https://data.rivm.nl/geo/alo/wms?request=GetLegendGraphic&format=image%2Fpng&layer=${rivmFloodLayer}`,
 };
 
-export type RivmContext = {
+export type RivmContext = SourceContextBase & {
   noiseLden?: number;
   no2?: number;
   pm25?: number;
   /** Legend class index (1–6); undefined when the raster had no value here. */
   floodClass?: number;
-  fetchedAt: string;
 };
 
-export async function getFeatureValue(baseUrl: string, layer: string, coordinates: Coordinates) {
+async function fetchFeatureInfo(layerUrl: string, layer: string, coordinates: Coordinates) {
   const delta = 0.00035;
   const params = new URLSearchParams({
     service: "WMS",
@@ -44,11 +44,15 @@ export async function getFeatureValue(baseUrl: string, layer: string, coordinate
     info_format: "application/json",
     feature_count: "1",
   });
-  const payload = await fetchJson<{ features?: { properties?: Record<string, unknown> }[] }>(
-    `${baseUrl}?${params}`,
+  return fetchJson<{ features?: { properties?: Record<string, unknown> }[] }>(
+    `${layerUrl}?${params}`,
     `RIVM WMS ${layer}`,
     { revalidate: 86400 },
   );
+}
+
+export async function getFeatureValue(baseUrl: string, layer: string, coordinates: Coordinates) {
+  const payload = await fetchFeatureInfo(baseUrl, layer, coordinates);
   const properties = payload.features?.[0]?.properties ?? {};
   const candidate = Object.entries(properties).find(([key, value]) => {
     if (typeof value !== "number" || !Number.isFinite(value)) return false;
@@ -63,28 +67,7 @@ export async function getFeatureValue(baseUrl: string, layer: string, coordinate
  * reader that validates the legend range explicitly.
  */
 async function getFloodRiskClass(coordinates: Coordinates) {
-  const delta = 0.00035;
-  const params = new URLSearchParams({
-    service: "WMS",
-    version: "1.3.0",
-    request: "GetFeatureInfo",
-    layers: rivmFloodLayer,
-    query_layers: rivmFloodLayer,
-    styles: "",
-    crs: "CRS:84",
-    bbox: `${coordinates.lng - delta},${coordinates.lat - delta},${coordinates.lng + delta},${coordinates.lat + delta}`,
-    width: "3",
-    height: "3",
-    i: "1",
-    j: "1",
-    info_format: "application/json",
-    feature_count: "1",
-  });
-  const payload = await fetchJson<{ features?: { properties?: Record<string, unknown> }[] }>(
-    `${noiseUrl}?${params}`,
-    `RIVM WMS ${rivmFloodLayer}`,
-    { revalidate: 86400 },
-  );
+  const payload = await fetchFeatureInfo(noiseUrl, rivmFloodLayer, coordinates);
   const value = payload.features?.[0]?.properties?.GRAY_INDEX;
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 6 ? value : undefined;
 }

@@ -2,7 +2,7 @@ import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
 import { clamp, round1 } from "@/src/lib/math";
 import { geometryAreaM2 } from "@/src/lib/geo/measure";
-import { scoreSeverity } from "@/src/lib/scoring/score";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { pdokUrls, type BgtContext } from "@/src/lib/sources/pdok/bgt";
 import type { Coordinates, GeoJsonFeature } from "@/src/lib/types";
 import {
@@ -140,19 +140,17 @@ export function sunSignal(input: { bgt: BgtContext | null; property: { coordinat
   const score = sunScoreFromMetrics(metrics);
 
   if (orientationBearing == null) {
-    return {
+    return createSignal({
       key: "sun",
       label: t("sun.label"),
       category: "woning",
       value: t("common.noData"),
-      severity: "neutral",
       summary: t("sun.noDataSummary"),
       action: t("sun.noDataAction"),
       confidence: "low",
       spatialScale: "BGT-pandvlakken rond dit adres",
-      evidence: [evidence],
-      availability: "unavailable",
-    };
+      evidence,
+    });
   }
 
   const facadeBearing = ((orientationBearing + 90) % 360 + 360) % 360;
@@ -166,14 +164,13 @@ export function sunSignal(input: { bgt: BgtContext | null; property: { coordinat
     })
     : t("sun.noBlocking");
 
-  return {
+  return createSignal({
     key: "sun",
     label: t("sun.label"),
     category: "woning",
     value: round1(score!),
     unit: "/ 10",
     score: score ?? undefined,
-    severity: scoreSeverity(score!),
     summary: t("sun.summary", { axis: axisLabel, facade: label, blocking: blockingText }),
     action: t("sun.action"),
     raw: {
@@ -183,7 +180,7 @@ export function sunSignal(input: { bgt: BgtContext | null; property: { coordinat
     },
     confidence: "low",
     spatialScale: "BGT-pandvlakken rond dit adres",
-    evidence: [evidence],
-    availability: bgtAvailable ? "available" : "unavailable",
-  };
+    available: bgtAvailable,
+    evidence,
+  });
 }

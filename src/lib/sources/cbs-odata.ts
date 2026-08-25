@@ -1,5 +1,3 @@
-import { fetchJson } from "@/src/lib/http/fetch-json";
-
 /** CBS StatLine / Politie OData region keys are often right-padded to 10 characters. */
 export function cbsODataRegionVariants(code: string): string[] {
   const trimmed = code.trim();
@@ -36,26 +34,3 @@ export function assertPositiveInteger(value: number, label: string) {
   return value;
 }
 
-export async function pageCbsOData<T>(
-  datasetUrl: string,
-  filter: string,
-  pageSize = 300,
-): Promise<T[]> {
-  const limit = assertPositiveInteger(pageSize, "pageSize");
-  const rows: T[] = [];
-  let skip = 0;
-  while (true) {
-    const params = new URLSearchParams({
-      $filter: filter,
-      $top: String(limit),
-      $skip: String(skip),
-      $format: "json",
-    });
-    const payload = await fetchJson<{ value?: T[] }>(`${datasetUrl}/TypedDataSet?${params}`, "CBS OData", { revalidate: 86400, timeoutMs: 20_000 });
-    const batch = payload.value ?? [];
-    rows.push(...batch);
-    if (batch.length < limit) break;
-    skip += limit;
-  }
-  return rows;
-}

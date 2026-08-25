@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
+import { invalidBagIdResponse, apiContext, currentUser, jsonError, routeError } from "@/src/lib/api/handlers";
 import { syncEngineTasks } from "@/src/lib/cases/sync-tasks";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { normalizeCaseStage, propertyStageFromCase } from "@/src/lib/journey";
 import { buyerProfileIsConfigured, normalizeBuyerProfile } from "@/src/lib/purchase";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/src/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/src/lib/supabase/server";
 import { suggestCaseTasks } from "@/src/lib/tasks";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
-import { isValidBagId } from "@/src/lib/validation/workspace";
+import { caseCreateBodySchema, isValidBagId } from "@/src/lib/validation/workspace";
 
 export const runtime = "nodejs";
 
@@ -16,18 +14,11 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-async function currentUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  return { supabase, user: error ? null : data.user };
-}
-
 export async function GET(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { supabase, user } = await currentUser();
-    if (!user) return NextResponse.json({ error: t("errors.loginToViewCases") }, { status: 401 });
+    if (!user) return jsonError(t("errors.loginToViewCases"), 401);
     const { data, error } = await supabase.from("purchase_cases").select("id,title,stage,status,updated_at,property_id,properties(bag_vbo_id,address_label)").eq("user_id", user.id).order("updated_at", { ascending: false });
     if (error) throw error;
     const cases = (data ?? []).map((row) => {
@@ -43,18 +34,19 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({ cases });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.casesLoadFailed") }, { status: 502 });
+    return routeError(error, t("errors.casesLoadFailed"), 502);
   }
 }
 
 export async function POST(request: Request) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { supabase, user } = await currentUser();
-    if (!user) return NextResponse.json({ error: t("errors.loginToSaveCase") }, { status: 401 });
-    const body = await request.json() as { bagVboId?: string; title?: string };
-    if (!body.bagVboId || !body.bagVboId || !isValidBagId(body.bagVboId)) return NextResponse.json({ error: "Kies eerst een geldig woningadres." }, { status: 400 });
+    if (!user) return jsonError(t("errors.loginToSaveCase"), 401);
+    const parsedBody = caseCreateBodySchema.safeParse(await request.json());
+    if (!parsedBody.success) return invalidBagIdResponse("Kies eerst een geldig woningadres.");
+    const body = parsedBody.data;
+    if (!body.bagVboId || !isValidBagId(body.bagVboId)) return invalidBagIdResponse("Kies eerst een geldig woningadres.");
 
     const admin = createSupabaseAdminClient();
     if (!admin) return NextResponse.json({ error: "Het aankoopdossier kan nog niet worden opgeslagen: Supabase is nog niet gekoppeld." }, { status: 503 });
@@ -150,6 +142,6 @@ export async function POST(request: Request) {
       hasContractAmount: false,
     }) }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : t("errors.caseCreateFailed") }, { status: 502 });
+    return routeError(error, t("errors.caseCreateFailed"), 502);
   }
 }

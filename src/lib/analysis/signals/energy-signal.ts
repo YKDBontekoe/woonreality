@@ -1,6 +1,6 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
-import { scoreSeverity } from "@/src/lib/scoring/score";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { epOnlineUrl } from "@/src/lib/sources/ep-online";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
@@ -38,18 +38,17 @@ export function energySignal(input: { energyLabel: string | null; evidence: Evid
   const { energyLabel, evidence, energyAvailable } = input;
   const t = getLibTranslator(locale, "lib-analysis");
   const score = energyLabel ? energyScore(energyLabel) : undefined;
-  return {
+  return createSignal({
     key: "energy",
     label: t("energy.label"),
     category: "woning",
     value: energyLabel ?? t("common.noData"),
     score,
-    severity: energyLabel ? scoreSeverity(score!) : "neutral",
     summary: energyLabel ? t("energy.summaryFound", { label: energyLabel }) : t("energy.summaryMissing"),
     action: t("energy.action"),
     confidence: "high",
     spatialScale: "BAG-verblijfsobject",
-    availability: energyAvailable ? "available" : "unavailable",
-    evidence: [evidence],
-  };
+    available: energyAvailable,
+    evidence,
+  });
 }

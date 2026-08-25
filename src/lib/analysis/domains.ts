@@ -1,13 +1,11 @@
-import type { Analysis, DomainSummary, Signal } from "@/src/lib/types";
+import type { Analysis, DomainSummary, Signal, SignalCategory } from "@/src/lib/types";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
-const DOMAIN_KEYS = ["woning", "gezondheid", "klimaat", "mobiliteit", "buurt", "toekomst"] as const;
+const DOMAIN_KEYS = ["woning", "gezondheid", "klimaat", "mobiliteit", "buurt", "toekomst"] as const satisfies readonly SignalCategory[];
 
 export type SignalDomain = (typeof DOMAIN_KEYS)[number];
-
-/** Stable category identifiers; display labels come from the lib-analysis catalog. */
-const DOMAIN_LABELS = Object.fromEntries(DOMAIN_KEYS.map((key) => [key, key])) as Record<SignalDomain, string>;
 
 export function domainLabels(locale: Locale = "nl"): Record<SignalDomain, string> {
   const t = getLibTranslator(locale, "lib-analysis");
@@ -29,10 +27,21 @@ function isAvailable(signal: Signal) {
  */
 const UNSCORED_ATTENTION_SCORE_CAP = 6.4;
 
-export function domainSummaries(signals: Signal[], locale: Locale = "nl"): DomainSummary[] {
+export type DomainSummaryOptions = {
+  /** Skip domains without signals (place analyses only surface present categories). */
+  skipEmpty?: boolean;
+};
+
+/**
+ * Single canonical domain-scoring implementation, shared by the property
+ * analysis (all six domains) and place dashboards (only present categories).
+ */
+export function domainSummaries(signals: Signal[], locale: Locale = "nl", options: DomainSummaryOptions = {}): DomainSummary[] {
   const t = getLibTranslator(locale, "lib-analysis");
-  return Object.entries(DOMAIN_LABELS).map(([key]) => {
+  const summaries: DomainSummary[] = [];
+  for (const key of DOMAIN_KEYS) {
     const domainSignals = signals.filter((signal) => signal.category === key);
+    if (options.skipEmpty && !domainSignals.length) continue;
     const availableSignals = domainSignals.filter((signal) => isAvailable(signal) && typeof signal.score === "number");
     const hasUnscoredAttention = domainSignals.some(
       (signal) => isAvailable(signal) && typeof signal.score !== "number" && signal.severity === "attention",
@@ -41,9 +50,9 @@ export function domainSummaries(signals: Signal[], locale: Locale = "nl"): Domai
       ? Math.round((availableSignals.reduce((sum, signal) => sum + (signal.score ?? 0), 0) / availableSignals.length) * 10) / 10
       : null;
     if (score != null && hasUnscoredAttention) score = Math.min(score, UNSCORED_ATTENTION_SCORE_CAP);
-    const formattedScore = score?.toLocaleString(locale === "en" ? "en-IE" : "nl-NL", { maximumFractionDigits: 1 });
-    return {
-      key: key as SignalDomain,
+    const formattedScore = score?.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 });
+    summaries.push({
+      key,
       label: t(`domain.labels.${key}`),
       score,
       signalKeys: domainSignals.map((signal) => signal.key),
@@ -54,8 +63,9 @@ export function domainSummaries(signals: Signal[], locale: Locale = "nl"): Domai
         : hasUnscoredAttention
           ? t("domain.summary.attention", { score: formattedScore })
           : t("domain.summary.plain", { score: formattedScore }),
-    };
-  });
+    });
+  }
+  return summaries;
 }
 
 const MAX_HIGHLIGHTS = 3;

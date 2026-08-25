@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Link } from "@/src/lib/i18n/navigation";
 import { AddressSearch } from "@/components/address-search";
+import { apiFetch } from "@/components/hooks/use-api";
 import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
 import { isFundaListingUrl, type ImportedListingFacts } from "@/src/lib/listing-import";
 import type { AddressSearchResult } from "@/src/lib/types";
@@ -35,18 +36,16 @@ export function ListingIntake() {
 
     if (isFundaListingUrl(url)) {
       try {
-        const importResponse = await fetch(`/api/listing/user/${encodeURIComponent(result.bagVboId)}/import`, {
+        const importResult = await apiFetch<{ facts?: ImportedListingFacts; error?: string }>(`/api/listing/user/${encodeURIComponent(result.bagVboId)}/import`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sourceUrl: url }),
+          json: { sourceUrl: url },
         });
-        const importBody = await importResponse.json() as { facts?: ImportedListingFacts; error?: string };
-        if (importResponse.ok && importBody.facts) {
-          facts = { ...importBody.facts, ...(price ? { askingPrice: price } : {}) };
+        if (importResult.ok && importResult.data?.facts) {
+          facts = { ...importResult.data.facts, ...(price ? { askingPrice: price } : {}) };
           notice = t("intake.followViaExtension");
           setMessage(notice);
         } else {
-          notice = importBody.error ?? t("funda.linkFailed");
+          notice = importResult.data?.error ?? t("funda.linkFailed");
           setMessage(notice);
         }
       } catch {
@@ -71,25 +70,23 @@ export function ListingIntake() {
     } catch { /* private mode */ }
 
     try {
-      const response = await fetch(`/api/listing/user/${encodeURIComponent(result.bagVboId)}`, {
+      const saveResult = await apiFetch<{ error?: string }>(`/api/listing/user/${encodeURIComponent(result.bagVboId)}`, {
         method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        json: {
           askingPrice: draft.askingPrice ?? null,
           sourceUrl: url || null,
-        }),
+        },
       });
-      if (response.status === 401) {
+      if (saveResult.status === 401) {
         setMessage(t("intake.savedLocally"));
         setAuthContinue(true);
         setBusy(false);
         return;
       }
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: undefined })) as { error?: string };
-        if (response.status === 400) setMessage(body.error ?? t("intake.checkInput"));
-        else if (response.status === 502) setMessage(body.error ?? t("intake.saveRetry"));
-        else setMessage(body.error ?? t("intake.saveFailed"));
+      if (!saveResult.ok) {
+        if (saveResult.status === 400) setMessage(saveResult.data?.error ?? saveResult.error ?? t("intake.checkInput"));
+        else if (saveResult.status === 502) setMessage(saveResult.data?.error ?? saveResult.error ?? t("intake.saveRetry"));
+        else setMessage(saveResult.data?.error ?? saveResult.error ?? t("intake.saveFailed"));
         setBusy(false);
         return;
       }

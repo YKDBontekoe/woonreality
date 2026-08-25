@@ -4,34 +4,15 @@ import { ArrowLeft, GitCompare, Link2, Check, X } from "lucide-react";
 import { Link, usePathname } from "@/src/lib/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { CompareEmptyState, removeIdsFromUrl, useShareUrl } from "@/components/comparison-shell";
 import { PageShell } from "@/components/ui/page-shell";
 import { ComparisonSkeleton } from "@/components/ui/route-skeletons";
+import { apiFetch } from "@/components/hooks/use-api";
 import { placeKindLabels } from "@/src/lib/place-labels";
-import { isBestInRow, loadStoredPlaces, placeFactRows, placeRefKey, placeSignalRows, removeStoredPlace, type PlaceRef } from "@/src/lib/place-compare";
+import { formatInhabitants, formatWoz, isBestInRow, loadStoredPlaces, placeFactRows, placeRefKey, placeSignalRows, removeStoredPlace, type PlaceRef } from "@/src/lib/place-compare";
 import type { PlaceAnalysis } from "@/src/lib/types";
 
 type LoadedPlace = { ref: PlaceRef; place: PlaceAnalysis | null; error?: string };
-
-function PlacesEmptyState({ hint }: { hint?: string }) {
-  const t = useTranslations("vergelijken");
-  return (
-    <PageShell current="vergelijken" className="comparison-shell">
-      <section className="comparison-empty" aria-labelledby="places-empty-title">
-        <Link className="back-link" href="/#zoek-adres"><ArrowLeft size={14} /> {t("backSearch")}</Link>
-        <div className="eyebrow"><GitCompare size={13} /> {t("placesEyebrow")}</div>
-        <h1 id="places-empty-title">{t("placesEmptyTitle")}</h1>
-        <p className="hero-copy">{t("placesEmptyCopy")}</p>
-        {hint ? <p className="compare-alert" role="status">{hint}</p> : null}
-        <ol className="comparison-empty-steps">
-          <li><span>1</span><div><strong>{t("placeStep1Title")}</strong><small>{t("placeStep1Text")}</small></div></li>
-          <li><span>2</span><div><strong>{t("placeStep2Title")}</strong><small>{t("placeStep2Text")}</small></div></li>
-          <li><span>3</span><div><strong>{t("placeStep3Title")}</strong><small>{t("placeStep3Text")}</small></div></li>
-        </ol>
-        <Link className="primary-button" href="/#zoek-adres">{t("placesEmptyCta")}</Link>
-      </section>
-    </PageShell>
-  );
-}
 
 export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRef[] }) {
   const t = useTranslations("vergelijken");
@@ -40,19 +21,11 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
   const [refs, setRefs] = useState<PlaceRef[]>(initialRefs);
   const [loaded, setLoaded] = useState<LoadedPlace[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
 
-  async function shareComparison() {
+  const { copied, share } = useShareUrl(() => {
     const query = refs.map((ref) => `${ref.kind}:${ref.code}`).join(",");
-    const url = `${window.location.origin}/${locale}${pathname}?places=${encodeURIComponent(query)}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      window.prompt(t("copyPrompt"), url);
-    }
-  }
+    return `${window.location.origin}/${locale}${pathname}?places=${encodeURIComponent(query)}`;
+  }, t("copyPrompt"));
 
   // Session-stored places extend URL refs (e.g. user added one on a place page).
   useEffect(() => {
@@ -74,11 +47,10 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
     const controller = new AbortController();
     void Promise.all(refs.map(async (ref) => {
       try {
-        const response = await fetch(`/api/place/${encodeURIComponent(ref.kind)}/${encodeURIComponent(ref.code)}`, { signal: controller.signal });
-        if (response.status === 401) return { ref, place: null, error: t("loginRequired") };
-        const body = await response.json() as { place?: PlaceAnalysis; error?: string };
-        if (!response.ok) return { ref, place: null, error: body.error ?? t("placeLoadFailed") };
-        return { ref, place: body.place ?? null };
+        const result = await apiFetch<{ place?: PlaceAnalysis; error?: string }>(`/api/place/${encodeURIComponent(ref.kind)}/${encodeURIComponent(ref.code)}`, { signal: controller.signal });
+        if (result.status === 401) return { ref, place: null, error: t("loginRequired") };
+        if (!result.ok) return { ref, place: null, error: result.data?.error ?? result.error ?? t("placeLoadFailed") };
+        return { ref, place: result.data?.place ?? null };
       } catch {
         return { ref, place: null, error: t("placeLoadFailed") };
       }
@@ -96,10 +68,7 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
     const remaining = refs.filter((_, position) => position !== index);
     setRefs(remaining);
     // Keep the URL in sync so a refresh does not resurrect removed places.
-    const url = new URL(window.location.href);
-    if (remaining.length >= 1) url.searchParams.set("places", remaining.map((ref) => `${ref.kind}:${ref.code}`).join(","));
-    else url.searchParams.delete("places");
-    window.history.replaceState(null, "", url.toString());
+    removeIdsFromUrl(remaining.map((ref) => `${ref.kind}:${ref.code}`), "places");
   }
 
   if (loading) return <ComparisonSkeleton />;
@@ -107,7 +76,22 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
   const valid = loaded.filter((item): item is LoadedPlace & { place: PlaceAnalysis } => item.place != null);
   if (valid.length < 2) {
     const authError = loaded.find((item) => item.error?.includes(t("loginRequired")));
-    return <PlacesEmptyState hint={authError?.error} />;
+    return (
+      <CompareEmptyState
+        titleId="places-empty-title"
+        backLabel={t("backSearch")}
+        eyebrow={t("placesEyebrow")}
+        title={t("placesEmptyTitle")}
+        copy={t("placesEmptyCopy")}
+        steps={[
+          { title: t("placeStep1Title"), text: t("placeStep1Text") },
+          { title: t("placeStep2Title"), text: t("placeStep2Text") },
+          { title: t("placeStep3Title"), text: t("placeStep3Text") },
+        ]}
+        ctaLabel={t("placesEmptyCta")}
+        alert={authError?.error ? { text: authError.error } : undefined}
+      />
+    );
   }
 
   const metricRows = placeSignalRows(valid.map((item) => item.place));
@@ -119,7 +103,7 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
       <div className="eyebrow"><GitCompare size={13} /> {t("placesDashEyebrow")}</div>
       <div className="compare-heading-row">
         <h1>{t("dashboardTitle")}</h1>
-        <button className="secondary-button" type="button" onClick={() => void shareComparison()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button>
+        <button className="secondary-button" type="button" onClick={() => void share()}>{copied ? <Check size={14} /> : <Link2 size={14} />} {copied ? t("copiedLabel") : t("shareLabel")}</button>
       </div>
       <p className="hero-copy">{t("placesDashCopy")}</p>
         <section className="comparison-cards">
@@ -135,8 +119,8 @@ export function PlaceComparisonDashboard({ initialRefs }: { initialRefs: PlaceRe
                 </button>
               </div>
               <div className="comparison-scores">
-                <div><small>{t("avgWoz")}</small><strong>{item.place.cbs?.averageWoz != null ? `€ ${Math.round(item.place.cbs.averageWoz).toLocaleString("nl-NL")}` : "—"}</strong></div>
-                <div><small>{t("inhabitants")}</small><strong>{item.place.cbs?.inhabitants?.toLocaleString("nl-NL") ?? "—"}</strong></div>
+                <div><small>{t("avgWoz")}</small><strong>{formatWoz(item.place.cbs?.averageWoz)}</strong></div>
+                <div><small>{t("inhabitants")}</small><strong>{formatInhabitants(item.place.cbs?.inhabitants)}</strong></div>
               </div>
               <div className="comparison-card-footer">
                 <Link href={`/plek/${item.place.kind}/${encodeURIComponent(item.place.code)}`}>{t("openPlacePage")}</Link>

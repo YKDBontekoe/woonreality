@@ -1,6 +1,7 @@
 import { formatEuro } from "@/src/lib/purchase";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 /**
  * Bodmemo: a printable one-pager a buyer can hand to the verkopend makelaar.
@@ -57,7 +58,7 @@ export function offerMemoConditions(
 
 export function buildOfferMemo(input: OfferMemoInput, locale: Locale = "nl"): OfferMemo {
   const t = getLibTranslator(locale, "lib-finance");
-  const intlTag = locale === "en" ? "en-IE" : "nl-NL";
+  const intlTag = formatLocaleTag(locale);
   const conditions = offerMemoConditions(input, locale);
   const generatedAtLabel = new Intl.DateTimeFormat(intlTag, { dateStyle: "long" }).format(new Date(input.generatedAt));
   const euro = (value: number) => formatEuro(value, locale);

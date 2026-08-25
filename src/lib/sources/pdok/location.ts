@@ -17,23 +17,6 @@ type AddressFeature = {
   properties?: { adresseerbaar_object_identificatie?: string };
 };
 
-type WoonplaatsFeature = {
-  properties?: {
-    identificatie?: string;
-    woonplaats?: string;
-    bronhouder_identificatie?: string;
-    provincie_naam?: string;
-  };
-};
-
-type GemeenteFeature = {
-  properties?: {
-    identificatie?: string;
-    naam?: string;
-    ligt_in_provincie_naam?: string;
-  };
-};
-
 type LocationSearchResponse = { features?: SearchFeature[] };
 
 function queryPrefersAddresses(query: string) {
@@ -72,15 +55,21 @@ function placeSubtitle(displayName: string) {
   return match?.[1];
 }
 
-async function mapAddressFeature(feature: SearchFeature): Promise<AddressSearchResult | undefined> {
+function featurePointAndHref(feature: SearchFeature) {
   const [lng, lat] = feature.geometry?.coordinates ?? [];
   const href = feature.properties?.href?.[0];
   const displayName = feature.properties?.display_name;
-  if (!feature.id || !href || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
+  if (!feature.id || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
+  return { id: feature.id, lng, lat, href, displayName };
+}
 
-  let bagVboId = feature.id;
+async function mapAddressFeature(feature: SearchFeature): Promise<AddressSearchResult | undefined> {
+  const point = featurePointAndHref(feature);
+  if (!point?.href) return undefined;
+
+  let bagVboId = point.id;
   try {
-    const address = await getJson<AddressFeature>(href, "PDOK BAG adres");
+    const address = await getJson<AddressFeature>(point.href, "PDOK BAG adres");
     bagVboId = address.properties?.adresseerbaar_object_identificatie ?? bagVboId;
   } catch {
     // Keep the location feature ID as a fallback. The property route can still resolve it later.
@@ -88,79 +77,79 @@ async function mapAddressFeature(feature: SearchFeature): Promise<AddressSearchR
 
   return {
     kind: "adres",
-    id: feature.id,
+    id: point.id,
     bagVboId,
-    displayName: normalizeDisplayName(displayName),
-    coordinates: { lat, lng },
-    href,
+    displayName: normalizeDisplayName(point.displayName),
+    coordinates: { lat: point.lat, lng: point.lng },
+    href: point.href,
     score: feature.properties?.score ?? 0,
   };
 }
 
-async function mapWoonplaatsFeature(feature: SearchFeature): Promise<PlaceSearchResult | undefined> {
-  const [lng, lat] = feature.geometry?.coordinates ?? [];
-  const href = feature.properties?.href?.[0];
-  const displayName = feature.properties?.display_name;
-  if (!feature.id || !href || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
+type BagPlaceDetail = {
+  properties?: {
+    identificatie?: string;
+    woonplaats?: string;
+    naam?: string;
+    provincie_naam?: string;
+    ligt_in_provincie_naam?: string;
+  };
+};
+
+const BAG_PLACE_CONFIG = {
+  woonplaats: { label: "PDOK BAG woonplaats", nameField: "woonplaats", provinceField: "provincie_naam" },
+  gemeente: { label: "PDOK BAG gemeente", nameField: "naam", provinceField: "ligt_in_provincie_naam" },
+} as const;
+
+async function mapBagPlaceFeature(
+  feature: SearchFeature,
+  kind: "woonplaats" | "gemeente",
+): Promise<PlaceSearchResult | undefined> {
+  const config = BAG_PLACE_CONFIG[kind];
+  const point = featurePointAndHref(feature);
+  if (!point?.href) return undefined;
 
   try {
-    const woonplaats = await getJson<WoonplaatsFeature>(href, "PDOK BAG woonplaats");
-    const code = woonplaats.properties?.identificatie?.trim();
+    const detail = await getJson<BagPlaceDetail>(point.href, config.label);
+    const code = detail.properties?.identificatie?.trim();
     if (!code) return undefined;
     return {
-      kind: "woonplaats",
-      id: feature.id,
+      kind,
+      id: point.id,
       code,
-      displayName: woonplaats.properties?.woonplaats?.trim() || normalizeDisplayName(displayName),
-      coordinates: { lat, lng },
+      displayName: detail.properties?.[config.nameField]?.trim() || normalizeDisplayName(point.displayName),
+      coordinates: { lat: point.lat, lng: point.lng },
       score: feature.properties?.score ?? 0,
-      subtitle: woonplaats.properties?.provincie_naam,
+      subtitle: detail.properties?.[config.provinceField],
     };
   } catch {
     return undefined;
   }
 }
 
-async function mapGemeenteFeature(feature: SearchFeature): Promise<PlaceSearchResult | undefined> {
-  const [lng, lat] = feature.geometry?.coordinates ?? [];
-  const href = feature.properties?.href?.[0];
-  const displayName = feature.properties?.display_name;
-  if (!feature.id || !href || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
+function mapWoonplaatsFeature(feature: SearchFeature) {
+  return mapBagPlaceFeature(feature, "woonplaats");
+}
 
-  try {
-    const gemeente = await getJson<GemeenteFeature>(href, "PDOK BAG gemeente");
-    const code = gemeente.properties?.identificatie?.trim();
-    if (!code) return undefined;
-    return {
-      kind: "gemeente",
-      id: feature.id,
-      code,
-      displayName: gemeente.properties?.naam?.trim() || normalizeDisplayName(displayName),
-      coordinates: { lat, lng },
-      score: feature.properties?.score ?? 0,
-      subtitle: gemeente.properties?.ligt_in_provincie_naam,
-    };
-  } catch {
-    return undefined;
-  }
+function mapGemeenteFeature(feature: SearchFeature) {
+  return mapBagPlaceFeature(feature, "gemeente");
 }
 
 async function mapPlaatsFeature(feature: SearchFeature): Promise<PlaceSearchResult | undefined> {
-  const [lng, lat] = feature.geometry?.coordinates ?? [];
-  const displayName = feature.properties?.display_name;
-  if (!feature.id || !displayName || typeof lng !== "number" || typeof lat !== "number") return undefined;
+  const point = featurePointAndHref(feature);
+  if (!point) return undefined;
 
-  const cbs = await getCbsContext({ lat, lng }).catch(() => null);
+  const cbs = await getCbsContext({ lat: point.lat, lng: point.lng }).catch(() => null);
   if (!cbs?.buurtcode) return undefined;
 
   return {
     kind: "buurt",
-    id: feature.id,
+    id: point.id,
     code: cbs.buurtcode,
-    displayName: cbs.buurtName || displayName.replace(/\s*\([^)]+\)\s*$/, "").trim(),
-    coordinates: { lat, lng },
+    displayName: cbs.buurtName || point.displayName.replace(/\s*\([^)]+\)\s*$/, "").trim(),
+    coordinates: { lat: point.lat, lng: point.lng },
     score: feature.properties?.score ?? 0,
-    subtitle: cbs.municipalityName || placeSubtitle(displayName),
+    subtitle: cbs.municipalityName || placeSubtitle(point.displayName),
   };
 }
 

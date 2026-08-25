@@ -1,5 +1,5 @@
 import type { GeoJsonFeature } from "@/src/lib/types";
-import { getBgtFeatures, getFeatureId, pdokUrls } from "@/src/lib/sources/pdok/client";
+import { getBgtFeatures, pdokUrls } from "@/src/lib/sources/pdok/client";
 
 export type BgtContext = {
   roads: GeoJsonFeature[];
@@ -26,8 +26,5 @@ export async function getBgtContext(coordinates: { lat: number; lng: number }): 
   return { roads, greenAreas, water, buildings, fetchedAt: new Date().toISOString() };
 }
 
-export function bgtEvidenceId(collection: string, feature: GeoJsonFeature, index: number) {
-  return `bgt-${collection}-${getFeatureId(feature) ?? index}`;
-}
 
 export { pdokUrls };

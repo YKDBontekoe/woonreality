@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import type {
   Analysis,
   EverydayInsight,
@@ -52,7 +53,7 @@ export function buildVerdict(analysis: Analysis, locale: Locale = "nl"): Verdict
         ? "neutral"
         : scoreTone;
 
-  const score = analysis.overallScore.toLocaleString(locale === "en" ? "en-IE" : "nl-NL", { maximumFractionDigits: 1 });
+  const score = analysis.overallScore.toLocaleString(formatLocaleTag(locale), { maximumFractionDigits: 1 });
   const headline =
     tone === "good"
       ? t("reportSummary.verdict.good.headline")

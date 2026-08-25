@@ -3,6 +3,7 @@ import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { computePurchaseDeadlines } from "@/src/lib/deadlines";
 import { caseStageLabel, type CaseStage } from "@/src/lib/journey";
 import { profileCompletion, type BuyerProfile } from "@/src/lib/purchase";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 export type TaskSuggestion = {
   key: string;
@@ -180,7 +181,7 @@ export function suggestCaseTasks(input: TaskEngineInput, locale: Locale = "nl"):
         financingWeeks: input.financingWeeks,
         inspectionWeeks: input.inspectionWeeks,
       });
-      const formatDate = (date: Date) => date.toLocaleDateString(locale === "en" ? "en-IE" : "nl-NL", { dateStyle: "long" });
+      const formatDate = (date: Date) => date.toLocaleDateString(formatLocaleTag(locale), { dateStyle: "long" });
       for (const deadline of deadlines) {
         const isPast = deadline.dueAt.getTime() < Date.now();
         if (isPast) continue;

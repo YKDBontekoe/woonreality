@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { latestNdovCatalogFile, ndovStopCoordinates } from "@/src/lib/sources/ndov";
+import { ndovCatalogFileCandidates, ndovStopCoordinates } from "@/src/lib/sources/ndov";
 
 test("selects the actual NDOV stop catalog instead of a similarly named assignment export", () => {
   const index = `
@@ -9,7 +9,8 @@ test("selects the actual NDOV stop catalog instead of a similarly named assignme
     <a href="ExportCHB_2026-08-15.xml.gz">stops</a>
   `;
 
-  assert.deepEqual(latestNdovCatalogFile(index), {
+  const [newest] = ndovCatalogFileCandidates(index);
+  assert.deepEqual(newest, {
     file: "ExportCHB_2026-08-15.xml.gz",
     date: "2026-08-15",
   });

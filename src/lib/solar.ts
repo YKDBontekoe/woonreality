@@ -1,3 +1,5 @@
+import { haversineM } from "@/src/lib/geo/measure";
+
 type LngLatPoint = { lat: number; lng: number };
 type Geometry = import("geojson").Geometry;
 
@@ -110,16 +112,6 @@ export function polygonCentroid(geometry: Geometry | undefined | null): LngLatPo
     sumLng += lng;
   }
   return { lat: sumLat / ring.length, lng: sumLng / ring.length };
-}
-
-function haversineM(a: LngLatPoint, b: LngLatPoint) {
-  const earthRadius = 6_371_000;
-  const lat1 = a.lat * DEG;
-  const lat2 = b.lat * DEG;
-  const dLat = (b.lat - a.lat) * DEG;
-  const dLng = (b.lng - a.lng) * DEG;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * earthRadius * Math.asin(Math.sqrt(h));
 }
 
 export function distanceM(a: LngLatPoint, b: LngLatPoint) {

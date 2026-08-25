@@ -1,32 +1,23 @@
 import { NextResponse } from "next/server";
-import { extractListingFacts, isHttpUrl } from "@/src/lib/listing-intake";
+import { isHttpUrl } from "@/src/lib/listing-intake";
 import {
-  factsFromUnknown,
   importFundaListing,
   listingFromImportedFacts,
   ListingImportError,
-  mergeListingFacts,
   normalizeFundaListingUrl,
+  persistImportedListingFacts,
 } from "@/src/lib/listing-import";
-import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
-import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
+import { apiContext, currentUser, invalidBagIdResponse, privateHeaders } from "@/src/lib/api/handlers";
+import { isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { userListingImportBodySchema, isValidBagId } from "@/src/lib/validation/workspace";
+import { logWarn } from "@/src/lib/logger";
 
 export const runtime = "nodejs";
 
-async function currentUser() {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  return { supabase, user: error ? null : data.user };
-}
-
 export async function POST(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   const { bagId } = await context.params;
-  if (!isValidBagId(bagId)) return NextResponse.json({ error: t("errors.invalidBagAddress") }, { status: 400 });
+  if (!isValidBagId(bagId)) return invalidBagIdResponse(t("errors.invalidBagAddress"));
   let raw: unknown;
   try {
     raw = await request.json();
@@ -46,13 +37,13 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
   try {
     imported = importFundaListing(sourceUrl);
   } catch (error) {
-    const message = error instanceof ListingImportError
-      ? error.message
-      : t("errors.fundaLinkUnrecognized");
-    const status = error instanceof ListingImportError && error.code === "invalid_url" ? 400 : 422;
+    if (!(error instanceof ListingImportError)) {
+      return NextResponse.json({ error: t("errors.fundaLinkUnrecognized"), blocked: false }, { status: 422 });
+    }
+    const status = error.code === "invalid_url" ? 400 : 422;
     return NextResponse.json({
-      error: message,
-      blocked: error instanceof ListingImportError && error.code === "blocked",
+      error: error.message,
+      blocked: error.code === "blocked",
     }, { status });
   }
 
@@ -64,33 +55,13 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     if (isSupabaseConfigured()) {
       const { supabase, user } = await currentUser();
       if (user) {
-        const { data: existing } = await supabase
-          .from("user_listings")
-          .select("asking_price, extracted_json, pasted_text")
-          .eq("user_id", user.id)
-          .eq("bag_vbo_id", bagId)
-          .maybeSingle();
-        const existingFacts = mergeListingFacts(
-          factsFromUnknown(existing?.extracted_json),
-          extractListingFacts(existing?.pasted_text ?? ""),
-          { prefer: "existing" },
-        );
-        if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-        facts = mergeListingFacts(existingFacts, imported.facts);
-        const { error } = await supabase.from("user_listings").upsert({
-          user_id: user.id,
-          bag_vbo_id: bagId,
-          source_url: imported.sourceUrl,
-          asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
-          extracted_json: facts,
-          updated_at: fetchedAt,
-        }, { onConflict: "user_id,bag_vbo_id" });
-        if (error) throw error;
-        persisted = true;
+        const result = await persistImportedListingFacts(supabase, user.id, bagId, imported, fetchedAt);
+        facts = result.facts;
+        persisted = result.persisted;
       }
     }
   } catch (error) {
-    console.warn("user_listings persistence unavailable after listing import", error);
+    logWarn("user_listings persistence unavailable after listing import", error);
     persisted = false;
   }
 
@@ -99,5 +70,5 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     facts,
     blocked: imported.blocked,
     persisted,
-  }, { headers: { "Cache-Control": "private, no-store" } });
+  }, { headers: privateHeaders() });
 }

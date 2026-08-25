@@ -15,7 +15,11 @@ import { Link } from "@/src/lib/i18n/navigation";
 import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "@/components/hooks/use-api";
+import { useChecklist } from "@/components/hooks/use-checklist";
+import { useGeneratedResource } from "@/components/hooks/use-generated-resource";
+import { HASH_ALIASES, TABS, TabId, useHashTabs } from "@/components/hooks/use-hash-tabs";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { FundaListingPanel } from "@/components/funda-listing-panel";
@@ -44,14 +48,12 @@ import {
   listingQuestionItem,
   mergeChecklistWithDefaults,
 } from "@/src/lib/checklist";
-import { checklistSessionNotice, loadSessionChecklist, saveSessionChecklist, supportsSessionChecklistFallback } from "@/src/lib/checklist-storage";
-import { listingStorageKey, type UserListingDraft } from "@/src/lib/listing-intake";
+import { readListingDraft } from "@/src/lib/listing-draft";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
 import { hasListingExtractText } from "@/src/lib/listing-text";
 import type {
   AiPropertyReport,
-  AiReportStatus,
   Analysis,
   ChecklistItem,
   ListingInsights,
@@ -76,42 +78,6 @@ const PropertyMap = dynamic(
   },
 );
 
-const TAB_IDS = [
-  "overzicht",
-  "deal",
-  "advertentie",
-  "signalen",
-  "omgeving",
-  "checklist",
-  "bronnen",
-] as const;
-
-type TabId = (typeof TAB_IDS)[number];
-
-const TABS: { id: TabId; hash: string }[] = [
-  { id: "overzicht", hash: "#overzicht" },
-  { id: "deal", hash: "#deal" },
-  { id: "advertentie", hash: "#advertentie" },
-  { id: "signalen", hash: "#signalen" },
-  { id: "omgeving", hash: "#omgeving" },
-  { id: "checklist", hash: "#checklist" },
-  { id: "bronnen", hash: "#bronnen" },
-];
-
-const HASH_ALIASES: Record<string, TabId> = {
-  kaart: "omgeving",
-  "niet-gedekt": "bronnen",
-  bodconcept: "deal",
-  "ai-onderzoek": "overzicht",
-  omschrijving: "advertentie",
-};
-
-function hashToTab(hash: string): TabId {
-  const id = hash.replace(/^#/, "");
-  if (TAB_IDS.includes(id as TabId)) return id as TabId;
-  return HASH_ALIASES[id] ?? "overzicht";
-}
-
 export function PropertyDashboard({ bagId }: { bagId: string }) {
   const t = useTranslations("woning");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -122,67 +88,28 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [listing, setListing] = useState<PropertyListing | null>(null);
   const [userListing, setUserListing] = useState<PropertyListing | null>(null);
-  const [aiReport, setAiReport] = useState<AiPropertyReport | null>(null);
-  const [aiStatus, setAiStatus] = useState<AiReportStatus>("missing");
-  const [listingInsights, setListingInsights] = useState<ListingInsights | null>(null);
-  const [insightsStatus, setInsightsStatus] = useState<AiReportStatus>("missing");
-  const [tab, setTab] = useState<TabId>("overzicht");
-  const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set(["overzicht"]));
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
   const [focusDomain, setFocusDomain] = useState<SignalCategory | null>(null);
   const [mapFocusId, setMapFocusId] = useState<string | null>(null);
   const { authStatus, workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
     useState<PersonalPreferences>(DEFAULT_PREFERENCES);
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [checklistError, setChecklistError] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
-  const checklistWriteQueue = useRef(Promise.resolve());
-  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingChecklist = useRef<ChecklistItem[] | null>(null);
-  const persistChecklistRef = useRef<(next: ChecklistItem[]) => Promise<void>>(async () => undefined);
-
-  const selectTab = useCallback((next: TabId, updateHistory = true) => {
-    setTab(next);
-    setVisitedTabs((current) => {
-      if (current.has(next)) return current;
-      const nextVisited = new Set(current);
-      nextVisited.add(next);
-      return nextVisited;
-    });
-    const hash = TABS.find((item) => item.id === next)?.hash ?? "#overzicht";
-    if (updateHistory && window.location.hash !== hash) {
-      window.history.pushState(null, "", hash);
-    }
-  }, []);
-  const tabButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  useEffect(() => {
-    const initial = hashToTab(window.location.hash);
-    setTab(initial);
-    setVisitedTabs(new Set([initial]));
-    const onLocationChange = () => selectTab(hashToTab(window.location.hash), false);
-    window.addEventListener("hashchange", onLocationChange);
-    window.addEventListener("popstate", onLocationChange);
-    return () => {
-      window.removeEventListener("hashchange", onLocationChange);
-      window.removeEventListener("popstate", onLocationChange);
-    };
-  }, [selectTab]);
+  const { tab, visitedTabs, selectTab, tabButtonRefs } = useHashTabs(TABS, HASH_ALIASES, "overzicht" satisfies TabId);
 
   const [analysisRetry, setAnalysisRetry] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/analysis/${encodeURIComponent(bagId)}?retry=${analysisRetry}`, {
+    apiFetch<Analysis>(`/api/analysis/${encodeURIComponent(bagId)}?retry=${analysisRetry}`, {
       signal: controller.signal,
       cache: "no-store",
     })
-      .then(async (response) => {
-        const body = (await response.json()) as Analysis & { error?: string };
-        if (!response.ok)
-          throw new Error(body.error ?? t("dashboard.analysisLoadFailed"));
-        setAnalysis(body);
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (!result.ok || !result.data)
+          throw new Error(result.error ?? t("dashboard.analysisLoadFailed"));
+        setAnalysis(result.data);
         setError("");
       })
       .catch((caught) => {
@@ -194,49 +121,10 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     return () => controller.abort();
   }, [bagId, analysisRetry, t]);
 
-  useEffect(() => {
-    if (!analysis || !visitedTabs.has("overzicht")) return;
-    const controller = new AbortController();
-    async function loadAiReport() {
-      try {
-        const statusResponse = await fetch(
-          `/api/ai-analysis/${encodeURIComponent(bagId)}`,
-          { signal: controller.signal },
-        );
-        if (statusResponse.status === 503) {
-          setAiStatus("unavailable");
-          return;
-        }
-        const statusBody = (await statusResponse.json()) as {
-          status: AiReportStatus;
-          report?: AiPropertyReport | null;
-        };
-        setAiStatus(statusBody.status);
-        if (statusBody.report) {
-          setAiReport(statusBody.report);
-          return;
-        }
-        if (statusBody.status !== "missing" && statusBody.status !== "stale")
-          return;
-        setAiStatus("generating");
-        const generateResponse = await fetch(
-          `/api/ai-analysis/${encodeURIComponent(bagId)}`,
-          { method: "POST", signal: controller.signal },
-        );
-        const generateBody = (await generateResponse.json()) as {
-          status: AiReportStatus;
-          report?: AiPropertyReport | null;
-        };
-        setAiStatus(generateBody.status);
-        if (generateBody.report) setAiReport(generateBody.report);
-      } catch (caught) {
-        if (!(caught instanceof DOMException && caught.name === "AbortError"))
-          setAiStatus("failed");
-      }
-    }
-    void loadAiReport();
-    return () => controller.abort();
-  }, [analysis, bagId, visitedTabs]);
+  const ai = useGeneratedResource<AiPropertyReport>({
+    endpoint: `/api/ai-analysis/${encodeURIComponent(bagId)}`,
+    enabled: Boolean(analysis) && visitedTabs.has("overzicht"),
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -286,8 +174,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             return;
           }
         }
-        const raw = sessionStorage.getItem(listingStorageKey(bagId));
-        const draft = raw ? JSON.parse(raw) as UserListingDraft : null;
+        const draft = readListingDraft(bagId);
         if (!draft) return;
         const facts = {
           notes: [],
@@ -330,47 +217,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     setLocalPreferences(workspace.preferences);
   }, [workspace.preferences]);
 
-  useEffect(() => {
-    if (!analysis || !visitedTabs.has("checklist")) return;
-    const controller = new AbortController();
-    fetch(`/api/checklists/${encodeURIComponent(bagId)}`, {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as {
-          items?: ChecklistItem[] | null;
-          error?: string;
-        };
-        if (supportsSessionChecklistFallback(response.status)) {
-          const defaults = checklistForAnalysis(analysis);
-          const cached = loadSessionChecklist(bagId);
-          setChecklist(cached ? mergeChecklistWithDefaults(defaults, cached) : defaults);
-          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
-          return;
-        }
-        if (!response.ok)
-          throw new Error(body.error ?? t("viewing.checklistLoadFailed"));
-        const defaults = checklistForAnalysis(analysis);
-        setChecklist(
-          Array.isArray(body.items)
-            ? mergeChecklistWithDefaults(defaults, body.items)
-            : defaults,
-        );
-        setChecklistError("");
-      })
-      .catch((caught) => {
-        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
-          setChecklist(checklistForAnalysis(analysis));
-          setChecklistError(
-            caught instanceof Error
-              ? caught.message
-              : t("viewing.checklistLoadFailed"),
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [analysis, bagId, visitedTabs, t]);
+  const checklistState = useChecklist(bagId, analysis, visitedTabs.has("checklist"), {
+    loginToSaveNotes: t("viewing.loginToSaveNotes"),
+    checklistLoadFailed: t("viewing.checklistLoadFailed"),
+    checklistSaveFailed: t("viewing.checklistSaveFailed"),
+    browserSaveFailed: t("viewing.browserSaveFailed"),
+  });
 
   const marketListingPreview = mergeListings(userListing, listing);
   const listingExtractKey = marketListingPreview && hasListingExtractText(marketListingPreview)
@@ -382,124 +234,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       ].join("\0")
     : "";
 
-  useEffect(() => {
-    if (!listingExtractKey || !visitedTabs.has("advertentie")) return;
-    setListingInsights(null);
-    setInsightsStatus("generating");
-    const controller = new AbortController();
-    async function loadInsights() {
-      try {
-        const statusResponse = await fetch(
-          `/api/listing-insights/${encodeURIComponent(bagId)}`,
-          { signal: controller.signal },
-        );
-        if (statusResponse.status === 503) {
-          setInsightsStatus("unavailable");
-          return;
-        }
-        const statusBody = (await statusResponse.json()) as {
-          status: AiReportStatus;
-          report?: ListingInsights | null;
-        };
-        setInsightsStatus(statusBody.status);
-        if (statusBody.report) {
-          setListingInsights(statusBody.report);
-          return;
-        }
-        if (statusBody.status !== "missing" && statusBody.status !== "stale") return;
-        setInsightsStatus("generating");
-        const generateResponse = await fetch(
-          `/api/listing-insights/${encodeURIComponent(bagId)}`,
-          { method: "POST", signal: controller.signal },
-        );
-        const generateBody = (await generateResponse.json()) as {
-          status: AiReportStatus;
-          report?: ListingInsights | null;
-        };
-        setInsightsStatus(generateBody.status);
-        if (generateBody.report) setListingInsights(generateBody.report);
-      } catch (caught) {
-        if (!(caught instanceof DOMException && caught.name === "AbortError"))
-          setInsightsStatus("failed");
-      }
-    }
-    void loadInsights();
-    return () => controller.abort();
-  }, [bagId, listingExtractKey, visitedTabs]);
-
-  async function persistChecklist(next: ChecklistItem[]) {
-    const write = checklistWriteQueue.current
-      .catch(() => undefined)
-      .then(async () => {
-        const response = await fetch(
-          `/api/checklists/${encodeURIComponent(bagId)}`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ items: next }),
-          },
-        );
-        const body = (await response.json()) as { error?: string };
-        if (supportsSessionChecklistFallback(response.status)) {
-          if (!saveSessionChecklist(bagId, next)) throw new Error(t("viewing.browserSaveFailed"));
-          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
-          return;
-        }
-        if (!response.ok)
-          throw new Error(
-            body.error ?? t("viewing.checklistSaveFailed"),
-          );
-        setChecklistError("");
-      });
-    checklistWriteQueue.current = write.catch(() => undefined);
-    try {
-      await write;
-    } catch (caught) {
-      setChecklistError(
-        caught instanceof Error
-          ? caught.message
-          : t("viewing.checklistSaveFailed"),
-      );
-    }
-  }
-
-  persistChecklistRef.current = persistChecklist;
-
-  async function saveChecklist(next: ChecklistItem[]) {
-    setChecklist(next);
-    await persistChecklist(next);
-  }
-
-  function queueChecklistNoteSave(next: ChecklistItem[]) {
-    setChecklist(next);
-    pendingChecklist.current = next;
-    if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
-    noteSaveTimer.current = setTimeout(() => {
-      const payload = pendingChecklist.current;
-      pendingChecklist.current = null;
-      noteSaveTimer.current = null;
-      if (payload) void persistChecklist(payload);
-    }, 400);
-  }
-
-  function flushChecklistNoteSave() {
-    if (noteSaveTimer.current) {
-      window.clearTimeout(noteSaveTimer.current);
-      noteSaveTimer.current = null;
-    }
-    const payload = pendingChecklist.current;
-    pendingChecklist.current = null;
-    if (payload) void persistChecklist(payload);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (noteSaveTimer.current) window.clearTimeout(noteSaveTimer.current);
-      const payload = pendingChecklist.current;
-      pendingChecklist.current = null;
-      if (payload) void persistChecklistRef.current(payload);
-    };
-  }, [bagId]);
+  const insights = useGeneratedResource<ListingInsights>({
+    endpoint: `/api/listing-insights/${encodeURIComponent(bagId)}`,
+    enabled: Boolean(listingExtractKey) && visitedTabs.has("advertentie"),
+    resetKey: listingExtractKey,
+  });
 
   async function savePreferences() {
     const result = await setPreferences(preferences);
@@ -580,13 +319,36 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   if (mortgageEnergyLabel) hypotheekQuery.set("label", mortgageEnergyLabel);
   if (marketListing?.askingPrice) hypotheekQuery.set("price", String(Math.round(marketListing.askingPrice)));
   const hypotheekHref = (hypotheekQuery.size > 0 ? `/hypotheek?${hypotheekQuery.toString()}` : "/hypotheek") as Route;
-  const listingQuestions = (listingInsights?.points ?? []).flatMap((point) =>
+  const listingQuestions = (insights.report?.points ?? []).flatMap((point) =>
     point.question ? [listingQuestionItem(point.topic, point.question)] : [],
   );
   const visibleChecklist = mergeChecklistWithDefaults(
     [...checklistForAnalysis(analysis), ...listingQuestions],
-    checklist.length ? checklist : checklistForAnalysis(analysis),
+    checklistState.checklist.length
+      ? checklistState.checklist
+      : checklistForAnalysis(analysis),
   );
+
+  function toggleVisibleChecklistItem(item: ChecklistItem, checked: boolean) {
+    const stored = checklistState.checklist;
+    const next = stored.some((candidate) => candidate.id === item.id)
+      ? stored.map((candidate) =>
+          candidate.id === item.id ? { ...candidate, checked } : candidate,
+        )
+      : [...stored, { ...item, checked }];
+    checklistState.save(next);
+  }
+
+  function setVisibleChecklistNote(item: ChecklistItem, note: string) {
+    const stored = checklistState.checklist;
+    if (stored.some((candidate) => candidate.id === item.id)) {
+      checklistState.updateNote(item.id, note);
+      return;
+    }
+    // Nieuwe advertentievraag: nog niet in de opgeslagen lijst, dus direct
+    // toevoegen en wegschrijven (updateNote kan alleen bestaande items muteren).
+    checklistState.save([...stored, { ...item, note }]);
+  }
 
   async function saveProperty() {
     setActionNotice("");
@@ -752,8 +514,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           <AiDecisionBrief
             analysis={analysis}
             listing={marketListing}
-            report={aiReport}
-            status={aiStatus}
+            report={ai.report}
+            status={ai.status}
             onOpenSignals={() => selectTab("signalen")}
             onOpenChecklist={() => selectTab("checklist")}
           />
@@ -782,8 +544,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
           <details className="dash-collapsible-panel" id="ai-onderzoek">
             <summary>{t("dashboard.aiResearchSummary")}</summary>
             <AiResearchSection
-              report={aiReport}
-              status={aiStatus}
+              report={ai.report}
+              status={ai.status}
               listingIncomplete={incompleteListing}
             />
           </details>
@@ -815,7 +577,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       {tab === "advertentie" && (
         <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-advertentie" aria-labelledby="tab-advertentie">
           {hasListingExtractText(marketListing) && (
-            <ListingInsightsPanel insights={listingInsights} status={insightsStatus} />
+            <ListingInsightsPanel insights={insights.report} status={insights.status} />
           )}
           {!incompleteListing && marketListing ? (
             <ListingKenmerkenGrid listing={marketListing} />
@@ -891,9 +653,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               <div>
                 <div className="eyebrow"><span className="eyebrow-dot" /> {t("dashboard.checklistEyebrow")}</div>
                 <h2>{t("dashboard.viewingTitle")}</h2>
-                {checklistError && (
+                {checklistState.error && (
                   <p className="form-message" role="status">
-                    {checklistError}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}
+                    {checklistState.error}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}
                   </p>
                 )}
               </div>
@@ -919,13 +681,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                         type="checkbox"
                         checked={item.checked}
                         onChange={(event) => {
-                          void saveChecklist(
-                            visibleChecklist.map((candidate) =>
-                              candidate.id === item.id
-                                ? { ...candidate, checked: event.target.checked }
-                                : candidate,
-                            ),
-                          );
+                          toggleVisibleChecklistItem(item, event.target.checked);
                         }}
                       />
                       <span>
@@ -940,15 +696,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                       value={item.note ?? ""}
                       placeholder={t("dashboard.notePlaceholder")}
                       onChange={(event) => {
-                        queueChecklistNoteSave(
-                          visibleChecklist.map((candidate) =>
-                            candidate.id === item.id
-                              ? { ...candidate, note: event.target.value }
-                              : candidate,
-                          ),
-                        );
+                        setVisibleChecklistNote(item, event.target.value);
                       }}
-                      onBlur={() => { flushChecklistNoteSave(); }}
+                      onBlur={() => { checklistState.flushNote(item.id); }}
                     />
                   </div>
                 );

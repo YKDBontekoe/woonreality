@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { apiContext, invalidBagIdResponse, jsonError, parseJsonBody, routeError } from "@/src/lib/api/handlers";
 import type { Locale } from "@/src/lib/i18n/config";
-import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
-import { getLocaleFromRequest } from "@/src/lib/i18n/request-locale";
 import { createSupabaseServerClient } from "@/src/lib/supabase/server";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { getPropertyById } from "@/src/lib/sources/pdok/bag";
@@ -26,18 +25,17 @@ async function contextFor(bagId: string) {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { t } = apiContext(request);
   try {
     const { bagId: rawBagId } = await context.params;
     const result = await contextFor(decodeURIComponent(rawBagId));
-    if (!result.valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
-    if (!result.user) return NextResponse.json({ error: t("errors.loginToSaveBid") }, { status: 401 });
+    if (!result.valid) return invalidBagIdResponse(t("errors.invalidPropertyAddress"));
+    if (!result.user) return jsonError(t("errors.loginToSaveBid"), 401);
     const { data, error } = await result.supabase.from("property_bid_drafts").select("asking_price,selected_scenario,updated_at").eq("user_id", result.user.id).eq("bag_vbo_id", result.bagId).maybeSingle();
-    if (error) return NextResponse.json({ error: t("errors.bidDraftLoadFailed") }, { status: 503 });
+    if (error) return jsonError(t("errors.bidDraftLoadFailed"), 503);
     return NextResponse.json({ draft: data });
-  } catch {
-    return NextResponse.json({ error: t("errors.bidStorageUnavailable") }, { status: 503 });
+  } catch (error) {
+    return routeError(error, t("errors.bidStorageUnavailable"), 503);
   }
 }
 
@@ -74,20 +72,20 @@ async function syncCaseWorkflow(bagId: string, userId: string, askingPrice: numb
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ bagId: string }> }) {
-  const locale: Locale = getLocaleFromRequest(request);
-  const t = getLibTranslator(locale, "lib-api");
+  const { locale, t } = apiContext(request);
   try {
     const { bagId: rawBagId } = await context.params;
     const result = await contextFor(decodeURIComponent(rawBagId));
-    if (!result.valid) return NextResponse.json({ error: t("errors.invalidPropertyAddress") }, { status: 400 });
-    if (!result.user) return NextResponse.json({ error: t("errors.loginToSaveBid") }, { status: 401 });
-    const parsed = bidDraftBodySchema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: t("errors.invalidBidData") }, { status: 400 });
+    if (!result.valid) return invalidBagIdResponse(t("errors.invalidPropertyAddress"));
+    if (!result.user) return jsonError(t("errors.loginToSaveBid"), 401);
+    const parsedBody = await parseJsonBody(request, bidDraftBodySchema, t("errors.invalidBidData"));
+    if (!parsedBody.ok) return parsedBody.response;
+    const parsed = parsedBody.data;
     const payload: { user_id: string; bag_vbo_id: string; asking_price?: number | null; selected_scenario?: "cautious" | "balanced" | "strong"; updated_at: string } = { user_id: result.user.id, bag_vbo_id: result.bagId, updated_at: new Date().toISOString() };
-    if (Object.prototype.hasOwnProperty.call(parsed.data, "askingPrice")) payload.asking_price = parsed.data.askingPrice;
-    if (Object.prototype.hasOwnProperty.call(parsed.data, "selected")) payload.selected_scenario = parsed.data.selected;
+    if (Object.prototype.hasOwnProperty.call(parsed, "askingPrice")) payload.asking_price = parsed.askingPrice;
+    if (Object.prototype.hasOwnProperty.call(parsed, "selected")) payload.selected_scenario = parsed.selected;
     const { data, error } = await result.supabase.from("property_bid_drafts").upsert(payload, { onConflict: "user_id,bag_vbo_id" }).select("asking_price,selected_scenario,updated_at").single();
-    if (error) return NextResponse.json({ error: t("errors.bidDraftSaveFailed") }, { status: 502 });
+    if (error) return jsonError(t("errors.bidDraftSaveFailed"), 502);
 
     let workflowSynced = false;
     try {
@@ -97,7 +95,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ bagId
       logWarn("Bid draft saved but case workflow sync failed", syncError);
     }
     return NextResponse.json({ draft: data, workflowSynced });
-  } catch {
-    return NextResponse.json({ error: t("errors.bidStorageUnavailable") }, { status: 503 });
+  } catch (error) {
+    return routeError(error, t("errors.bidStorageUnavailable"), 503);
   }
 }

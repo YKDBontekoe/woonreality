@@ -5,6 +5,7 @@ import { politieMisdrijvenUrl } from "@/src/lib/sources/politie";
 import { rivmUrls } from "@/src/lib/sources/rivm";
 import { ndovHaltesUrl } from "@/src/lib/sources/ndov";
 import { AFM_TOETSRENTE_URL, parseAfmToetsrente, parseEcbMirObservation } from "@/src/lib/mortgage/market";
+import { fetchText, SourceFetchError } from "@/src/lib/http/fetch-json";
 
 export type SourceHealth = {
   source: string;
@@ -51,24 +52,25 @@ export async function checkSources(): Promise<SourceHealth[]> {
   return Promise.all(checks.map(async ({ source, url }) => {
     const started = performance.now();
     try {
-      const response = await fetch(url, { cache: "no-store" });
-      const body = await response.text();
+      // fetchText enforces the shared timeout and turns non-ok responses into
+      // a SourceFetchError whose message is safe to expose (label + status).
+      const body = await fetchText(url, source, { cache: "no-store" });
       return {
         source,
-        ok: response.ok,
+        ok: true,
         checkedAt: new Date().toISOString(),
         latencyMs: Math.round(performance.now() - started),
-        sampleRecordValid: response.ok && body.length > 30 && sampleRecordValid({ source, url }, body),
-        ...(response.ok ? {} : { error: `HTTP ${response.status}` }),
+        sampleRecordValid: body.length > 30 && sampleRecordValid({ source, url }, body),
       };
     } catch (error) {
+      const status = error instanceof SourceFetchError ? error.status : undefined;
       return {
         source,
         ok: false,
         checkedAt: new Date().toISOString(),
         latencyMs: Math.round(performance.now() - started),
         sampleRecordValid: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: status ? `HTTP ${status}` : error instanceof SourceFetchError ? error.message : "Onbereikbaar",
       };
     }
   }));

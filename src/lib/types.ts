@@ -1,5 +1,8 @@
 import type { Geometry } from "geojson";
 import type { CbsContext } from "@/src/lib/sources/cbs";
+import type { SourceContextBase } from "@/src/lib/source-context";
+
+export type { SourceContextBase };
 
 export type Confidence = "high" | "medium" | "low";
 export type Severity = "good" | "neutral" | "attention";

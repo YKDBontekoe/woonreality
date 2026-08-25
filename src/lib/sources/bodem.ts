@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/src/lib/types";
+import type { SourceContextBase } from "@/src/lib/source-context";
 import { fetchJson } from "@/src/lib/http/fetch-json";
 
 type WfsProvider = "Gemeente Nijmegen" | "Provincie Zuid-Holland";
@@ -18,8 +19,7 @@ export type BodemProviderResult = {
   layers: BodemProviderLayerMatch[];
 };
 
-export type BodemContext = {
-  fetchedAt: string;
+export type BodemContext = SourceContextBase & {
   overallStatus: "ok" | "partial";
   queriedProvinces: string[];
   queryBboxEpsg4326: string;

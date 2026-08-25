@@ -1,10 +1,11 @@
 import type { Coordinates } from "@/src/lib/types";
+import type { SourceContextBase } from "@/src/lib/source-context";
 import { wgs84ToRd } from "@/src/lib/geo/rd";
 import { postJson } from "@/src/lib/http/fetch-json";
 
 export const dsoOnderwerpenUrl = "https://service.omgevingswet.overheid.nl/publiek/omgevingsdocumenten/api/presenteren/v8/onderwerpen/_zoek";
 
-export type DsoContext = { topicCount: number; topicNames: string[]; fetchedAt: string };
+export type DsoContext = SourceContextBase & { topicCount: number; topicNames: string[] };
 
 export async function getDsoContext(coordinates: Coordinates): Promise<DsoContext | null> {
   const apiKey = process.env.DSO_API_KEY;

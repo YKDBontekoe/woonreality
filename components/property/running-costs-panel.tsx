@@ -1,8 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { RotateCcw } from "lucide-react";
+import { useApi } from "@/components/hooks/use-api";
 import { formatEuro } from "@/src/lib/purchase";
 import type { RunningCostCategory, RunningCostEstimate } from "@/src/lib/running-costs";
 
@@ -24,48 +25,23 @@ export function RunningCostsPanel({
   housingType?: string;
 }) {
   const t = useTranslations("woning");
-  const [estimate, setEstimate] = useState<RunningCostEstimate | null>(null);
-  const [error, setError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-
-    // Reset state before each request to avoid flicker and stale results.
-    setEstimate(null);
-    setError(false);
-
+  const url = useMemo(() => {
     const params = new URLSearchParams();
     if (vveContribution != null) params.set("vveContribution", String(vveContribution));
     if (gasConnection === false) params.set("gasConnection", "false");
     if (housingType) params.set("housingType", housingType);
     const qs = params.toString();
+    return `/api/running-costs/${encodeURIComponent(bagId)}${qs ? `?${qs}` : ""}`;
+  }, [bagId, vveContribution, gasConnection, housingType]);
 
-    fetch(`/api/running-costs/${encodeURIComponent(bagId)}${qs ? `?${qs}` : ""}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("fetch failed");
-        const payload = await response.json() as RunningCostEstimate;
-        if (cancelled) return;
-        setEstimate(payload);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        if (!(caught instanceof DOMException && caught.name === "AbortError")) setError(true);
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [bagId, vveContribution, gasConnection, housingType, retryCount]);
+  const { data: estimate, loading, error, reload } = useApi<RunningCostEstimate>(url, { errorMessage: "" });
 
   if (error) return (
     <details className="dash-collapsible-panel">
       <summary>{t("runningCosts.summary")}</summary>
       <p className="dash-deal-empty">{t("runningCosts.calcFailed")}{" "}
-        <button className="text-link" type="button" onClick={() => { setError(false); setRetryCount((count) => count + 1); }}>
+        <button className="text-link" type="button" onClick={reload}>
           <RotateCcw size={12} /> {t("runningCosts.retry")}
         </button>
       </p>
@@ -75,7 +51,7 @@ export function RunningCostsPanel({
   return (
     <details className="dash-collapsible-panel">
       <summary>{t("runningCosts.summary")}</summary>
-      {!estimate ? (
+      {!estimate || loading ? (
         <p className="dash-deal-empty">{t("runningCosts.calculating")}</p>
       ) : (
         <>

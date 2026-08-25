@@ -1,32 +1,18 @@
 import { gunzipSync } from "node:zlib";
 import type { Coordinates } from "@/src/lib/types";
+import type { SourceContextBase } from "@/src/lib/source-context";
+import { haversineM } from "@/src/lib/geo/measure";
 import { rdToWgs84 } from "@/src/lib/geo/rd";
 import { fetchBuffer, fetchText } from "@/src/lib/http/fetch-json";
+import { createInflightDeduper, createTtlCache } from "@/src/lib/cache/ttl";
 
 export const ndovHaltesUrl = "https://data.ndovloket.nl/haltes/";
 
-export type NdovContext = {
+export type NdovContext = SourceContextBase & {
   stopCount: number;
   nearestDistanceM?: number;
   catalogDate?: string;
-  fetchedAt: string;
 };
-
-function distanceM(a: Coordinates, b: Coordinates) {
-  const earth = 6371000;
-  const dLat = (b.lat - a.lat) * Math.PI / 180;
-  const dLng = (b.lng - a.lng) * Math.PI / 180;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * earth * Math.asin(Math.sqrt(h));
-}
-
-export function latestNdovCatalogFile(index: string) {
-  // The directory also contains PassengerStopAssignmentExportCHB files. Those
-  // describe assignments, not stop locations, and must never be selected.
-  const files = [...index.matchAll(/href=["'](ExportCHB_(\d{4}-\d{2}-\d{2})\.xml\.gz)["']/gi)]
-    .map((match) => ({ file: match[1], date: match[2] }));
-  return files.sort((a, b) => a.date.localeCompare(b.date)).at(-1);
-}
 
 /**
  * The index is cached for a day while upstream removes yesterday's file when
@@ -68,12 +54,12 @@ type NdovCatalog = {
 // parsed coordinates in this server process instead. The shared promise also
 // stops concurrent property checks from downloading the same file repeatedly.
 const NDOV_CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
-let ndovCatalogCache: { value: NdovCatalog; expiresAt: number } | null = null;
-let ndovCatalogLoading: Promise<NdovCatalog | null> | null = null;
+const ndovCatalogCache = createTtlCache<NdovCatalog>({ ttlMs: NDOV_CATALOG_TTL_MS });
+const dedupeNdovCatalog = createInflightDeduper<NdovCatalog | null>();
 
 function nearbyStopsFromCatalog(coordinates: Coordinates, stops: Coordinates[]): NearbyStop[] {
   return stops
-    .map((stop) => ({ ...stop, distanceM: Math.round(distanceM(coordinates, stop)) }))
+    .map((stop) => ({ ...stop, distanceM: Math.round(haversineM(coordinates, stop)) }))
     .filter((stop) => stop.distanceM <= 1000)
     .sort((a, b) => a.distanceM - b.distanceM);
 }
@@ -100,16 +86,13 @@ async function fetchNdovStops(): Promise<NdovCatalog | null> {
 }
 
 async function loadNdovStops() {
-  if (ndovCatalogCache && ndovCatalogCache.expiresAt > Date.now()) return ndovCatalogCache.value;
-  if (!ndovCatalogLoading) {
-    ndovCatalogLoading = fetchNdovStops()
-      .then((catalog) => {
-        if (catalog) ndovCatalogCache = { value: catalog, expiresAt: Date.now() + NDOV_CATALOG_TTL_MS };
-        return catalog;
-      })
-      .finally(() => { ndovCatalogLoading = null; });
-  }
-  return ndovCatalogLoading;
+  const cached = ndovCatalogCache.get("catalog");
+  if (cached) return cached;
+  return dedupeNdovCatalog("catalog", async () => {
+    const catalog = await fetchNdovStops();
+    if (catalog) ndovCatalogCache.set("catalog", catalog);
+    return catalog;
+  });
 }
 
 export async function getNearbyNdovStops(coordinates: Coordinates, limit = 12): Promise<NearbyStop[]> {

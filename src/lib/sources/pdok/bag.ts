@@ -113,13 +113,6 @@ export async function getPropertyByBagId(bagVboId: string): Promise<Property> {
   };
 }
 
-export async function getPropertyFromAddressHref(href: string): Promise<Property> {
-  const address = await getJson<AddressFeature>(href, "PDOK BAG adres");
-  const bagVboId = address.properties.adresseerbaar_object_identificatie;
-  if (!bagVboId) throw new Error("PDOK address result did not contain a BAG VBO identifier");
-  return getPropertyByBagId(bagVboId);
-}
-
 export async function getPropertyById(id: string): Promise<Property> {
   if (/^\d{16}$/.test(id)) return getPropertyByBagId(id);
   const address = await getJson<AddressFeature>(pdokBagAddressUrl(id), "PDOK BAG adres");

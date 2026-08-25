@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import { studentLoanGrossFactor } from "@/src/lib/mortgage/norms-2026";
 import type { MortgageFinance, MortgageLine } from "@/src/lib/mortgage/types";
 
@@ -13,7 +14,7 @@ export const STUDENT_REMAINING_MONTHLY_FACTOR = {
 } as const;
 
 function numberTag(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
+  return formatLocaleTag(locale);
 }
 
 export function studentLoanMonthlyForTest(finance: Pick<MortgageFinance, "studentLoanMonthly" | "studentLoanRemaining" | "studentLoanSf35">) {

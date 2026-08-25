@@ -8,6 +8,7 @@ import { computePurchaseDeadlines, daysUntil as calendarDaysUntil } from "@/src/
 import { CASE_STAGE_LABELS, CASE_STAGES, normalizeCaseStage, type CaseStage } from "@/src/lib/journey";
 import { formatEuro } from "@/src/lib/purchase";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
+import { apiFetch } from "@/components/hooks/use-api";
 import { useTranslations } from "next-intl";
 import type { Analysis } from "@/src/lib/types";
 
@@ -37,9 +38,10 @@ export function PurchaseWorkflow({ caseId, initialStage, analysis, bagVboId }: {
   useEffect(() => {
     if (analysis || !bagVboId) return;
     const controller = new AbortController();
-    fetch(`/api/analysis/${encodeURIComponent(bagVboId)}`, { signal: controller.signal })
-      .then(async (response) => response.ok ? await response.json() as Analysis : null)
-      .then((body) => { if (body) setLoadedAnalysis(body); })
+    apiFetch<Analysis>(`/api/analysis/${encodeURIComponent(bagVboId)}`, { signal: controller.signal })
+      .then((result) => {
+        if (result.ok && result.data) setLoadedAnalysis(result.data);
+      })
       .catch(() => undefined);
     return () => controller.abort();
   }, [analysis, bagVboId]);
@@ -48,23 +50,24 @@ export function PurchaseWorkflow({ caseId, initialStage, analysis, bagVboId }: {
     const controller = new AbortController();
     let active = true;
     setCurrentStage(normalizeCaseStage(initialStage));
-    fetch(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json() as { finance?: { financing_amount: number | null; transfer_preference: string | null }; valuation?: { midpoint_value: number | null; methodology: { askingPrice?: number } }; bid?: { amount: number; transfer_date: string | null; conditions: { contractAmount?: number | null; financingCondition?: boolean; inspectionCondition?: boolean; scenario?: BidScenarioKey; contractSignedAt?: string | null; contractReceivedAt?: string | null; financingWeeks?: number | null; inspectionWeeks?: number | null } }; error?: string };
-        if (!response.ok) throw new Error(body.error ?? t("loadErrorFallback"));
+    type WorkflowResponse = { finance?: { financing_amount: number | null; transfer_preference: string | null }; valuation?: { midpoint_value: number | null; methodology: { askingPrice?: number } }; bid?: { amount: number; transfer_date: string | null; conditions: { contractAmount?: number | null; financingCondition?: boolean; inspectionCondition?: boolean; scenario?: BidScenarioKey; contractSignedAt?: string | null; contractReceivedAt?: string | null; financingWeeks?: number | null; inspectionWeeks?: number | null } }; error?: string };
+    apiFetch<WorkflowResponse>(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { cache: "no-store", signal: controller.signal })
+      .then((result) => {
+        if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("loadErrorFallback"));
         if (!active) return;
-        setAskingPrice(body.valuation?.methodology?.askingPrice ?? body.valuation?.midpoint_value ?? 0);
-        setOfferAmount(body.bid?.amount ?? 0);
-        setContractAmount(body.bid?.conditions?.contractAmount ?? 0);
-        setFinancingAmount(body.finance?.financing_amount ?? null);
-        setTransferDate(body.finance?.transfer_preference ?? body.bid?.transfer_date ?? "");
-        setFinancingCondition(body.bid?.conditions?.financingCondition ?? true);
-        setInspectionCondition(body.bid?.conditions?.inspectionCondition ?? true);
-        setSelectedScenario(body.bid?.conditions?.scenario ?? "balanced");
-        setContractSignedAt(body.bid?.conditions?.contractSignedAt ?? "");
-        setContractReceivedAt(body.bid?.conditions?.contractReceivedAt ?? "");
-        setFinancingWeeks(body.bid?.conditions?.financingWeeks ?? 6);
-        setInspectionWeeks(body.bid?.conditions?.inspectionWeeks ?? 2);
+        const body = result.data;
+        setAskingPrice(body?.valuation?.methodology?.askingPrice ?? body?.valuation?.midpoint_value ?? 0);
+        setOfferAmount(body?.bid?.amount ?? 0);
+        setContractAmount(body?.bid?.conditions?.contractAmount ?? 0);
+        setFinancingAmount(body?.finance?.financing_amount ?? null);
+        setTransferDate(body?.finance?.transfer_preference ?? body?.bid?.transfer_date ?? "");
+        setFinancingCondition(body?.bid?.conditions?.financingCondition ?? true);
+        setInspectionCondition(body?.bid?.conditions?.inspectionCondition ?? true);
+        setSelectedScenario(body?.bid?.conditions?.scenario ?? "balanced");
+        setContractSignedAt(body?.bid?.conditions?.contractSignedAt ?? "");
+        setContractReceivedAt(body?.bid?.conditions?.contractReceivedAt ?? "");
+        setFinancingWeeks(body?.bid?.conditions?.financingWeeks ?? 6);
+        setInspectionWeeks(body?.bid?.conditions?.inspectionWeeks ?? 2);
       })
       .catch((error) => { if (active && !(error instanceof DOMException && error.name === "AbortError")) setWorkflowError(error instanceof Error ? error.message : t("loadErrorFallback")); });
     return () => { active = false; controller.abort(); };
@@ -93,9 +96,8 @@ export function PurchaseWorkflow({ caseId, initialStage, analysis, bagVboId }: {
 
   async function save(stage?: CaseStage) {
     const scenario = strategy?.scenarios[selectedScenario];
-    const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ askingPrice: askingPrice > 0 ? askingPrice : null, offerAmount: offerAmount > 0 ? offerAmount : null, financingAmount, contractAmount: contractAmount > 0 ? contractAmount : null, transferDate: transferDate || null, financingCondition, inspectionCondition, scenario: selectedScenario, reasons: scenario?.reasons ?? [], contractSignedAt: contractSignedAt || null, contractReceivedAt: contractReceivedAt || null, financingWeeks, inspectionWeeks, ...(stage ? { stage } : {}) }) });
-    const body = await response.json() as { error?: string };
-    if (!response.ok) throw new Error(body.error ?? t("saveErrorFallback"));
+    const result = await apiFetch<{ error?: string }>(`/api/cases/${encodeURIComponent(caseId)}/workflow`, { method: "PATCH", json: { askingPrice: askingPrice > 0 ? askingPrice : null, offerAmount: offerAmount > 0 ? offerAmount : null, financingAmount, contractAmount: contractAmount > 0 ? contractAmount : null, transferDate: transferDate || null, financingCondition, inspectionCondition, scenario: selectedScenario, reasons: scenario?.reasons ?? [], contractSignedAt: contractSignedAt || null, contractReceivedAt: contractReceivedAt || null, financingWeeks, inspectionWeeks, ...(stage ? { stage } : {}) } });
+    if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("saveErrorFallback"));
     // Stage changes also update saved_properties server-side; sync the store.
     await refresh();
     setWorkflowError(""); if (stage) setCurrentStage(stage); setSaved(true); window.setTimeout(() => setSaved(false), 1800);

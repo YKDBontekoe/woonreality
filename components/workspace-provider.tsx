@@ -8,7 +8,7 @@ import { emptyWorkspace, type WorkspaceData } from "@/src/lib/workspace";
 import type { BuyerProfile, PropertyStage } from "@/src/lib/purchase";
 import type { CalculatorState } from "@/src/lib/mortgage/calculator-state";
 import { bagIdSchema, type WorkspaceRequest } from "@/src/lib/validation/workspace";
-import { loginHref } from "@/src/lib/login-href";
+import { apiFetch, redirectToLogin } from "@/components/hooks/use-api";
 import { listingStorageKey } from "@/src/lib/listing-intake";
 
 export type WorkspaceMutationResult = { ok: true } | { ok: false; error: string };
@@ -68,9 +68,8 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch("/api/workspace", { cache: "no-store" });
-      const body = await response.json() as { workspace?: WorkspaceData; error?: string };
-      if (response.status === 401) {
+      const result = await apiFetch<{ workspace?: WorkspaceData; error?: string }>("/api/workspace", { cache: "no-store" });
+      if (result.status === 401) {
         setAuthStatus("anonymous");
         // A comparison is useful before someone creates an account. Keep that
         // lightweight public workflow available, without suggesting the rest
@@ -79,13 +78,13 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setWorkspaceError("");
         return;
       }
-      if (response.status === 503) {
+      if (result.status === 503) {
         setWorkspace((current) => ({ ...current, compare: sessionCompare() }));
         setWorkspaceError(t("workspaceUnavailable"));
         return;
       }
-      if (!response.ok || !body.workspace) throw new Error(body.error ?? t("workspaceLoadFailed"));
-      setWorkspace(body.workspace);
+      if (!result.ok || !result.data?.workspace) throw new Error(result.data?.error ?? t("workspaceLoadFailed"));
+      setWorkspace(result.data.workspace);
       setAuthStatus("authenticated");
       setWorkspaceError("");
     } catch (error) {
@@ -99,23 +98,22 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const mutate = useCallback(async (payload: WorkspaceRequest): Promise<WorkspaceMutationResult> => {
     try {
-      const response = await fetch("/api/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await response.json() as { workspace?: WorkspaceData; error?: string };
-      if ((response.status === 401 || response.status === 502 || response.status === 503) && payload.action === "compare" && authStatus !== "authenticated") {
-        if (response.status === 401) setAuthStatus("anonymous");
+      const result = await apiFetch<{ workspace?: WorkspaceData; error?: string }>("/api/workspace", { method: "POST", json: payload });
+      if ((result.status === 401 || result.status === 502 || result.status === 503) && payload.action === "compare" && authStatus !== "authenticated") {
+        if (result.status === 401) setAuthStatus("anonymous");
         const compare = payload.compare.filter(isBagId).slice(0, 4);
         saveSessionCompare(compare);
         setWorkspace((current) => ({ ...current, compare }));
         setWorkspaceError(t("compareSessionNotice"));
         return { ok: true };
       }
-      if (response.status === 401) {
+      if (result.status === 401) {
         setAuthStatus("anonymous");
-        window.location.href = loginHref();
+        redirectToLogin();
         return { ok: false, error: t("loginToSaveChanges") };
       }
-      if (!response.ok || !body.workspace) throw new Error(body.error ?? t("saveChangeFailed"));
-      setWorkspace(body.workspace);
+      if (!result.ok || !result.data?.workspace) throw new Error(result.data?.error ?? t("saveChangeFailed"));
+      setWorkspace(result.data.workspace);
       setAuthStatus("authenticated");
       setWorkspaceError("");
       return { ok: true };
@@ -160,14 +158,13 @@ function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const removeListingHistory = useCallback(async (bagVboId: string): Promise<WorkspaceMutationResult> => {
     try {
-      const response = await fetch(`/api/listing/user/${encodeURIComponent(bagVboId)}`, { method: "DELETE" });
-      const body = await response.json() as { error?: string };
-      if (response.status === 401) {
+      const result = await apiFetch<{ error?: string }>(`/api/listing/user/${encodeURIComponent(bagVboId)}`, { method: "DELETE" });
+      if (result.status === 401) {
         setAuthStatus("anonymous");
-        window.location.href = loginHref();
+        redirectToLogin();
         return { ok: false, error: t("loginToSaveChanges") };
       }
-      if (!response.ok) throw new Error(body.error ?? t("removeHistoryFailed"));
+      if (!result.ok) throw new Error(result.data?.error ?? result.error ?? t("removeHistoryFailed"));
       // Without this the session draft would resurrect the deleted advert on
       // the next property-page visit.
       try { window.sessionStorage.removeItem(listingStorageKey(bagVboId)); } catch { /* ignore */ }

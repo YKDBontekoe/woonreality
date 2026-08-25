@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import { currentMortgageReference, type MortgageReference } from "@/src/lib/mortgage/reference";
 import type { MortgageSchedule } from "@/src/lib/mortgage/schedule";
 
@@ -109,7 +110,7 @@ export function housingTaxForYear(params: {
 
 export function summarizeHousingTax(input: HousingTaxInput, locale: Locale = "nl"): HousingTaxSummary {
   const t = getLibTranslator(locale, "lib-finance");
-  const numTag = locale === "en" ? "en-IE" : "nl-NL";
+  const numTag = formatLocaleTag(locale);
   const ref = input.reference ?? currentMortgageReference();
   const deductionRate = housingDeductionRate(input.taxableIncome, ref);
   const forfait = eigenwoningforfait(input.wozValue, ref);
@@ -160,4 +161,9 @@ export function deductionRefund(amount: number, rate: number) {
 
 export function formatDeductionRate(rate: number) {
   return `${roundCents(rate * 100).toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+/** One format for interest-rate percentages ("3,85%") across calculator UI and charts. */
+export function formatRatePct(value: number, locale: Locale = "nl") {
+  return `${value.toLocaleString(formatLocaleTag(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }

@@ -1,5 +1,6 @@
 import type { Evidence, Signal } from "@/src/lib/types";
 import { createEvidence } from "@/src/lib/analysis/evidence";
+import { createSignal } from "@/src/lib/analysis/signals/create-signal";
 import { distanceToGeometryM, geometryAreaM2 } from "@/src/lib/geo/measure";
 import { clamp, round1 } from "@/src/lib/math";
 import { scoreSeverity } from "@/src/lib/scoring/score";
@@ -105,21 +106,20 @@ export function greenSignal(input: { metrics: BgtMetrics; evidence: Evidence; bg
   const t = getLibTranslator(locale, "lib-analysis");
   const score = clamp(4 + metrics.greenPercent / 8);
   const truncatedNote = metrics.greenTruncated ? t("bgt.green.truncatedNote") : "";
-  return {
+  return createSignal({
     key: "green",
     label: t("bgt.green.label"),
     category: "klimaat",
     value: `${Math.round(metrics.greenPercent)}%`,
     score,
-    severity: scoreSeverity(score),
     summary: t("bgt.green.summary", { pct: Math.round(metrics.greenPercent), note: truncatedNote }),
     action: t("bgt.green.action"),
     raw: { value: Math.round(metrics.greenPercent), unit: "%", metric: "BGT-begroeid terrein binnen circa 250 m" },
     confidence: metrics.greenTruncated ? "low" : "medium",
     spatialScale: "circa 250 m zoekbuffer",
-    evidence: [evidence],
-    availability: bgtAvailable ? "available" : "unavailable",
-  };
+    available: bgtAvailable,
+    evidence,
+  });
 }
 
 export function heatSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
@@ -127,29 +127,28 @@ export function heatSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgt
   const t = getLibTranslator(locale, "lib-analysis");
   const score = clamp(9 - (100 - metrics.greenPercent) / 18);
   const truncatedNote = metrics.greenTruncated ? t("bgt.heat.truncatedNote") : "";
-  return {
+  return createSignal({
     key: "heat",
     label: t("bgt.heat.label"),
     category: "klimaat",
     value: round1(score),
     unit: "/ 10",
     score,
-    severity: scoreSeverity(score),
     summary: t("bgt.heat.summary", { pct: Math.round(metrics.greenPercent), note: truncatedNote }),
     action: t("bgt.heat.action"),
     raw: { value: Math.round(100 - metrics.greenPercent), unit: "% verhardingsproxy", metric: "afgeleid uit BGT" },
     confidence: "low",
     spatialScale: "circa 250 m zoekbuffer",
-    evidence: [evidence],
-    availability: bgtAvailable ? "available" : "unavailable",
-  };
+    available: bgtAvailable,
+    evidence,
+  });
 }
 
 export function waterSignal(input: { metrics: BgtMetrics; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { metrics, evidence, bgtAvailable } = input;
   const t = getLibTranslator(locale, "lib-analysis");
   const nearWater = metrics.nearestWaterM < 30;
-  return {
+  return createSignal({
     key: "water",
     label: t("bgt.water.label"),
     category: "klimaat",
@@ -165,15 +164,15 @@ export function waterSignal(input: { metrics: BgtMetrics; evidence: Evidence; bg
       : t("bgt.water.actionDefault"),
     confidence: "low",
     spatialScale: "circa 250 m zoekbuffer",
-    evidence: [evidence],
-    availability: bgtAvailable ? "available" : "unavailable",
-  };
+    available: bgtAvailable,
+    evidence,
+  });
 }
 
 export function accessSignal(input: { roadCount: number; truncated: boolean; evidence: Evidence; bgtAvailable: boolean }, locale: Locale = "nl"): Signal {
   const { roadCount, truncated, evidence, bgtAvailable } = input;
   const t = getLibTranslator(locale, "lib-analysis");
-  return {
+  return createSignal({
     key: "access",
     label: t("bgt.access.label"),
     category: "mobiliteit",
@@ -183,9 +182,9 @@ export function accessSignal(input: { roadCount: number; truncated: boolean; evi
     action: t("bgt.access.action"),
     confidence: "medium",
     spatialScale: "circa 250 m zoekbuffer",
-    evidence: [evidence],
-    availability: bgtAvailable ? "available" : "unavailable",
-  };
+    available: bgtAvailable,
+    evidence,
+  });
 }
 
 export function noiseFallbackParts(input: {

@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import type { EnergyTariffs, EnergyConsumption } from "@/src/lib/sources/cbs-energy";
 
 export type RunningCostCategory = "energy" | "housing" | "tax";
@@ -47,7 +48,7 @@ function isGasloos(gasConnection?: boolean): boolean {
 
 export function estimateRunningCosts(input: RunningCostInput, locale: Locale = "nl"): RunningCostEstimate {
   const t = getLibTranslator(locale, "lib-finance");
-  const numTag = locale === "en" ? "en-IE" : "nl-NL";
+  const numTag = formatLocaleTag(locale);
   const { tariffs, consumption, areaM2, vveContribution, gasConnection } = input;
   const lines: RunningCostLine[] = [];
 

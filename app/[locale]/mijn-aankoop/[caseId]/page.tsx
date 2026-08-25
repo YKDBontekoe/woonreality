@@ -6,7 +6,7 @@ import { CaseTools } from "@/components/case-tools";
 import { PurchaseWorkflow } from "@/components/purchase-workflow";
 import { PageShell } from "@/components/ui/page-shell";
 import { CASE_STAGE_LABELS, CASE_STAGES, nextPurchaseAction, normalizeCaseStage, type CaseStage } from "@/src/lib/journey";
-import { JOURNEY_CHECKLIST, journeyStageStatus } from "@/src/lib/journey-checklist";
+import { journeyChecklist, journeyStageStatus } from "@/src/lib/journey-checklist";
 import { PROFESSIONAL_GUIDES } from "@/src/lib/professionals";
 import { hrefForTask } from "@/src/lib/tasks";
 import { formatDate, formatDateTime } from "@/src/lib/format-locale";
@@ -56,7 +56,7 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ l
     <section className="next-step-card"><span className="section-kicker">{t("nextStepKickerCase")}</span><h2>{nextTask?.title ?? fallbackAction.title}</h2><p>{nextTask?.description ?? fallbackAction.text}</p>{nextTask?.due_at && <small>{t("dueBefore", { date: formatDate(nextTask.due_at, locale) })}</small>}<Link className="primary-button" href={nextHref as never}>{t("openThisStep")}</Link></section>
     <div className="case-overview-grid"><section className="case-panel"><span className="section-kicker">{t("progressKicker")}</span><div className="case-steps">{CASE_STAGES.map((key, index) => { const currentIndex = CASE_STAGES.indexOf(stage); return <div className={`case-step ${key === stage ? "current" : index < currentIndex ? "done" : ""}`} key={key}><span>{index + 1}</span><strong>{CASE_STAGE_LABELS[key]}</strong></div>; })}</div>{bagVboId && <p className="muted-copy"><Link href={`/woning/${bagVboId}`}>{t("openPropertyCheck")}</Link> · <Link href={`/woning/${bagVboId}/bezichtiging`}>{t("viewingMode")}</Link></p>}</section><section className="case-panel"><span className="section-kicker">{t("openPointsKicker")}</span><p className="case-count"><strong>{tasks?.length ?? 0}</strong> {t("tasksLabel")}</p><p className="case-count"><strong>{documents?.length ?? 0}</strong> {t("documentsLabel")}</p><p className="case-count"><strong>{openFindings}</strong> {t("findingsLabel")}</p></section></div>
     <CaseTimeline events={(events ?? []) as CaseEventRow[]} locale={locale} />
-    <JourneyChecklist stage={stage} />
+    <JourneyChecklist stage={stage} locale={locale} />
     <CaseTools caseId={caseId} initialDocuments={documents ?? []} initialTasks={tasks ?? []} initialFindings={findings ?? []} />
     <PurchaseWorkflow caseId={caseId} initialStage={stage} bagVboId={bagVboId} analysis={analysis} />
     <ProfessionalGuidancePanel />
@@ -108,7 +108,7 @@ async function ProfessionalGuidancePanel() {
   );
 }
 
-async function JourneyChecklist({ stage }: { stage: CaseStage }) {
+async function JourneyChecklist({ stage, locale }: { stage: CaseStage; locale: string }) {
   const t = await getTranslations("mijn-aankoop");
   return (
     <section className="case-panel journey-checklist" id="koopreis">
@@ -118,7 +118,7 @@ async function JourneyChecklist({ stage }: { stage: CaseStage }) {
         {t("journeyCopy")}
       </p>
       <ol className="journey-stage-list">
-        {JOURNEY_CHECKLIST.map((entry) => {
+        {journeyChecklist(locale === "en" ? "en" : "nl").map((entry) => {
           const status = journeyStageStatus(entry.stage, stage);
           return (
             <li key={entry.stage} className={`journey-stage journey-stage-${status}`}>

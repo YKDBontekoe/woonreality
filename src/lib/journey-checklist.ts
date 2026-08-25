@@ -42,9 +42,6 @@ export function journeyChecklist(locale: Locale = "nl"): JourneyStageChecklist[]
   }));
 }
 
-/** @deprecated Dutch snapshot for legacy callers without a Locale; prefer journeyChecklist(locale). */
-export const JOURNEY_CHECKLIST: JourneyStageChecklist[] = journeyChecklist();
-
 export function journeyChecklistForStage(stage: CaseStage, locale: Locale = "nl"): JourneyChecklistItem[] {
   return journeyChecklist(locale).find((entry) => entry.stage === stage)?.items ?? [];
 }

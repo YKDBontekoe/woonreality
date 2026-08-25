@@ -1,6 +1,7 @@
 import { estimateBuyerCosts } from "@/src/lib/costs";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 import { financieringslastPercentage } from "@/src/lib/mortgage/quotes";
 import { incomeFromPerson } from "@/src/lib/mortgage/income";
 import { obligationAnnualTotal, obligationLines, ownFundsTotal } from "@/src/lib/mortgage/obligations";
@@ -35,7 +36,7 @@ function aowForQuote(applicant: PersonFinance, partner: PersonFinance | null, ap
 }
 
 function intlTag(locale: Locale) {
-  return locale === "en" ? "en-IE" : "nl-NL";
+  return formatLocaleTag(locale);
 }
 
 function costProfileFor(finance: MortgageFinance, ownFunds: number, nhg: boolean) {

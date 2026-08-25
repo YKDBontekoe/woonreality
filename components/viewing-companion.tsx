@@ -3,33 +3,34 @@
 import { ArrowLeft, CircleHelp, ClipboardCheck, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Link } from "@/src/lib/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/ui/page-shell";
+import { useChecklist } from "@/components/hooks/use-checklist";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
-import { checklistForAnalysis, mergeChecklistWithDefaults } from "@/src/lib/checklist";
-import { checklistSessionNotice, loadSessionChecklist, saveSessionChecklist, supportsSessionChecklistFallback } from "@/src/lib/checklist-storage";
 import type { Analysis, ChecklistItem } from "@/src/lib/types";
-import { loginHref } from "@/src/lib/login-href";
+import { apiFetch, redirectToLogin } from "@/components/hooks/use-api";
 
 export function ViewingCompanion({ bagId }: { bagId: string }) {
   const t = useTranslations("woning");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [checklistError, setChecklistError] = useState("");
   const [debrief, setDebrief] = useState("");
   const [busy, setBusy] = useState(false);
   const { authStatus, toggleSaved, workspace, refresh } = usePropertyWorkspace();
-  const writeQueue = useRef(Promise.resolve());
-  const noteTimers = useRef<Record<string, number>>({});
+  const checklistState = useChecklist(bagId, analysis, Boolean(analysis), {
+    loginToSaveNotes: t("viewing.loginToSaveNotes"),
+    checklistLoadFailed: t("viewing.checklistLoadFailed"),
+    checklistSaveFailed: t("viewing.checklistSaveFailed"),
+    browserSaveFailed: t("viewing.browserSaveFailed"),
+  });
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/analysis/${encodeURIComponent(bagId)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json() as Analysis & { error?: string };
-        if (!response.ok) throw new Error(body.error ?? t("viewing.analysisLoadFailed"));
-        setAnalysis(body);
+    apiFetch<Analysis>(`/api/analysis/${encodeURIComponent(bagId)}`, { signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (!result.ok || !result.data) throw new Error(result.error ?? t("viewing.analysisLoadFailed"));
+        setAnalysis(result.data);
       })
       .catch((caught) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) setError(caught instanceof Error ? caught.message : t("somethingWentWrong"));
@@ -37,77 +38,19 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     return () => controller.abort();
   }, [bagId, t]);
 
-  useEffect(() => {
-    if (!analysis) return;
-    const controller = new AbortController();
-    fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { signal: controller.signal, cache: "no-store" })
-      .then(async (response) => {
-        const body = await response.json() as { items?: ChecklistItem[] | null; error?: string };
-        const defaults = checklistForAnalysis(analysis);
-        if (supportsSessionChecklistFallback(response.status)) {
-          const cached = loadSessionChecklist(bagId);
-          setChecklist(cached ? mergeChecklistWithDefaults(defaults, cached) : defaults);
-          setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
-          return;
-        }
-        if (!response.ok) throw new Error(body.error ?? t("viewing.checklistLoadFailed"));
-        setChecklist(Array.isArray(body.items) ? mergeChecklistWithDefaults(defaults, body.items) : defaults);
-        setChecklistError("");
-      })
-      .catch((caught) => {
-        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
-          setChecklist(checklistForAnalysis(analysis));
-          setChecklistError(caught instanceof Error ? caught.message : t("viewing.checklistLoadFailed"));
-        }
-      });
-    return () => controller.abort();
-  }, [analysis, bagId, t]);
-
-  useEffect(() => () => {
-    Object.values(noteTimers.current).forEach((timer) => window.clearTimeout(timer));
-  }, []);
-
-  async function persistChecklist(next: ChecklistItem[]) {
-    const write = writeQueue.current.catch(() => undefined).then(async () => {
-      const response = await fetch(`/api/checklists/${encodeURIComponent(bagId)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: next }) });
-      const body = await response.json() as { error?: string };
-      if (supportsSessionChecklistFallback(response.status)) {
-        if (!saveSessionChecklist(bagId, next)) throw new Error(t("viewing.browserSaveFailed"));
-        setChecklistError(response.status === 401 ? t("viewing.loginToSaveNotes") : checklistSessionNotice);
-        return;
-      }
-      if (!response.ok) throw new Error(body.error ?? t("viewing.checklistSaveFailed"));
-      setChecklistError("");
-    });
-    writeQueue.current = write.catch(() => undefined);
-    try { await write; } catch (caught) { setChecklistError(caught instanceof Error ? caught.message : t("viewing.checklistSaveFailed")); }
-  }
-
-  async function saveChecklist(next: ChecklistItem[]) {
-    setChecklist(next);
-    await persistChecklist(next);
-  }
-
-  function updateNote(itemId: string, note: string) {
-    setChecklist((current) => {
-      const next = current.map((candidate) => candidate.id === itemId ? { ...candidate, note } : candidate);
-      window.clearTimeout(noteTimers.current[itemId]);
-      noteTimers.current[itemId] = window.setTimeout(() => { void persistChecklist(next); }, 500);
-      return next;
-    });
-  }
-
   async function finish(decision: "continue" | "doubt" | "drop") {
     setBusy(true);
     setDebrief("");
     try {
       const saved = workspace.saved.some((item) => item.bagVboId === bagId);
       if (!saved && analysis) await toggleSaved(analysis.property);
-      const response = await fetch(`/api/property/${encodeURIComponent(bagId)}/debrief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
-      const body = await response.json() as { caseId?: string | null; error?: string };
-      if (response.status === 401) { window.location.href = loginHref(); return; }
-      if (!response.ok) { setDebrief(body.error ?? t("viewing.debriefSaveFailed")); return; }
-      if (decision === "continue" && body.caseId) { window.location.href = `/mijn-aankoop/${body.caseId}#waarde-bod`; return; }
+      const result = await apiFetch<{ caseId?: string | null; error?: string }>(
+        `/api/property/${encodeURIComponent(bagId)}/debrief`,
+        { method: "POST", json: { decision } },
+      );
+      if (result.status === 401) { redirectToLogin(); return; }
+      if (!result.ok) { setDebrief(result.data?.error ?? result.error ?? t("viewing.debriefSaveFailed")); return; }
+      if (decision === "continue" && result.data?.caseId) { window.location.href = `/mijn-aankoop/${result.data.caseId}#waarde-bod`; return; }
       if (decision === "continue") { setDebrief(t("viewing.debriefNoCase")); return; }
       if (decision === "drop") { window.location.href = "/mijn-aankoop"; return; }
       // The debrief changed the property stage server-side; sync the store.
@@ -136,6 +79,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
     </PageShell>
   );
 
+  const checklist = checklistState.checklist;
   const checked = checklist.filter((item) => item.checked).length;
   const attentionItems = checklist.filter((item) => item.signalKey || item.id.startsWith("signal-"));
   const standardItems = checklist.filter((item) => !item.signalKey && !item.id.startsWith("signal-"));
@@ -153,14 +97,14 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
             checked={item.checked}
             aria-describedby={item.reason ? reasonId : undefined}
             onChange={(event) => {
-              void saveChecklist(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, checked: event.target.checked } : candidate));
+              checklistState.save(checklist.map((candidate) => candidate.id === item.id ? { ...candidate, checked: event.target.checked } : candidate));
             }}
           />
           <span><strong>{item.label}</strong></span>
         </label>
         {item.reason && <p className="companion-reason" id={reasonId}>{item.reason}</p>}
         <label className="sr-only" htmlFor={noteId}>{t("viewing.noteAria", { label: item.label })}</label>
-        <textarea id={noteId} value={item.note ?? ""} placeholder={t("viewing.notePlaceholder")} rows={2} onChange={(event) => { updateNote(item.id, event.target.value); }} />
+        <textarea id={noteId} value={item.note ?? ""} placeholder={t("viewing.notePlaceholder")} rows={2} onChange={(event) => { checklistState.updateNote(item.id, event.target.value); }} />
       </div>;
     });
   }
@@ -178,7 +122,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
       <progress value={checked} max={Math.max(checklist.length, 1)} aria-label={t("viewing.progressMeterAria", { checked, total: checklist.length })} />
       <a className="secondary-button" href="#afronden">{t("viewing.finishLink")}</a>
     </div>
-    {checklistError && <p className="form-message" role="status">{checklistError}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}</p>}
+    {checklistState.error && <p className="form-message" role="status">{checklistState.error}{authStatus === "anonymous" && <> <Link href="/login">{t("logIn")}</Link></>}</p>}
     <div className="companion-list">
       {attentionItems.length > 0 && <section className="companion-group" aria-labelledby="attention-checklist-title">
         <div className="companion-group-head">

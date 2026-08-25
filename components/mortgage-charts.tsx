@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import type { BuyerCostLine } from "@/src/lib/costs";
 import type { MortgageMarketHistorySeries } from "@/src/lib/mortgage";
+import { formatRatePct } from "@/src/lib/mortgage";
 import type { MortgageSchedule } from "@/src/lib/mortgage/schedule";
 import { formatEuro } from "@/src/lib/purchase";
 
@@ -307,7 +308,7 @@ export function RateImpactChart({
             <tbody>
               {rows.map((row, index) => (
                 <tr key={index}>
-                  <td>{row.rate.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                  <td>{formatRatePct(row.rate)}</td>
                   <td>{formatEuro(Math.round(row.firstPayment))}</td>
                   <td>{formatEuro(Math.round(row.totalInterest))}</td>
                 </tr>
@@ -396,7 +397,7 @@ export function RateSparkline({
         <path d={d} fill="none" stroke="var(--moss)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       </svg>
       <div>
-        <strong>{last.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong>
+        <strong>{formatRatePct(last)}</strong>
         <small className={delta > 0.05 ? "is-worse" : delta < -0.05 ? "is-better" : undefined}>
           {delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pt
         </small>

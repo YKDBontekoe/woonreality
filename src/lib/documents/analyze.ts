@@ -1,5 +1,6 @@
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
+import { formatLocaleTag } from "@/src/lib/format-locale";
 
 export type DocumentFindingDraft = {
   title: string;
@@ -46,7 +47,7 @@ function parsePrices(text: string) {
 
 export function analyzeDocumentText(input: DocumentAnalysisInput, locale: Locale = "nl"): DocumentFindingDraft[] {
   const t = getLibTranslator(locale, "lib-finance");
-  const numTag = locale === "en" ? "en-IE" : "nl-NL";
+  const numTag = formatLocaleTag(locale);
   const finding = (subKey: string, severity: DocumentFindingDraft["severity"], params?: Record<string, unknown>): DocumentFindingDraft => ({
     title: t(`documents.${subKey}.title`),
     summary: t(`documents.${subKey}.summary`, params),
