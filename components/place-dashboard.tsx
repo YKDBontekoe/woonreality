@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, GitCompare, MapPinned, Users } from "lucide-react";
+import { GitCompare, MapPinned, Users } from "lucide-react";
 import { Link } from "@/src/lib/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AddressSearch } from "@/components/address-search";
 import { SignalExplorer } from "@/components/property/signal-explorer";
 import { PageShell } from "@/components/ui/page-shell";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { domainsFromSignals } from "@/src/lib/analysis/signal-domains";
 import { saveStoredPlace, formatInhabitants, formatWoz } from "@/src/lib/place-compare";
 import { placeKindLabels } from "@/src/lib/place-labels";
@@ -94,11 +95,9 @@ export function PlaceDashboard({ kind, code }: { kind: PlaceKind; code: string }
   const searchSeed = place ? [place.name, place.subtitle].filter(Boolean).join(", ") : "";
 
   return (
-    <PageShell current="home" className="place-shell">
+    <PageShell className="place-shell">
       <div className="place-dashboard">
-        <Link className="text-link place-back" href="/">
-          <ArrowLeft size={16} aria-hidden="true" /> {t("backToSearch")}
-        </Link>
+        {place && <Breadcrumbs items={[{ label: placeKindLabels[place.kind] }, { label: place.name }]} />}
 
         {loading && <div className="place-loading" role="status">{t("loadingPlace")}</div>}
         {error && !loading && (

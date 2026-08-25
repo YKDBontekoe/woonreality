@@ -67,5 +67,8 @@
   "paletteOpenHint": "select",
   "paletteThemeToggle": "Toggle light / dark",
   "paletteTriggerAria": "Search or navigate (⌘K)",
+  "breadcrumbsAria": "Breadcrumbs",
+  "breadcrumbHome": "Home",
+  "breadcrumbCheck": "Property check",
   "currentHomeSessionNotice": "Not signed in: we'll keep your current home in this browser only."
 }

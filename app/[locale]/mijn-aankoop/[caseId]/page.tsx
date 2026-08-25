@@ -1,7 +1,8 @@
-import { Link } from "@/src/lib/i18n/navigation";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/src/lib/i18n/navigation";
 import { createSupabaseServerClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { CaseTools } from "@/components/case-tools";
 import { PurchaseWorkflow } from "@/components/purchase-workflow";
 import { PageShell } from "@/components/ui/page-shell";
@@ -25,8 +26,8 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ l
   if (!isSupabaseConfigured()) redirect("/login?next=/mijn-aankoop");
   const { locale, caseId } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations("mijn-aankoop");
   const supabase = await createSupabaseServerClient();
+  const [t, th] = await Promise.all([getTranslations("mijn-aankoop"), getTranslations("header")]);
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(`/mijn-aankoop/${caseId}`)}`);
   const [{ data: purchaseCase }, { data: tasks }, { data: documents }, { data: findings }, { data: events }] = await Promise.all([
@@ -51,7 +52,7 @@ export default async function PurchaseCasePage({ params }: { params: Promise<{ l
     : null;
 
   return <PageShell current="aankoop" wrap={false}><div className="container purchase-page">
-    <Link className="back-link" href="/mijn-aankoop">{t("backToOverview")}</Link>
+    <Breadcrumbs items={[{ href: "/mijn-aankoop", label: th("mijnAankoop") }, { label: purchaseCase.title }]} />
     <div className="case-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> {CASE_STAGE_LABELS[stage]}</div><h1>{purchaseCase.title}</h1><p className="hero-copy">{t("caseHeroCopy")}</p></div><span className="case-progress">{purchaseCase.status === "active" ? t("statusActive") : purchaseCase.status}</span></div>
     <section className="next-step-card"><span className="section-kicker">{t("nextStepKickerCase")}</span><h2>{nextTask?.title ?? fallbackAction.title}</h2><p>{nextTask?.description ?? fallbackAction.text}</p>{nextTask?.due_at && <small>{t("dueBefore", { date: formatDate(nextTask.due_at, locale) })}</small>}<Link className="primary-button" href={nextHref as never}>{t("openThisStep")}</Link></section>
     <div className="case-overview-grid"><section className="case-panel"><span className="section-kicker">{t("progressKicker")}</span><div className="case-steps">{CASE_STAGES.map((key, index) => { const currentIndex = CASE_STAGES.indexOf(stage); return <div className={`case-step ${key === stage ? "current" : index < currentIndex ? "done" : ""}`} key={key}><span>{index + 1}</span><strong>{CASE_STAGE_LABELS[key]}</strong></div>; })}</div>{bagVboId && <p className="muted-copy"><Link href={`/woning/${bagVboId}`}>{t("openPropertyCheck")}</Link> · <Link href={`/woning/${bagVboId}/bezichtiging`}>{t("viewingMode")}</Link></p>}</section><section className="case-panel"><span className="section-kicker">{t("openPointsKicker")}</span><p className="case-count"><strong>{tasks?.length ?? 0}</strong> {t("tasksLabel")}</p><p className="case-count"><strong>{documents?.length ?? 0}</strong> {t("documentsLabel")}</p><p className="case-count"><strong>{openFindings}</strong> {t("findingsLabel")}</p></section></div>

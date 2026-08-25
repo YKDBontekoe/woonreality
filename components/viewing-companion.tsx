@@ -5,6 +5,7 @@ import { Link } from "@/src/lib/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/ui/page-shell";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { useChecklist } from "@/components/hooks/use-checklist";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import type { Analysis, ChecklistItem } from "@/src/lib/types";
@@ -12,6 +13,7 @@ import { apiFetch, redirectToLogin } from "@/components/hooks/use-api";
 
 export function ViewingCompanion({ bagId }: { bagId: string }) {
   const t = useTranslations("woning");
+  const tc = useTranslations("common");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState("");
   const [debrief, setDebrief] = useState("");
@@ -110,7 +112,7 @@ export function ViewingCompanion({ bagId }: { bagId: string }) {
   }
 
   return <PageShell current="woning" className="viewing-companion">
-    <Link className="back-link" href={`/woning/${bagId}`}><ArrowLeft size={14} /> {t("viewing.backToCheck")}</Link>
+    <Breadcrumbs items={[{ href: `/woning/${bagId}`, label: tc("breadcrumbCheck") }, { label: t("viewing.breadcrumb") }]} />
     <div className="eyebrow"><ClipboardCheck size={13} /> {t("viewing.modeEyebrow")}</div>
     <h1>{analysis.property.street} {analysis.property.houseNumber}</h1>
     <p className="hero-copy">{t("viewing.heroCopy")}</p>

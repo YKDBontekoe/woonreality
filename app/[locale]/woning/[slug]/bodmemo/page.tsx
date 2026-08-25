@@ -1,9 +1,7 @@
-import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/src/lib/i18n/navigation";
 import { notFound } from "next/navigation";
-import type { Route } from "next";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { PrintButton } from "@/components/print-button";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { buildBidStrategy, type BidScenarioKey } from "@/src/lib/bid-strategy";
@@ -40,7 +38,7 @@ export default async function OfferMemoPage({
 }) {
   const [{ locale, slug }, query] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
-  const t = await getTranslations("woning");
+  const [t, tc] = await Promise.all([getTranslations("woning"), getTranslations("common")]);
   if (!isValidBagId(decodeURIComponent(slug))) notFound();
   let error = "";
   let memoContent: Awaited<ReturnType<typeof buildMemo>> | null = null;
@@ -54,9 +52,7 @@ export default async function OfferMemoPage({
     return (
       <main className="site-shell offer-memo-shell">
         <div className="container">
-          <Link className="back-link" href={`/woning/${slug}` as Route}>
-            <ArrowLeft size={14} /> {t("bodmemo.backToCheck")}
-          </Link>
+          <Breadcrumbs items={[{ href: `/woning/${slug}`, label: tc("breadcrumbCheck") }, { label: t("bodmemo.breadcrumb") }]} />
           <h1>{t("bodmemo.errorTitle")}</h1>
           <p className="hero-copy" role="alert">{error || t("bodmemo.insufficientData")}</p>
         </div>
@@ -69,9 +65,7 @@ export default async function OfferMemoPage({
     <main className="site-shell offer-memo-shell">
       <div className="container">
         <div className="offer-memo-toolbar no-print">
-          <Link className="back-link" href={`/woning/${slug}` as Route}>
-            <ArrowLeft size={14} /> {t("bodmemo.backToCheck")}
-          </Link>
+          <Breadcrumbs items={[{ href: `/woning/${slug}`, label: tc("breadcrumbCheck") }, { label: t("bodmemo.breadcrumb") }]} />
           <PrintButton />
         </div>
         <article className="offer-memo" aria-label={t("bodmemo.memoAria")}>

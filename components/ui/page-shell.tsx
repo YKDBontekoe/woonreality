@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BackToTop } from "@/components/back-to-top";
 import { CommandPalette } from "@/components/command-palette";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SkipLink } from "@/components/skip-link";
 
@@ -24,17 +25,20 @@ export function PageShell({
   containerClassName?: string;
 }) {
   const header = showHeader ? <SiteHeader current={current} /> : null;
+  const footer = <SiteFooter />;
   const content = wrap ? (
     <div className={`container ${containerClassName}`.trim()}>
       {header}
       {children}
       <BackToTop />
+      {footer}
     </div>
   ) : (
     <>
       {header ? <div className="container">{header}</div> : null}
       {children}
       <BackToTop />
+      {footer}
     </>
   );
   return (

@@ -60,10 +60,6 @@ export function LandingPage() {
           <Step number="3" title={t("step3Title")} text={t("step3Text")} />
         </div>
       </section>
-      <footer className="container footer">
-        <span><strong>WoonReality</strong> · {t("footerBrandTagline")}</span>
-        <span>{t("footerLine2")}</span>
-      </footer>
     </PageShell>
   );
 }

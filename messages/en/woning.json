@@ -99,6 +99,7 @@
     "debriefNoCase": "The viewing is complete, but there is no file yet to place your bid in. Start or open a purchase file first.",
     "debriefDoubt": "Doubting is okay. Update your notes and come back later.",
     "errorTitle": "This viewing is unavailable right now.",
+    "breadcrumb": "Viewing",
     "backToCheck": "Back to the home check",
     "modeEyebrow": "viewing mode",
     "heroCopy": "Large checkboxes, room for notes. This is your companion in the house — no printouts.",
@@ -488,6 +489,7 @@
   "bodmemo": {
     "creationFailed": "The offer memo could not be created.",
     "errorTitle": "Offer memo unavailable",
+    "breadcrumb": "Offer memo",
     "insufficientData": "Not enough data for an offer memo.",
     "missingAskingPrice": "First add an asking price via the offer draft in the home check.",
     "balancedLabel": "Balanced",
@@ -527,6 +529,7 @@
   },
   "report": {
     "aria": "Shareable property report",
+    "breadcrumb": "Report",
     "kicker": "Property check report",
     "loadFailed": "Report could not be loaded.",
     "scoreLabel": "Reality Score",

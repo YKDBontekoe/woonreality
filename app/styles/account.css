@@ -1,5 +1,5 @@
 @media print {
-  .topbar, .back-link, .dashboard-actions, .dashboard-tabs, .compare-banner, .map-card a, .preference-panel, .source-note, .dashboard-disclaimer, .sources-section, .add-checklist, .checklist-note { display: none !important; }
+  .topbar, .back-link, .breadcrumbs, .site-footer, .dashboard-actions, .dashboard-tabs, .compare-banner, .map-card a, .preference-panel, .source-note, .dashboard-disclaimer, .sources-section, .add-checklist, .checklist-note { display: none !important; }
   .site-shell, body { background: var(--surface); }
   .container { width: 100%; }
   .dashboard-grid { padding-bottom: 20px; }

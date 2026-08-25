@@ -99,6 +99,7 @@
     "debriefNoCase": "De bezichtiging is afgerond, maar er is nog geen dossier om het bod in te zetten. Start of open eerst een aankoopdossier.",
     "debriefDoubt": "Twijfel is oké. Werk je notities bij en kom later terug.",
     "errorTitle": "Deze bezichtiging lukt nu niet.",
+    "breadcrumb": "Bezichtiging",
     "backToCheck": "Terug naar de woningcheck",
     "modeEyebrow": "bezichtigingsmodus",
     "heroCopy": "Grote vakjes, ruimte voor notities. Dit is je gezelschap in huis — geen printwerk.",
@@ -488,6 +489,7 @@
   "bodmemo": {
     "creationFailed": "De bodmemo kon niet worden gemaakt.",
     "errorTitle": "Bodmemo lukt nu niet",
+    "breadcrumb": "Bodmemo",
     "insufficientData": "Onvoldoende data voor een bodmemo.",
     "missingAskingPrice": "Voeg eerst een vraagprijs toe via het bodconcept in de woningcheck.",
     "balancedLabel": "Gebalanceerd",
@@ -527,6 +529,7 @@
   },
   "report": {
     "aria": "Deelbaar woningrapport",
+    "breadcrumb": "Rapport",
     "kicker": "Woningcheck rapport",
     "loadFailed": "Rapport kon niet worden geladen.",
     "scoreLabel": "Reality Score",

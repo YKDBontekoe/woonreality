@@ -1,9 +1,7 @@
-import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/src/lib/i18n/navigation";
 import { notFound } from "next/navigation";
-import type { Route } from "next";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { PrintButton } from "@/components/print-button";
 import { getSharedAnalysis } from "@/src/lib/analysis/service";
 import { isValidBagId } from "@/src/lib/validation/workspace";
@@ -33,7 +31,7 @@ export default async function ReportPage({
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations("woning");
+  const [t, tc] = await Promise.all([getTranslations("woning"), getTranslations("common")]);
   const bagId = decodeURIComponent(slug);
   if (!isValidBagId(bagId)) notFound();
 
@@ -49,9 +47,7 @@ export default async function ReportPage({
     return (
       <main className="site-shell offer-memo-shell">
         <div className="container">
-          <Link className="back-link" href={`/woning/${slug}` as Route}>
-            <ArrowLeft size={14} /> {t("bodmemo.backToCheck")}
-          </Link>
+          <Breadcrumbs items={[{ href: `/woning/${slug}`, label: tc("breadcrumbCheck") }, { label: t("report.breadcrumb") }]} />
           <h1>{t("report.loadFailed")}</h1>
           <p className="hero-copy" role="alert">{error}</p>
         </div>
@@ -64,9 +60,7 @@ export default async function ReportPage({
     <main className="site-shell offer-memo-shell">
       <div className="container">
         <div className="offer-memo-toolbar no-print">
-          <Link className="back-link" href={`/woning/${slug}` as Route}>
-            <ArrowLeft size={14} /> {t("bodmemo.backToCheck")}
-          </Link>
+          <Breadcrumbs items={[{ href: `/woning/${slug}`, label: tc("breadcrumbCheck") }, { label: t("report.breadcrumb") }]} />
           <PrintButton />
         </div>
         <article className="offer-memo woning-rapport" aria-label={t("report.aria")}>

@@ -67,5 +67,8 @@
   "paletteOpenHint": "kiezen",
   "paletteThemeToggle": "Wissel licht / donker",
   "paletteTriggerAria": "Zoek of navigeer (⌘K)",
+  "breadcrumbsAria": "Kruimelpad",
+  "breadcrumbHome": "Startpagina",
+  "breadcrumbCheck": "Woningcheck",
   "currentHomeSessionNotice": "Niet ingelogd: je huidige woning bewaren we alleen in deze browser."
 }
