@@ -396,7 +396,7 @@
   "charts": {
     "topicScoreKicker": "Score per topic",
     "whereScoreFrom": "Where the score comes from",
-    "unscoredAttentionAria": "Open attention point without score",
+    "unscoredAttentionNote": "there is an open attention point without a number here — the average alone understates it.",
     "radarAria": "Score spread across six topics",
     "domainAria": "{label}: {score} out of 10 — view the signals",
     "mixTitle": "Signal mix",
@@ -412,6 +412,12 @@
     "sourceOk": "{count, plural, =1 {1 source available} other {# sources available}}",
     "sourcePartial": "{count} partial",
     "sourceUnavailable": "{count} unavailable"
+  },
+  "composites": {
+    "aria": "Stories that combine multiple signals",
+    "storiesKicker": "Stories from the data",
+    "contradictionsKicker": "Tensions in the data",
+    "basedOn": "{count, plural, =1 {1 signal} other {# signals}} combined"
   },
   "donut": {
     "aria": "Score {score} out of 10"

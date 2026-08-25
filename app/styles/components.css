@@ -313,7 +313,7 @@
 .property-dash-shell .dash-collapsible-panel { border: 0; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .property-dash-shell .dash-score-card { padding: 24px; }
 .property-dash-shell .dash-score-heading { font-size: 24px; }
-.property-dash-shell .profile-row { padding: 9px 0; }
+.property-dash-shell .domain-radar { max-width: 380px; }
 .property-dash-shell .dash-insights-panel { padding: 22px; }
 .property-dash-shell .dash-point-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .property-dash-shell .dash-point-list li,

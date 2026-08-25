@@ -317,5 +317,58 @@
       "attention": "Schools or childcare are further away according to neighbourhood statistics. Check the real cycling or walking route and whether there is a place at your preferred school.",
       "neutral": "The neighbourhood figures on children and schools give no pronounced picture. Use them as a starting point and check the schools in the area yourself."
     }
+  },
+  "composite": {
+    "wintercomfort": {
+      "title": "Winter comfort",
+      "sunGoodEnergyBad": "A sunny facade or garden, but a weak energy label: lovely in spring, an expensive winter bill. Insulation and heating deserve extra attention.",
+      "energyGoodSunBad": "Well insulated but low on sun: cheap and comfortable to heat, though interiors may stay dark. Check the light during a viewing.",
+      "good": "Sun and insulation reinforce each other here: comfortable living with manageable heating costs, even in winter.",
+      "attention": "Both daylight and insulation need attention — expect a higher winter bill and check both during the viewing.",
+      "neutral": "Sun and energy give a mixed picture. Test warmth and light yourself on a winter day before deciding."
+    },
+    "health": {
+      "title": "Healthy air and sleep",
+      "noiseAttention": "Noise is the weak spot in this profile: fine particles and greenery cannot compensate for it. Judge it yourself at busy and quiet times.",
+      "airAttention": "Air quality needs attention despite the other favourable signals. Especially relevant for young children or anyone with lung conditions.",
+      "attention": "One of the health signals (such as nearby greenery) needs attention. Weigh all three signals together.",
+      "good": "Air, noise and greenery reinforce each other positively — a healthy living environment according to public data.",
+      "neutral": "Air quality, noise and greenery give no pronounced health picture. Weigh them against your own sensitivity."
+    },
+    "runningCosts": {
+      "title": "Running-cost trajectory",
+      "improve": "With label {label}, monthly costs stay high until the home is made more sustainable. Ask what has been done already and what remains possible.",
+      "heatAttention": "The energy bill is manageable, but summer heat can cost too (shading, cooling). Ask about ventilation and sun shading.",
+      "good": "Energy performance and summer comfort point to stable, low running costs without immediate investments.",
+      "neutral": "The running-cost picture is mixed: model your own scenario including any sustainability work."
+    },
+    "valueContext": {
+      "title": "Price in neighbourhood context",
+      "above": "The asking price sits about {pct}% above the CBS neighbourhood average. That can fit a unique home — or it is negotiating room.",
+      "below": "The asking price sits about {pct}% below the CBS neighbourhood average. Find out why: is there pending work, or is the housing type different?",
+      "around": "The asking price sits around the CBS neighbourhood average — a neutral starting point for your bid."
+    }
+  },
+  "contradiction": {
+    "priceAboveArea": {
+      "title": "Premium above the area, with open attention points",
+      "summary": "Asking price about {pct}% above the neighbourhood average while {count} signals ask for attention. That combination is negotiating room.",
+      "action": "Use the attention points as arguments in your bid; tie a lower offer to visible costs."
+    },
+    "priceBelowArea": {
+      "title": "Below the neighbourhood average",
+      "summary": "The asking price sits about {pct}% below the neighbourhood average. Sometimes logical, sometimes a signal.",
+      "action": "Find out why this home is priced below its surroundings before bidding enthusiastically."
+    },
+    "oldHouseHighLabel": {
+      "title": "Label {label} on a {year} home",
+      "summary": "A high energy label on a pre-war home does happen, but is unusual enough to verify.",
+      "action": "Ask whether the label was calculated or registered by declaration, and ask for the underlying detail."
+    },
+    "noisePremium": {
+      "title": "Price premium while noise asks for attention",
+      "summary": "Asking price about {pct}% above the neighbourhood average while noise data shows levels that deserve a listening visit.",
+      "action": "Visit the home at a busy time with windows open before paying any premium."
+    }
   }
 }

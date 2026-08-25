@@ -317,5 +317,58 @@
       "attention": "Scholen of opvang liggen volgens de buurtstatistiek verder weg. Check de echte fiets- of looproute en of er plek is op de school van je voorkeur.",
       "neutral": "De buurtcijfers over kinderen en scholen geven geen uitgesproken beeld. Gebruik ze als startpunt en check zelf de scholen in de wijk."
     }
+  },
+  "composite": {
+    "wintercomfort": {
+      "title": "Wintercomfort",
+      "sunGoodEnergyBad": "Zonvolle gevel of tuin, maar een zwak energielabel: heerlijk in het voorjaar, een dure wintersom. Isolatie en verwarming verdienen extra aandacht.",
+      "energyGoodSunBad": "Goed geïsoleerd, maar weinig zon: comfortabel en zuinig stoken, al kan het binnen donker blijven. Check lichtinval tijdens een bezichtiging.",
+      "good": "Zon en isolatie versterken elkaar hier: prettig wonen met beheersbare stookkosten, ook in de winter.",
+      "attention": "Zoninval én isolatie vragen allebei om aandacht — reken op een hogere wintersom en check beide tijdens de bezichtiging.",
+      "neutral": "Zon en energie geven een gemengd beeld. Test de warmte en lichtinval zelf op een winterdag voordat je beslist."
+    },
+    "health": {
+      "title": "Gezond ademen en slapen",
+      "noiseAttention": "Geluid is het zwakke punt in dit profiel: fijnstof en groen kunnen dat niet compenseren. Meet het zelf op drukke én rustige momenten.",
+      "airAttention": "De luchtkwaliteit vraagt aandacht ondanks de andere gunstige signalen. Vooral belangrijk als jonge kinderen of longpatiënten hier gaan wonen.",
+      "attention": "Eén van de gezondheidssignalen (zoals groen in de directe omgeving) vraagt om aandacht. Weeg alle drie de signalen samen af.",
+      "good": "Lucht, geluid en groen versterken elkaar hier positief — een gezond woonmilieu volgens de openbare data.",
+      "neutral": "Luchtkwaliteit, geluid en groen geven geen uitgesproken gezondheidsbeeld. Weeg ze af tegen jullie eigen gevoeligheid."
+    },
+    "runningCosts": {
+      "title": "Woonlasten-traject",
+      "improve": "Met label {label} liggen de maandlasten hoog tot je verduurzaamt. Vraag naar eerder getroffen maatregelen en wat nog mogelijk is.",
+      "heatAttention": "De energierekening valt mee, maar hitte in de zomer kan wél kosten (zonwering, airco). Vraag naar ventilatie en zonwering.",
+      "good": "Energieprestatie en zomercomfort wijzen op stabiele, lage woonlasten zonder directe investeringen.",
+      "neutral": "Het woonlastenbeeld is gemengd: reken je eigen scenario uit inclusief eventuele verduurzaming."
+    },
+    "valueContext": {
+      "title": "Prijs in buurtcontext",
+      "above": "De vraagprijs ligt circa {pct}% boven het CBS-buurtgemiddelde. Dat kan passen bij een unieke woning — of zijn onderhandelingsruimte.",
+      "below": "De vraagprijs ligt circa {pct}% onder het CBS-buurtgemiddelde. Onderzoek waarom: staat er werk aan de hand, of is het woningtype anders?",
+      "around": "De vraagprijs zit rond het CBS-buurtgemiddelde van de buurt — een neutraal startpunt voor je bod."
+    }
+  },
+  "contradiction": {
+    "priceAboveArea": {
+      "title": "Premie boven de buurt, mét aandachtspunten",
+      "summary": "Vraagprijs circa {pct}% boven het buurtgemiddelde terwijl {count} signalen om aandacht vragen. Die combinatie is onderhandelingsruimte.",
+      "action": "Gebruik de aandachtspunten als argumenten in je bod; koppel een lagere bieding aan zichtbare kosten."
+    },
+    "priceBelowArea": {
+      "title": "Onder het buurtgemiddelde",
+      "summary": "De vraagprijs ligt circa {pct}% onder het buurtgemiddelde. Soms logisch, soms een signaal.",
+      "action": "Onderzoek waarom deze woning onder de buurtgemiddelden prijst voordat je enthousiast biedt."
+    },
+    "oldHouseHighLabel": {
+      "title": "Label {label} bij een woning van {year}",
+      "summary": "Een hoog energielabel op een vooroorlogse woning komt voor, maar is uitzonderlijk genoeg om te controleren.",
+      "action": "Vraag of het label is berekend of opgemaakt, en vraag naar de onderbouwing (isolatiedetails, meetrapport)."
+    },
+    "noisePremium": {
+      "title": "Prijspremie terwijl geluid vraagt om aandacht",
+      "summary": "Vraagprijs circa {pct}% boven het buurtgemiddelde terwijl de geluidsdata lagen tonen die om een luistermoment vragen.",
+      "action": "Bezoek de woning op een druk moment met open ramen voordat je een premie betaalt."
+    }
   }
 }

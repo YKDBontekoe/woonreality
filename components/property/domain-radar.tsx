@@ -128,6 +128,7 @@ export function DomainRadar({
               textAnchor={anchor}
             >
               {domain.label}
+              {domain.hasUnscoredAttention && <tspan className="domain-radar-warn"> !</tspan>}
             </text>
             <text
               aria-hidden="true"

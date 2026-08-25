@@ -15,7 +15,7 @@ import { Link } from "@/src/lib/i18n/navigation";
 import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { ValuationBidPanel } from "@/components/valuation-bid-panel";
 import { FundaListingPanel } from "@/components/funda-listing-panel";
@@ -31,6 +31,8 @@ import { RunningCostsPanel } from "@/components/property/running-costs-panel";
 import { WozBenchmarkCard } from "@/components/property/woz-benchmark-card";
 import { AiDecisionBrief } from "@/components/property/ai-decision-brief";
 import { VerdictHero, type TopThing } from "@/components/property/verdict-hero";
+import { CompositeCards } from "@/components/property/composite-cards";
+import { insightComposites } from "@/src/lib/analysis/composites";
 import { PageShell } from "@/components/ui/page-shell";
 import {
   calculatePersonalFit,
@@ -525,6 +527,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
     }
   }
 
+  // Hooks must run before the early returns below.
+  const marketListing = useMemo(() => mergeListings(userListing, listing), [userListing, listing]);
+  const composites = useMemo(
+    () => insightComposites({
+      signals: analysis?.signals ?? [],
+      buildingYear: analysis?.property.buildingYear,
+      askingPrice: marketListing?.askingPrice,
+      wozBenchmark: analysis?.wozBenchmark ?? null,
+    }),
+    [analysis, marketListing],
+  );
+
   if (error)
     return (
       <PageShell current="woning">
@@ -559,7 +573,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const comparisonIsFull = !isCompared && workspace.compare.length >= 4;
   const personalFit = calculatePersonalFit(analysis, preferences);
   const nearbyProperties = analysis.nearbyProperties ?? [];
-  const marketListing = mergeListings(userListing, listing);
   const incompleteListing = listingNeedsExtension(marketListing);
   const energyLabel = marketListing?.energyLabel;
   const hypotheekQuery = new URLSearchParams();
@@ -731,6 +744,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               onExpand={() => selectTab("omgeving")}
             />
           </div>
+          <CompositeCards
+            stories={composites.stories}
+            contradictions={composites.contradictions}
+            onJumpToSignal={jumpToSignal}
+          />
           <AiDecisionBrief
             analysis={analysis}
             listing={marketListing}
