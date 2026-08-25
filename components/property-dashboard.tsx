@@ -55,6 +55,7 @@ import type {
   ListingInsights,
   PersonalPreferences,
   PropertyListing,
+  SignalCategory,
 } from "@/src/lib/types";
 
 function MapLoadingFallback() {
@@ -126,6 +127,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const [tab, setTab] = useState<TabId>("overzicht");
   const [visitedTabs, setVisitedTabs] = useState<Set<TabId>>(() => new Set(["overzicht"]));
   const [focusSignalKey, setFocusSignalKey] = useState<string | null>(null);
+  const [focusDomain, setFocusDomain] = useState<SignalCategory | null>(null);
   const [mapFocusId, setMapFocusId] = useState<string | null>(null);
   const { authStatus, workspace, toggleSaved, toggleCompare, setPreferences } = usePropertyWorkspace();
   const [preferences, setLocalPreferences] =
@@ -584,8 +586,18 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
   function jumpToSignal(thing: TopThing) {
     setFocusSignalKey(thing.signalKeys[0] ?? null);
+    setFocusDomain(null);
     selectTab("signalen");
     // Keyboard and screen-reader users need to land where the content changed.
+    window.requestAnimationFrame(() => {
+      document.getElementById("panel-signalen")?.focus({ preventScroll: false });
+    });
+  }
+
+  function openDomainSignals(domain: SignalCategory) {
+    setFocusDomain(domain);
+    setFocusSignalKey(null);
+    selectTab("signalen");
     window.requestAnimationFrame(() => {
       document.getElementById("panel-signalen")?.focus({ preventScroll: false });
     });
@@ -704,7 +716,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
       {tab === "overzicht" && (
         <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-overzicht" aria-labelledby="tab-overzicht">
           <div className="dash-hero" id="kaart">
-            <PropertyScoreCharts analysis={analysis} />
+            <PropertyScoreCharts
+              analysis={analysis}
+              onSelectDomain={openDomainSignals}
+              onOpenSignals={() => selectTab("signalen")}
+              onOpenSources={() => selectTab("bronnen")}
+            />
             <PropertyMap
               property={property}
               nearbyProperties={nearbyProperties}
@@ -796,7 +813,12 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
       {tab === "signalen" && (
         <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-signalen" aria-labelledby="tab-signalen">
-          <SignalExplorer analysis={analysis} focusSignalKey={focusSignalKey} />
+          <SignalExplorer
+            analysis={analysis}
+            focusSignalKey={focusSignalKey}
+            domainFilter={focusDomain}
+            onDomainFilterChange={setFocusDomain}
+          />
         </div>
       )}
 
@@ -866,6 +888,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
                 </button>
               </div>
             </div>
+            <ChecklistProgress checklist={visibleChecklist} />
             <div className="checklist-list">
               {visibleChecklist.map((item) => {
                 const checkboxId = `checklist-${bagId}-${item.id}`;
@@ -940,6 +963,7 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
               </div>
               <span className="coverage-pill"><Check size={12} /> {analysis.dataCoverage.label}</span>
             </div>
+            <SourceStatusSummary statuses={analysis.sourceStatuses.map((source) => source.status)} />
             <div className="source-status-list">
               {analysis.sourceStatuses.map((source) => (
                 <div key={source.source}>
@@ -988,6 +1012,55 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 function LoadingBackLabel() {
   const t = useTranslations("woning");
   return <>{t("backToSearch")}</>;
+}
+
+function SourceStatusSummary({ statuses }: { statuses: ("ok" | "partial" | "unavailable")[] }) {
+  const t = useTranslations("woning");
+  if (!statuses.length) return null;
+  const counts = {
+    ok: statuses.filter((status) => status === "ok").length,
+    partial: statuses.filter((status) => status === "partial").length,
+    unavailable: statuses.filter((status) => status === "unavailable").length,
+  };
+  return (
+    <div
+      className="source-summary"
+      role="img"
+      aria-label={t("dashboard.sourcesSummaryAria", counts)}
+    >
+      <div className="coverage-strip-bar source-summary-bar">
+        {statuses.map((status, index) => (
+          <i className={status} key={`${status}-${index}`} />
+        ))}
+      </div>
+      <ul className="source-summary-legend">
+        {counts.ok > 0 && <li><i className="ok" aria-hidden="true" /> {counts.ok} {t("dashboard.statusAvailable")}</li>}
+        {counts.partial > 0 && <li><i className="partial" aria-hidden="true" /> {counts.partial} {t("dashboard.statusPartial")}</li>}
+        {counts.unavailable > 0 && <li><i className="unavailable" aria-hidden="true" /> {counts.unavailable} {t("dashboard.statusUnavailable")}</li>}
+      </ul>
+    </div>
+  );
+}
+
+function ChecklistProgress({ checklist }: { checklist: ChecklistItem[] }) {  const t = useTranslations("woning");
+  if (!checklist.length) return null;
+  const done = checklist.filter((item) => item.checked).length;
+  const pct = Math.round((done / checklist.length) * 100);
+  return (
+    <div className="checklist-progress">
+      <div
+        className="checklist-progress-track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={checklist.length}
+        aria-valuenow={done}
+        aria-label={t("dashboard.checklistProgressAria", { done, total: checklist.length })}
+      >
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <small>{t("dashboard.checklistProgress", { done, total: checklist.length })}</small>
+    </div>
+  );
 }
 
 function LoadingDashboard() {

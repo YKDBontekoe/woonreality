@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SignalInterpretationBlock } from "@/components/property/signal-interpretation";
 import { interpretSignal } from "@/src/lib/signal-interpretation";
 import { scoreBand, triageSignals } from "@/src/lib/report-summary";
-import type { Analysis, Signal } from "@/src/lib/types";
+import type { Analysis, Signal, SignalCategory } from "@/src/lib/types";
 
 const FILTER_IDS = ["focus", "attention", "good", "unavailable", "all"] as const;
 
@@ -33,10 +33,14 @@ function signalValue(signal: Signal) {
 export function SignalExplorer({
   analysis,
   focusSignalKey,
+  domainFilter,
+  onDomainFilterChange,
   initialFilter = "focus",
 }: {
   analysis: Analysis;
   focusSignalKey?: string | null;
+  domainFilter?: SignalCategory | null;
+  onDomainFilterChange?: (domain: SignalCategory | null) => void;
   initialFilter?: FilterId;
 }) {
   const t = useTranslations("woning");
@@ -55,7 +59,15 @@ export function SignalExplorer({
     return () => window.clearTimeout(timer);
   }, [focusSignalKey]);
 
-  const visibleCount = analysis.signals.filter((signal) => matchesFilter(filter, signal, triaged)).length;
+  const visibleDomains = domainFilter
+    ? analysis.domains.filter((domain) => domain.key === domainFilter)
+    : analysis.domains;
+
+  const visibleCount = visibleDomains.reduce(
+    (sum, domain) =>
+      sum + (triaged.byDomain[domain.key] ?? []).filter((signal) => matchesFilter(filter, signal, triaged)).length,
+    0,
+  );
 
   return (
     <section className="dash-signal-explorer" id="signalen">
@@ -81,8 +93,21 @@ export function SignalExplorer({
           </button>
         ))}
       </div>
+      {domainFilter && (
+        <div className="dash-domain-chip-row">
+          <button
+            type="button"
+            className="dash-domain-chip"
+            onClick={() => onDomainFilterChange?.(null)}
+          >
+            {analysis.domains.find((domain) => domain.key === domainFilter)?.label ?? domainFilter}
+            <span aria-hidden="true">×</span>
+            <span className="sr-only">{t("explorer.allDomains")}</span>
+          </button>
+        </div>
+      )}
       <div className="dash-signal-domains">
-        {analysis.domains.map((domain) => {
+        {visibleDomains.map((domain) => {
           const domainSignals = (triaged.byDomain[domain.key] ?? []).filter((signal) =>
             matchesFilter(filter, signal, triaged),
           );

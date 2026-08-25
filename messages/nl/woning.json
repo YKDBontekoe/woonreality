@@ -62,6 +62,8 @@
     "viewingTitle": "Bezichtiging",
     "openOnPhone": "Open op je telefoon",
     "print": "Print",
+    "checklistProgress": "{done} van {total} afgevinkt",
+    "checklistProgressAria": "Checklist voortgang: {done} van {total} afgevinkt",
     "noteAria": "Notitie voor {label}",
     "notePlaceholder": "Eigen notitie",
     "legal": "Juridisch",
@@ -73,7 +75,9 @@
     "priceBody": "Bod pas na documenten en keuring.",
     "sourcesTitle": "Bronnen",
     "statusAvailable": "beschikbaar",
+    "statusPartial": "deels beschikbaar",
     "statusUnavailable": "niet beschikbaar",
+    "sourcesSummaryAria": "{ok} bronnen beschikbaar, {partial} deels, {unavailable} niet beschikbaar",
     "notCovered": "Niet gedekt",
     "scoreNoteStrong": "Score",
     "scoreNoteRest": "is een omgevingsindicatie, geen koopadvies.",
@@ -384,12 +388,30 @@
     "cbsBadgeTitle": "CBS open data",
     "perMonth": "/mnd",
     "perYear": "/jaar",
-    "totalEstimated": "Totaal geschat"
+    "totalEstimated": "Totaal geschat",
+    "catEnergy": "Energie & water",
+    "catHousing": "Wonen",
+    "catTax": "Heffingen"
   },
   "charts": {
     "topicScoreKicker": "Score per onderwerp",
     "whereScoreFrom": "Waar de score vandaan komt",
-    "unscoredAttentionAria": "Open aandachtspunt zonder score"
+    "unscoredAttentionAria": "Open aandachtspunt zonder score",
+    "radarAria": "Scoreverdeling over zes onderwerpen",
+    "domainAria": "{label}: {score} van 10 — bekijk de signalen",
+    "mixTitle": "Signaalverdeling",
+    "openSignals": "Bekijk alle signalen",
+    "mix": {
+      "good": "{count} goed",
+      "watch": "{count} kans",
+      "attention": "{count} let op",
+      "unavailable": "{count} geen data"
+    },
+    "coverageTitle": "Bronnen in deze check",
+    "coverageAria": "{ok} bronnen beschikbaar, {partial} deels, {unavailable} onbeschikbaar",
+    "sourceOk": "{count, plural, =1 {1 bron beschikbaar} other {# bronnen beschikbaar}}",
+    "sourcePartial": "{count} deels",
+    "sourceUnavailable": "{count} onbeschikbaar"
   },
   "donut": {
     "aria": "Score {score} van 10"
@@ -406,7 +428,8 @@
     "signalsTitle": "Signalen",
     "noteFocus": "{count} punten die opvallen · tik een regel voor uitleg",
     "noteOther": "{count} signalen · tik een regel voor uitleg",
-    "filtersAria": "Signaalfilters"
+    "filtersAria": "Signaalfilters",
+    "allDomains": "Alle onderwerpen tonen"
   },
   "gauges": {
     "openData": "Open data",
@@ -441,6 +464,8 @@
     "wijk": "Wijk",
     "gemeente": "Gemeente",
     "rowAria": "{label}: {amount}",
+    "rowWithPriceAria": "{label}: {amount}; vraagprijs {price}",
+    "priceMarker": "vraagprijs",
     "ratioAbove": "circa {pct}% boven het buurtgemiddelde",
     "ratioBelow": "circa {pct}% onder het buurtgemiddelde",
     "ratioAround": "rond het buurtgemiddelde",

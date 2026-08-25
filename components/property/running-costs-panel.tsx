@@ -4,7 +4,13 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { formatEuro } from "@/src/lib/purchase";
-import type { RunningCostEstimate } from "@/src/lib/running-costs";
+import type { RunningCostCategory, RunningCostEstimate } from "@/src/lib/running-costs";
+
+const CATEGORY_META: Record<RunningCostCategory, { labelKey: string; tone: string }> = {
+  energy: { labelKey: "catEnergy", tone: "is-energy" },
+  housing: { labelKey: "catHousing", tone: "is-housing" },
+  tax: { labelKey: "catTax", tone: "is-tax" },
+};
 
 export function RunningCostsPanel({
   bagId,
@@ -73,6 +79,47 @@ export function RunningCostsPanel({
         <p className="dash-deal-empty">{t("runningCosts.calculating")}</p>
       ) : (
         <>
+          {(() => {
+            const groups = (Object.keys(CATEGORY_META) as RunningCostCategory[])
+              .map((key) => ({
+                key,
+                amount: estimate.lines
+                  .filter((line) => line.category === key)
+                  .reduce((sum, line) => sum + line.amountMonthly, 0),
+                ...CATEGORY_META[key],
+              }))
+              .filter((group) => group.amount > 0);
+            if (groups.length < 2 || estimate.monthlyTotal <= 0) return null;
+            return (
+              <div className="running-costs-composition">
+                <div
+                  className="running-costs-composition-bar"
+                  role="img"
+                  aria-label={groups
+                    .map((group) => `${t(group.labelKey)} ${Math.round((group.amount / estimate.monthlyTotal) * 100)}%`)
+                    .join(", ")}
+                >
+                  {groups.map((group) => (
+                    <i
+                      className={group.tone}
+                      key={group.key}
+                      style={{ width: `${(group.amount / estimate.monthlyTotal) * 100}%` }}
+                      title={`${t(group.labelKey)} — ${formatEuro(group.amount)}${t("runningCosts.perMonth")}`}
+                    />
+                  ))}
+                </div>
+                <ul className="running-costs-composition-legend">
+                  {groups.map((group) => (
+                    <li key={group.key}>
+                      <i className={group.tone} aria-hidden="true" />
+                      {t(group.labelKey)}
+                      <strong>{formatEuro(group.amount)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
           <table className="running-costs-table">
             <tbody>
               {estimate.lines.map((line) => (

@@ -62,6 +62,8 @@
     "viewingTitle": "Viewing",
     "openOnPhone": "Open on your phone",
     "print": "Print",
+    "checklistProgress": "{done} of {total} ticked off",
+    "checklistProgressAria": "Checklist progress: {done} of {total} ticked off",
     "noteAria": "Note for {label}",
     "notePlaceholder": "Your own note",
     "legal": "Legal",
@@ -73,7 +75,9 @@
     "priceBody": "Offer only after documents and survey.",
     "sourcesTitle": "Sources",
     "statusAvailable": "available",
+    "statusPartial": "partially available",
     "statusUnavailable": "unavailable",
+    "sourcesSummaryAria": "{ok} sources available, {partial} partial, {unavailable} unavailable",
     "notCovered": "Not covered",
     "scoreNoteStrong": "Score",
     "scoreNoteRest": "is an indication of the surroundings, not purchase advice.",
@@ -384,12 +388,30 @@
     "cbsBadgeTitle": "CBS open data",
     "perMonth": "/mo",
     "perYear": "/yr",
-    "totalEstimated": "Total estimated"
+    "totalEstimated": "Total estimated",
+    "catEnergy": "Energy & water",
+    "catHousing": "Housing",
+    "catTax": "Levies"
   },
   "charts": {
     "topicScoreKicker": "Score per topic",
     "whereScoreFrom": "Where the score comes from",
-    "unscoredAttentionAria": "Open attention point without score"
+    "unscoredAttentionAria": "Open attention point without score",
+    "radarAria": "Score spread across six topics",
+    "domainAria": "{label}: {score} out of 10 — view the signals",
+    "mixTitle": "Signal mix",
+    "openSignals": "View all signals",
+    "mix": {
+      "good": "{count} good",
+      "watch": "{count} watch",
+      "attention": "{count} attention",
+      "unavailable": "{count} no data"
+    },
+    "coverageTitle": "Sources in this check",
+    "coverageAria": "{ok} sources available, {partial} partial, {unavailable} unavailable",
+    "sourceOk": "{count, plural, =1 {1 source available} other {# sources available}}",
+    "sourcePartial": "{count} partial",
+    "sourceUnavailable": "{count} unavailable"
   },
   "donut": {
     "aria": "Score {score} out of 10"
@@ -406,7 +428,8 @@
     "signalsTitle": "Signals",
     "noteFocus": "{count} points that stand out · tap a row for explanation",
     "noteOther": "{count} signals · tap a row for explanation",
-    "filtersAria": "Signal filters"
+    "filtersAria": "Signal filters",
+    "allDomains": "Show all topics"
   },
   "gauges": {
     "openData": "Open data",
@@ -441,6 +464,8 @@
     "wijk": "District",
     "gemeente": "Municipality",
     "rowAria": "{label}: {amount}",
+    "rowWithPriceAria": "{label}: {amount}; asking price {price}",
+    "priceMarker": "asking price",
     "ratioAbove": "roughly {pct}% above the neighborhood average",
     "ratioBelow": "roughly {pct}% below the neighborhood average",
     "ratioAround": "around the neighborhood average",

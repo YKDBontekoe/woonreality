@@ -26,9 +26,13 @@ export function WozBenchmarkCard({ analysis, listing }: { analysis: Analysis; li
   ];
   const available = rows.filter((row) => row.average != null && row.average > 0);
   if (!available.length) return null;
-  const maxAverage = Math.max(...available.map((row) => row.average ?? 0));
 
   const askingPrice = listing?.askingPrice ?? null;
+  // The price marker must fit inside the bars, so the shared scale includes it.
+  const maxScale = Math.max(
+    ...available.map((row) => row.average ?? 0),
+    askingPrice ?? 0,
+  );
   const ratio = askingPrice ? wozRatio(askingPrice, benchmark.buurtAverage) : null;
   const ratioLabel = ratio == null
     ? null
@@ -51,15 +55,32 @@ export function WozBenchmarkCard({ analysis, listing }: { analysis: Analysis; li
         ) : null}
       </div>
       <div className="woz-benchmark-rows">
-        {rows.filter((row) => row.average != null && row.average > 0).map((row) => (
+        {available.map((row, index) => (
           <div className="woz-benchmark-row" key={row.key}>
             <span className="woz-benchmark-label">{row.label}</span>
             <span
-              className="woz-benchmark-bar"
+              className={`woz-benchmark-bar ${askingPrice ? "has-price" : ""}`}
               role="img"
-              aria-label={t("woz.rowAria", { label: row.label, amount: formatEuro(row.average!) })}
+              aria-label={
+                askingPrice
+                  ? t("woz.rowWithPriceAria", {
+                      label: row.label,
+                      amount: formatEuro(row.average!),
+                      price: formatEuro(askingPrice),
+                    })
+                  : t("woz.rowAria", { label: row.label, amount: formatEuro(row.average!) })
+              }
             >
-              <i style={{ width: `${Math.max(6, Math.round(((row.average ?? 0) / maxAverage) * 100))}%` }} />
+              <i style={{ width: `${Math.max(6, Math.round(((row.average ?? 0) / maxScale) * 100))}%` }} />
+              {askingPrice != null && (
+                <span
+                  aria-hidden="true"
+                  className="woz-benchmark-price-marker"
+                  style={{ left: `${Math.min(99.5, Math.max(0.5, (askingPrice / maxScale) * 100))}%` }}
+                >
+                  {index === 0 && <em>{t("woz.priceMarker")}</em>}
+                </span>
+              )}
             </span>
             <strong>{formatEuro(row.average)}</strong>
           </div>
