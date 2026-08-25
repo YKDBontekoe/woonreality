@@ -58,7 +58,7 @@ export function extractListingFacts(text: string, locale: Locale = "nl"): Extrac
   const bedrooms = text.match(BEDROOM_RE)?.[1] ? Number(text.match(BEDROOM_RE)?.[1]) : undefined;
   const vve = text.match(VVE_RE)?.[1] ? parseDutchNumber(text.match(VVE_RE)?.[1] ?? "") : undefined;
 
-  const askingPrice = prices.find((value) => value >= 50_000 && value <= 5_000_000);
+  const askingPrice = prices.find((value) => value >= 50_000 && value <= 10_000_000);
   const livingAreaM2 = labelledArea(text, "woonoppervlakte", 20, 600);
   const plotAreaM2 = labelledArea(text, "perceeloppervlakte", 40, 8_000);
   const constructionYear = years.find((value) => value >= 1600 && value <= new Date().getFullYear());

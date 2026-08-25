@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { EXTENSION_INGEST_LIMIT_PER_HOUR, hashExtensionToken } from "@/src/lib/extension-auth";
+import { pickAddressMatch } from "@/src/lib/listing-address-match";
 import { parseListingCaptureEnvelope } from "@/src/lib/listing-facts-schema";
-import { extractListingFacts } from "@/src/lib/listing-intake";
 import {
   addressQueryFromFacts,
-  factsFromUnknown,
+  listingCaptureQuality,
   listingFromImportedFacts,
-  mergeListingFacts,
+  mergeExistingUserListing,
 } from "@/src/lib/listing-import";
 import { searchAddresses } from "@/src/lib/sources/pdok/location";
 import { createSupabaseAdminClient, isSupabaseConfigured } from "@/src/lib/supabase/server";
@@ -86,10 +86,17 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: t("errors.addressLookupFailedShort") }, { status: 502, headers: PRIVATE });
   }
-  const address = results[0];
-  if (!address) {
+  const match = pickAddressMatch(query, results);
+  if (!match) {
     return NextResponse.json({ error: `We herkenden het adres niet (${query}).` }, { status: 404, headers: PRIVATE });
   }
+  const { address, confidence } = match;
+  if (confidence === "low" && addressQueryFromFacts(parsed.data.facts)?.match(/\d/)) {
+    return NextResponse.json({
+      error: `We konden dit adres niet betrouwbaar koppelen aan een BAG-woning (gevonden: ${address.displayName}). Controleer de advertentie of gebruik de link van Funda opnieuw.`,
+    }, { status: 404, headers: PRIVATE });
+  }
+  const addressMatchConfidence = confidence;
 
   const fetchedAt = parsed.data.capturedAt && !Number.isNaN(Date.parse(parsed.data.capturedAt))
     ? new Date(parsed.data.capturedAt).toISOString()
@@ -104,19 +111,20 @@ export async function POST(request: Request) {
   if (existingError) {
     return NextResponse.json({ error: t("errors.extensionListingSaveFailed") }, { status: 502, headers: PRIVATE });
   }
-  const existingFacts = mergeListingFacts(
-    factsFromUnknown(existing?.extracted_json),
-    extractListingFacts(existing?.pasted_text ?? ""),
-    { prefer: "existing" },
-  );
-  if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-  const facts = mergeListingFacts(existingFacts, parsed.data.facts);
+  const facts = mergeExistingUserListing(existing, parsed.data.facts);
+  const captureQuality = listingCaptureQuality(parsed.data.facts);
+  if (captureQuality === "sparse") {
+    console.warn("[listing-ingest] sparse capture", {
+      parserVersion: parsed.data.parserVersion,
+      sourceUrl: parsed.data.sourceUrl,
+    });
+  }
 
   const { error: upsertError } = await admin.from("user_listings").upsert({
     user_id: tokenRow.user_id,
     bag_vbo_id: address.bagVboId,
     source_url: parsed.data.sourceUrl,
-    asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
+    asking_price: facts.askingPrice ?? null,
     extracted_json: facts,
     updated_at: fetchedAt,
   }, { onConflict: "user_id,bag_vbo_id" });
@@ -124,12 +132,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: t("errors.extensionListingSaveFailed") }, { status: 502, headers: PRIVATE });
   }
 
-  await admin.from("listing_extension_ingest_log").insert({ user_id: tokenRow.user_id });
-  await admin.from("listing_extension_tokens").update({ last_used_at: fetchedAt }).eq("id", tokenRow.id);
+  await admin.from("listing_extension_ingest_log").insert({ user_id: tokenRow.user_id }).then(
+    ({ error }) => { if (error) console.error("[listing-ingest] log insert failed", error.message); },
+    (error: unknown) => console.error("[listing-ingest] log insert failed", error),
+  );
+  await admin.from("listing_extension_tokens").update({ last_used_at: fetchedAt }).eq("id", tokenRow.id).then(
+    ({ error }) => { if (error) console.error("[listing-ingest] token touch failed", error.message); },
+    (error: unknown) => console.error("[listing-ingest] token touch failed", error),
+  );
 
   return NextResponse.json({
     bagVboId: address.bagVboId,
     listing: listingFromImportedFacts(parsed.data.sourceUrl, facts, fetchedAt),
     persisted: true,
+    captureQuality,
+    addressMatchConfidence,
+    parserVersion: parsed.data.parserVersion,
   }, { headers: PRIVATE });
 }

@@ -39,7 +39,7 @@ async function ingest(payload: CaptureEnvelope, force: boolean) {
   } catch {
     return { ok: false, error: "Geen verbinding met WoonReality." };
   }
-  const body = await response.json().catch(() => ({})) as { error?: string; bagVboId?: string; listing?: { askingPrice?: number } };
+  const body = await response.json().catch(() => ({})) as { error?: string; bagVboId?: string; listing?: { askingPrice?: number }; captureQuality?: LastSave["captureQuality"] };
   if (response.status === 401) {
     await setStore({ token: "" });
     return { ok: false, error: body.error ?? "Koppeling verlopen. Koppel opnieuw via /extensie." };
@@ -52,6 +52,7 @@ async function ingest(payload: CaptureEnvelope, force: boolean) {
     url: payload.sourceUrl,
     at: new Date().toISOString(),
     askingPrice: body.listing?.askingPrice,
+    captureQuality: body.captureQuality,
   };
   await setStore({ lastSave });
   return { ok: true, bagVboId: body.bagVboId };

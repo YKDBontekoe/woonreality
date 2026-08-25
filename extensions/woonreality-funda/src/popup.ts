@@ -1,7 +1,9 @@
+import { CAPTURE_QUALITY_LABELS } from "./shared";
+
 type State = {
   paired?: boolean;
   autoSave?: boolean;
-  lastSave?: { bagVboId: string; url: string; at: string } | null;
+  lastSave?: { bagVboId: string; url: string; at: string; captureQuality?: "full" | "partial" | "sparse" } | null;
   apiBase?: string;
   version?: string;
 };
@@ -29,7 +31,10 @@ function render(state: State) {
   pairForm.hidden = true;
   saveEl.disabled = false;
   if (state.lastSave) {
-    statusEl.textContent = `Laatst opgeslagen: ${new Date(state.lastSave.at).toLocaleString("nl-NL")}`;
+    const quality = state.lastSave.captureQuality
+      ? ` — ${CAPTURE_QUALITY_LABELS[state.lastSave.captureQuality] ?? ""}`.replace(/ — $/, "")
+      : "";
+    statusEl.textContent = `Laatst opgeslagen: ${new Date(state.lastSave.at).toLocaleString("nl-NL")}${quality}`;
     openEl.style.display = "block";
     openEl.href = `${origin}/woning/${state.lastSave.bagVboId}`;
   } else {

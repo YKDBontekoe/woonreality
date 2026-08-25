@@ -248,5 +248,16 @@
   "journeyDoneTag": "Afgerond",
   "journeyNowTag": "Nu",
   "caseDisclaimer": "WoonReality helpt je voorbereiden. Een notaris, taxateur of bouwkundig inspecteur blijft nodig voor specialistische en formele controles.",
-  "emailFallback": "Je e-mailadres"
+  "emailFallback": "Je e-mailadres",
+  "watch": {
+    "aria": "Wijzigingen bij bewaarde woningen",
+    "kicker": "Bewaking",
+    "title": "Veranderd sinds je laatste bezoek",
+    "copy": "Openbare bronnen (WOZ, omgeving, risico's) zijn opnieuw vergeleken met je vorige bezoek. Alleen relevante verschuivingen tonen we hier.",
+    "since": "Vergeleken met {date}",
+    "openCheck": "Open woningcheck",
+    "dismissAria": "Meldingen voor deze woning verbergen",
+    "dismissAll": "Alles verbergen",
+    "note": "Bronnen worden gecheckt zodra je deze pagina opent."
+  }
 }

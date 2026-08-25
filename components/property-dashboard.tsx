@@ -27,6 +27,7 @@ import { AiResearchSection } from "@/components/ai-research-section";
 import { PropertyKpiStrip } from "@/components/property/kpi-strip";
 import { PropertyDealPanel } from "@/components/property/deal-panel";
 import { ListingKenmerkenGrid } from "@/components/property/kenmerken-grid";
+import { ListingDiscrepancyCard } from "@/components/property/listing-discrepancy-card";
 import { ListingInsightsPanel } from "@/components/property/listing-insights-panel";
 import { PropertyScoreCharts } from "@/components/property/score-charts";
 import { SignalExplorer } from "@/components/property/signal-explorer";
@@ -51,6 +52,7 @@ import {
 import { readListingDraft } from "@/src/lib/listing-draft";
 import { listingFromImportedFacts, listingFromUserRecord, type ImportedListingFacts } from "@/src/lib/listing-import";
 import { listingNeedsExtension, mergeListings } from "@/src/lib/listing-merge";
+import { listingDiscrepancies } from "@/src/lib/listing-compare";
 import { hasListingExtractText } from "@/src/lib/listing-text";
 import type {
   AiPropertyReport,
@@ -576,6 +578,9 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
 
       {tab === "advertentie" && (
         <div className="dash-tab-panel" role="tabpanel" tabIndex={0} id="panel-advertentie" aria-labelledby="tab-advertentie">
+          {marketListing && (
+            <ListingDiscrepancyCard items={listingDiscrepancies(marketListing, analysis)} />
+          )}
           {hasListingExtractText(marketListing) && (
             <ListingInsightsPanel insights={insights.report} status={insights.status} />
           )}

@@ -8,13 +8,15 @@ import { AddressSearch } from "@/components/address-search";
 import { ListingHistory } from "@/components/listing-history";
 import { PasskeySettings } from "@/components/passkey-settings";
 import { SignOutButton } from "@/components/sign-out-button";
+import { WatchAlerts } from "@/components/watch-alerts";
 import { usePropertyWorkspace } from "@/components/use-property-workspace";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Notice } from "@/components/ui/notice";
 import { PageShell } from "@/components/ui/page-shell";
 import { computePropertyAffordability, energyLabelFromAnalysis, fitLabel, fitSortRank } from "@/src/lib/affordability";
 import { calculatePersonalFit } from "@/src/lib/personalization";
-import { CASE_STAGE_LABELS, nextPurchaseAction, normalizeCaseStage } from "@/src/lib/journey";
+import { CASE_STAGES, CASE_STAGE_LABELS, nextPurchaseAction, normalizeCaseStage } from "@/src/lib/journey";
+import { journeyStageStatus } from "@/src/lib/journey-checklist";
 import { EMPTY_BUYER_PROFILE, HOUSEHOLD_LABELS, PROPERTY_STAGE_LABELS, PROPERTY_STAGE_ORDER, PROPERTY_TYPE_LABELS, formatEuro, profileCompletion, type BuyerProfile, type HouseholdType, type PropertyStage, type SoughtPropertyType } from "@/src/lib/purchase";
 import type { Analysis } from "@/src/lib/types";
 import { formatScore } from "@/src/lib/math";
@@ -28,10 +30,6 @@ const PIPELINE_GROUPS: { key: string; stages: PropertyStage[] }[] = [
   { key: "offer", stages: ["offer", "offered", "negotiation", "accepted"] },
   { key: "bought", stages: ["bought"] },
 ];
-
-function caseStageLabel(stage: string) {
-  return CASE_STAGE_LABELS[normalizeCaseStage(stage)];
-}
 
 export function PurchaseCockpit({
   initialCases = [],
@@ -224,6 +222,10 @@ export function PurchaseCockpit({
           />
         </section>
 
+        {authStatus === "authenticated" && (
+          <WatchAlerts analyses={analyses} authenticated={workspaceReady} />
+        )}
+
         <section className="cockpit-section" id="mijn-woningen"><div className="section-inline-heading"><div><div className="eyebrow"><Home size={13} /> {t("homesEyebrow")}</div><h2>{t("homeBoardTitle")}</h2><p>{t("homeBoardCopy")}</p></div><Link className="secondary-button" href="/#zoek-adres"><Search size={14} /> {t("searchAddress")}</Link></div>
           {!hasHomes ? (
             <EmptyState
@@ -253,7 +255,10 @@ export function PurchaseCockpit({
           )}
         </section>
 
-        {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> {t("dossierEyebrow")}</div><h2>{t("activeDossiersTitle")}</h2><p>{t("activeDossiersCopy")}</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{caseStageLabel(purchaseCase.stage)}</span><strong>{purchaseCase.title}</strong><span>{t("openDossier")} <ArrowRight size={13} /></span></Link>)}</div></section>}
+        {initialCases.length > 0 && <section className="cockpit-section"><div className="section-inline-heading"><div><div className="eyebrow"><FileText size={13} /> {t("dossierEyebrow")}</div><h2>{t("activeDossiersTitle")}</h2><p>{t("activeDossiersCopy")}</p></div></div><div className="case-mini-grid">{initialCases.map((purchaseCase) => {
+          const caseStage = normalizeCaseStage(purchaseCase.stage);
+          return <Link className="case-mini-card" href={`/mijn-aankoop/${purchaseCase.id}`} key={purchaseCase.id}><span className="case-card-step">{CASE_STAGE_LABELS[caseStage]}</span><strong>{purchaseCase.title}</strong><span className="case-card-stages" aria-hidden="true">{CASE_STAGES.map((stage) => <i key={stage} className={`case-stage-dot is-${journeyStageStatus(stage, caseStage)}`} title={CASE_STAGE_LABELS[stage]} />)}</span><span>{t("openDossier")} <ArrowRight size={13} /></span></Link>;
+        })}</div></section>}
 
         <section className="cockpit-section modules-section"><div className="section-inline-heading"><div><div className="eyebrow"><Sparkles size={13} /> {t("modulesEyebrow")}</div><h2>{t("modulesTitle")}</h2></div></div><div className="module-grid"><Module icon={<Search size={17} />} number="01" title={t("moduleCheckTitle")} text={t("moduleCheckText")} href={activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} /><Module icon={<FileText size={17} />} number="02" title={t("moduleDocumentsTitle")} text={activeCase ? t("moduleDocumentsTextActive") : activeHomes[0] ? t("moduleDocumentsTextCase") : t("moduleDocumentsTextEmpty")} href={activeCase ? `/mijn-aankoop/${activeCase.id}#documenten` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}` : "/#zoek-adres"} linkLabel={activeCase ? t("openDossier") : activeHomes[0] ? t("openPropertyCheck") : t("findAddressModule")} /><Module icon={<WalletCards size={17} />} number="03" title={t("moduleValueTitle")} text={t("moduleValueText")} href={activeCase ? `/mijn-aankoop/${activeCase.id}#waarde-bod` : activeHomes[0] ? `/woning/${activeHomes[0].bagVboId}#bodconcept` : "/#zoek-adres"} /><Module icon={<Landmark size={17} />} number="04" title={t("moduleMortgageTitle")} text={t("moduleMortgageText")} href="/hypotheek" /><Module icon={<Puzzle size={17} />} number="05" title={t("moduleExtensionTitle")} text={t("moduleExtensionText")} href="/extensie" /></div></section>
       </>

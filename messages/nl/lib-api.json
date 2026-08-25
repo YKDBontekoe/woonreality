@@ -92,6 +92,8 @@
     "viewingStorageUnavailable": "Je bezichtiging kan nog niet worden afgerond, omdat de aankoopomgeving niet met Supabase is gekoppeld.",
     "viewingFinishFailed": "Je bezichtiging kon niet worden afgerond. Probeer het straks opnieuw.",
     "tasksRefreshFailed": "Taken konden niet worden vernieuwd.",
-    "pasteFundaLink": "Plak een geldige Funda-advertentielink."
+    "pasteFundaLink": "Plak een geldige Funda-advertentielink.",
+    "watchCheckFailed": "Wijzigingen konden niet worden gecontroleerd.",
+    "loginToWatch": "Log in om wijzigingen bij je bewaarde woningen te zien."
   }
 }

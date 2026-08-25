@@ -4,7 +4,8 @@
     "titleWithAddress": "{label} — woningcheck",
     "description": "Reality check voor {label}: open-data signalen, omgeving, risico's en bodhulp — met bronvermelding per gegeven.",
     "viewingTitle": "Bezichtigingsmodus — {label}",
-    "bidMemoTitle": "Bodmemo — {label}"
+    "bidMemoTitle": "Bodmemo — {label}",
+    "reportTitle": "Woningcheck rapport — {label}"
   },
   "loading": {
     "aria": "Woningcheck wordt geladen",
@@ -283,7 +284,8 @@
     "nextSteps": "Volgende stappen",
     "viewingLink": "Bezichtiging",
     "mortgageLink": "Hypotheek",
-    "caseFile": "Dossier"
+    "caseFile": "Dossier",
+    "reportLink": "Rapport (PDF)"
   },
   "aiBrief": {
     "kicker": "AI-koopbrief",
@@ -394,7 +396,8 @@
     "catTax": "Heffingen"
   },
   "charts": {
-    "topicScoreKicker": "Score per onderwerp",    "whereScoreFrom": "Waar de score vandaan komt",
+    "topicScoreKicker": "Score per onderwerp",
+    "whereScoreFrom": "Waar de score vandaan komt",
     "unscoredAttentionNote": "hier valt een open aandachtspunt dat (nog) geen cijfer heeft — het gemiddelde zegt dus te weinig.",
     "radarAria": "Scoreverdeling over zes onderwerpen",
     "domainAria": "{label}: {score} van 10 — bekijk de signalen",
@@ -497,5 +500,40 @@
     "withoutInspection": "Zonder keuringsvoorbehoud",
     "refreshMemo": "Bodmemo verversen",
     "filenamePrefix": "Bestandsnaam bij opslaan als PDF:"
+  },
+  "compare": {
+    "aria": "Advertentie versus openbare data",
+    "kicker": "Feitencheck",
+    "title": "Advertentie vs. openbare data",
+    "copy": "Wat de verkoper zegt, naast wat BAG en WOZ rapporteren. Ontbrekende gegevens worden niet vergeleken.",
+    "foundCount": "afwijkend",
+    "advert": "Advertentie",
+    "official": "Openbare data",
+    "mismatchLabel": "Afwijking",
+    "attentionLabel": "Let op",
+    "items": {
+      "postcode": "Postcode",
+      "livingArea": "Woonoppervlak",
+      "constructionYear": "Bouwjaar",
+      "pricePerM2": "Prijs per m² (intern)",
+      "askingVsWoz": "Vraagprijs vs. buurt-WOZ"
+    },
+    "disclaimer": "Een afwijking is niet automatisch een fout: verkopers rekenen soms met andere definities. Check het zelf bij de bezichtiging."
+  },
+  "report": {
+    "aria": "Deelbaar woningrapport",
+    "kicker": "Woningcheck rapport",
+    "loadFailed": "Rapport kon niet worden geladen.",
+    "scoreLabel": "Reality Score",
+    "versionLabel": "analyse {analysis} · scoremodel {scoring}",
+    "highlightsTitle": "Belangrijkste punten",
+    "unavailableLabel": "Niet beschikbaar",
+    "coverageLabel": "Dekking: {available} van {total} signalen",
+    "gapsTitle": "Bekende leemtes in openbare data",
+    "evidenceTitle": "Bronnen",
+    "evidenceSource": "Bron",
+    "evidenceFetched": "Opgehaald",
+    "evidenceConfidence": "Zekerheid",
+    "disclaimer": "Dit rapport is een screening op basis van openbare data en geen bouwkundig onderzoek, taxatie of juridisch advies. Bronnen zijn gedeeltelijk verouderd of onvolledig; bekende leemtes zijn hierboven benoemd."
   }
 }

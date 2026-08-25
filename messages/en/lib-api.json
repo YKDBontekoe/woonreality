@@ -92,6 +92,8 @@
     "viewingStorageUnavailable": "Your viewing cannot be finished yet because the purchase workspace is not connected to Supabase.",
     "viewingFinishFailed": "Your viewing could not be finished. Please try again later.",
     "tasksRefreshFailed": "Tasks could not be refreshed.",
-    "pasteFundaLink": "Paste a valid Funda listing link."
+    "pasteFundaLink": "Paste a valid Funda listing link.",
+    "watchCheckFailed": "Could not check for changes.",
+    "loginToWatch": "Sign in to see changes for your saved homes."
   }
 }

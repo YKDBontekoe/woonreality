@@ -8,19 +8,24 @@ import {
   factsFromUnknown,
   FUNDA_USER_PROVIDER,
   fundaListingId,
+  hasValue,
   isFundaChallengeHtml,
   isFundaHost,
   isFundaListingUrl,
+  listingCaptureQuality,
+  listingCaptureIsStale,
   listingFactsAreSparse,
   listingFromImportedFacts,
   listingFromUserRecord,
   ListingImportError,
+  LISTING_STALE_AFTER_DAYS,
   mergeListingFacts,
   normalizeFundaListingUrl,
   parseFundaListingAddress,
   uniqueNotes,
   USER_PROVIDER,
   type ImportedListingFacts,
+  type ListingCaptureQuality,
   type ListingTextSection,
 } from "@/src/lib/listing-extract";
 
@@ -29,19 +34,23 @@ export {
   factsFromUnknown,
   FUNDA_USER_PROVIDER,
   fundaListingId,
+  hasValue,
   isFundaChallengeHtml,
   isFundaHost,
   isFundaListingUrl,
+  listingCaptureIsStale,
+  listingCaptureQuality,
   listingFactsAreSparse,
   listingFromImportedFacts,
   listingFromUserRecord,
   ListingImportError,
+  LISTING_STALE_AFTER_DAYS,
   mergeListingFacts,
   normalizeFundaListingUrl,
   parseFundaListingAddress,
   USER_PROVIDER,
 };
-export type { ImportedListingFacts, ListingTextSection };
+export type { ImportedListingFacts, ListingCaptureQuality, ListingTextSection };
 
 export function inspectFundaListing(sourceUrl: string): { facts: ImportedListingFacts; blocked: boolean; sourceUrl: string } {
   const normalized = normalizeFundaListingUrl(sourceUrl);
@@ -63,6 +72,31 @@ export function importFundaListing(sourceUrl: string): { facts: ImportedListingF
   return inspectFundaListing(sourceUrl);
 }
 
+export type ExistingUserListingRow = {
+  asking_price?: number | null;
+  extracted_json?: unknown;
+  pasted_text?: string | null;
+};
+
+/**
+ * A fresh extension capture wins over stored facts (it is newer); the stored
+ * asking_price only fills a gap so an old manually typed price never overrides
+ * what the advertentie shows today.
+ */
+export function mergeExistingUserListing(
+  existing: ExistingUserListingRow | null | undefined,
+  incoming: ImportedListingFacts,
+): ImportedListingFacts {
+  const existingFacts = mergeListingFacts(
+    factsFromUnknown(existing?.extracted_json),
+    extractListingFacts(existing?.pasted_text ?? ""),
+    { prefer: "existing" },
+  );
+  const merged = mergeListingFacts(existingFacts, incoming);
+  if (!hasValue(merged.askingPrice) && existing?.asking_price != null) merged.askingPrice = existing.asking_price;
+  return merged;
+}
+
 export async function persistImportedListingFacts(
   supabase: SupabaseClient<Database>,
   userId: string,
@@ -76,18 +110,12 @@ export async function persistImportedListingFacts(
     .eq("user_id", userId)
     .eq("bag_vbo_id", bagVboId)
     .maybeSingle();
-  const existingFacts = mergeListingFacts(
-    factsFromUnknown(existing?.extracted_json),
-    extractListingFacts(existing?.pasted_text ?? ""),
-    { prefer: "existing" },
-  );
-  if (existing?.asking_price != null) existingFacts.askingPrice = existing.asking_price;
-  const facts = mergeListingFacts(existingFacts, imported.facts);
+  const facts = mergeExistingUserListing(existing, imported.facts);
   const { error } = await supabase.from("user_listings").upsert({
     user_id: userId,
     bag_vbo_id: bagVboId,
     source_url: imported.sourceUrl,
-    asking_price: facts.askingPrice ?? existing?.asking_price ?? null,
+    asking_price: facts.askingPrice ?? null,
     extracted_json: facts,
     updated_at: fetchedAt,
   }, { onConflict: "user_id,bag_vbo_id" });

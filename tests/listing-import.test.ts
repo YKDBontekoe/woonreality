@@ -11,10 +11,18 @@ import {
   isFundaChallengeHtml,
   isFundaListingUrl,
   listingFromImportedFacts,
+  listingFromUserRecord,
+  mergeExistingUserListing,
   mergeListingFacts,
   parseFundaListingAddress,
 } from "@/src/lib/listing-import";
-import { PARSER_VERSION } from "@/src/lib/listing-extract";
+import {
+  applyKenmerk,
+  listingCaptureIsStale,
+  listingCaptureQuality,
+  PARSER_VERSION,
+  type ImportedListingFacts,
+} from "@/src/lib/listing-extract";
 import { parseHTML } from "linkedom";
 
 const BAG_ID = "0200100000000001";
@@ -202,6 +210,107 @@ test("extension refresh overwrites a sparse URL-only draft", () => {
   assert.equal(refreshed.askingPrice, 525000);
   assert.equal(refreshed.livingAreaM2, 128);
   assert.equal(refreshed.description, "Lichte hoekwoning");
+});
+
+test("parseFundaListingAddress reads multi-segment house additions from the slug", () => {
+  const parsed = parseFundaListingAddress("https://www.funda.nl/detail/koop/epe/huis-12345678-korenstraat-18-a-2/12345678/");
+  assert.equal(parsed?.street, "Korenstraat");
+  assert.equal(parsed?.houseNumber, 18);
+  assert.equal(parsed?.houseLetter, "A2");
+  assert.equal(parsed?.query, "Korenstraat 18A2, Epe");
+});
+
+test("applyKenmerk accepts prices above €5M and extra energy/heating labels", () => {
+  const expensive: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Vraagprijs", "€ 7.250.000 k.k.", expensive);
+  assert.equal(expensive.askingPrice, 7_250_000);
+
+  const label: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Energieklasse", "A++", label);
+  assert.equal(label.energyLabel, "A++");
+
+  const heating: ImportedListingFacts = { notes: [] };
+  applyKenmerk("CV-Ketel", "Remeha iPrime (2023, eigendom)", heating);
+  assert.match(heating.heating ?? "", /Remeha/);
+
+  const bijzonder: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Bijzondere bijdrage VvE", "€ 5.000 eenmalig", bijzonder);
+  assert.ok(bijzonder.notes.some((note) => /Bijzondere VvE-bijdrage/i.test(note)));
+});
+
+test("applyKenmerk parses status variants including verkocht onder voorbehoud", () => {
+  const voorbehoud: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Status", "Verkocht onder voorbehoud", voorbehoud);
+  assert.equal(voorbehoud.status, "sold");
+  assert.ok(voorbehoud.notes.some((note) => /onder voorbehoud/i.test(note)));
+
+  const verhuurd: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Aanbodstatus", "Verhuurd", verhuurd);
+  assert.equal(verhuurd.status, "withdrawn");
+
+  const actief: ImportedListingFacts = { notes: [] };
+  applyKenmerk("Status", "Te huur", actief);
+  assert.equal(actief.status, "active");
+});
+
+test("listingCaptureQuality grades captures by core signals", () => {
+  assert.equal(listingCaptureQuality({ notes: [] }), "sparse");
+  assert.equal(listingCaptureQuality({ notes: [], askingPrice: 525_000 }), "partial");
+  assert.equal(
+    listingCaptureQuality({ notes: [], askingPrice: 525_000, livingAreaM2: 128, bedroomCount: 4 }),
+    "full",
+  );
+});
+
+test("listingCaptureIsStale flags captures older than 30 days", () => {
+  const now = new Date("2026-08-25T12:00:00.000Z");
+  assert.equal(listingCaptureIsStale("2026-08-01T12:00:00.000Z", now), false);
+  assert.equal(listingCaptureIsStale("2026-07-01T12:00:00.000Z", now), true);
+  assert.equal(listingCaptureIsStale(undefined, now), true);
+});
+
+test("mergeExistingUserListing lets a fresh capture overwrite a stale stored price", () => {
+  const merged = mergeExistingUserListing(
+    { asking_price: 510_000, extracted_json: { notes: [], askingPrice: 510_000 }, pasted_text: null },
+    { notes: [], askingPrice: 525_000 },
+  );
+  assert.equal(merged.askingPrice, 525_000);
+});
+
+test("mergeExistingUserListing fills a missing price from the stored row", () => {
+  const merged = mergeExistingUserListing(
+    { asking_price: 510_000, extracted_json: null, pasted_text: null },
+    { notes: [], livingAreaM2: 128 },
+  );
+  assert.equal(merged.askingPrice, 510_000);
+  assert.equal(merged.livingAreaM2, 128);
+});
+
+test("listingFromUserRecord discloses stale kenmerken with an honesty note", () => {
+  const stale = listingFromUserRecord({
+    source_url: LISTING_URL,
+    asking_price: 525_000,
+    extracted_json: { notes: [], askingPrice: 525_000 },
+    updated_at: "2026-06-01T10:00:00.000Z",
+  });
+  assert.ok(stale?.notes?.some((note) => /30 dagen|actueel/i.test(note)));
+
+  const fresh = listingFromUserRecord({
+    source_url: LISTING_URL,
+    asking_price: 525_000,
+    extracted_json: { notes: [], askingPrice: 525_000, status: "active" },
+    updated_at: new Date().toISOString(),
+  });
+  assert.ok(!fresh?.notes?.some((note) => /30 dagen|actueel/i.test(note)));
+
+  const sold = listingFromUserRecord({
+    source_url: LISTING_URL,
+    asking_price: 525_000,
+    extracted_json: { notes: [], status: "sold" },
+    updated_at: "2025-01-01T10:00:00.000Z",
+  });
+  assert.ok(!sold?.notes?.some((note) => /30 dagen|actueel/i.test(note)));
+  assert.equal(sold?.status, "sold");
 });
 
 test("challenge HTML is detected and inspectFundaListing still returns the URL address without fetching", () => {

@@ -1,0 +1,13 @@
+.woning-rapport .rapport-verdict { display: flex; align-items: baseline; gap: 12px; margin: 0 0 18px; padding: 14px 18px; border: 1.5px solid #111; border-radius: 3px; background: var(--surface-soft); }
+.woning-rapport .rapport-verdict span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #374151; }
+.woning-rapport .rapport-verdict strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.woning-rapport .rapport-verdict small { margin-left: auto; color: #6b7280; }
+.woning-rapport .rapport-domain-summary { margin: 4px 0 8px; color: #374151; }
+.woning-rapport .rapport-signal-list { list-style: none; margin: 0; padding: 0; }
+.woning-rapport .rapport-signal-list li { margin: 6px 0; padding-left: 12px; border-left: 2px solid var(--line); }
+.woning-rapport .rapport-signal-list strong { display: block; font-weight: 600; }
+.woning-rapport .rapport-signal-list em { font-style: normal; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--attention-deep); }
+.woning-rapport .rapport-coverage { margin-top: 20px; color: #374151; }
+.woning-rapport table.rapport-evidence { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.woning-rapport table.rapport-evidence th { text-align: left; border-bottom: 1px solid #111; padding: 4px 8px 4px 0; }
+.woning-rapport table.rapport-evidence td { border-bottom: 1px solid var(--line); padding: 4px 8px 4px 0; vertical-align: top; }

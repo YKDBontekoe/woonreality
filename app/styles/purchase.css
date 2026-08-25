@@ -331,3 +331,20 @@
   .comparison-cards { grid-template-columns: 1fr; }
   .footer { flex-direction: column; gap: 10px; }
 }
+
+.watch-section { margin-top: 8px; }
+.watch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.watch-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.watch-card-heading { display: flex; align-items: flex-start; gap: 9px; }
+.watch-card-heading h3 { font: 600 15px "DM Sans", sans-serif; }
+.watch-card-heading small { color: var(--moss); font-size: 11px; }
+.watch-card-heading .icon-button { margin-left: auto; }
+.watch-changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.watch-changes li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.watch-changes strong { font-weight: 600; }
+.watch-delta { font-variant-numeric: tabular-nums; color: var(--moss); white-space: nowrap; }
+.watch-note { display: flex; align-items: center; gap: 8px; color: var(--moss); font-size: 12px; }
+.case-card-stages { display: inline-flex; align-items: center; gap: 4px; }
+.case-stage-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--line); background: transparent; }
+.case-stage-dot.is-done { background: var(--ok-border, var(--accent-deep)); border-color: transparent; }
+.case-stage-dot.is-current { background: var(--accent-deep); border-color: transparent; outline: 2px solid color-mix(in srgb, var(--accent-deep) 25%, transparent); outline-offset: 1px; }

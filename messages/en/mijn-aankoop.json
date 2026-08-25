@@ -248,5 +248,16 @@
   "journeyDoneTag": "Completed",
   "journeyNowTag": "Now",
   "caseDisclaimer": "WoonReality helps you prepare. A civil-law notary, valuer or structural inspector remains necessary for specialist and formal checks.",
-  "emailFallback": "Your email address"
+  "emailFallback": "Your email address",
+  "watch": {
+    "aria": "Changes to saved homes",
+    "kicker": "Monitoring",
+    "title": "Changed since your last visit",
+    "copy": "Public sources (WOZ, surroundings, risks) were rechecked against your previous visit. Only material shifts are shown here.",
+    "since": "Compared with {date}",
+    "openCheck": "Open property check",
+    "dismissAria": "Hide alerts for this home",
+    "dismissAll": "Dismiss all",
+    "note": "Sources are rechecked whenever you open this page."
+  }
 }

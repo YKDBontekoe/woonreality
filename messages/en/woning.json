@@ -4,7 +4,8 @@
     "titleWithAddress": "{label} — home check",
     "description": "Reality check for {label}: open-data signals, surroundings, risks and offer guidance — with a source cited for every data point.",
     "viewingTitle": "Viewing mode — {label}",
-    "bidMemoTitle": "Offer memo — {label}"
+    "bidMemoTitle": "Offer memo — {label}",
+    "reportTitle": "Property check report — {label}"
   },
   "loading": {
     "aria": "Home check is loading",
@@ -283,7 +284,8 @@
     "nextSteps": "Next steps",
     "viewingLink": "Viewing",
     "mortgageLink": "Mortgage",
-    "caseFile": "File"
+    "caseFile": "File",
+    "reportLink": "Report (PDF)"
   },
   "aiBrief": {
     "kicker": "AI purchase brief",
@@ -498,5 +500,40 @@
     "withoutInspection": "Without inspection condition",
     "refreshMemo": "Refresh offer memo",
     "filenamePrefix": "File name when saving as PDF:"
+  },
+  "compare": {
+    "aria": "Listing versus public data",
+    "kicker": "Fact check",
+    "title": "Listing vs. public data",
+    "copy": "What the seller claims, next to what BAG and WOZ report. Missing values are not compared.",
+    "foundCount": "flagged",
+    "advert": "Listing",
+    "official": "Public data",
+    "mismatchLabel": "Mismatch",
+    "attentionLabel": "Attention",
+    "items": {
+      "postcode": "Postcode",
+      "livingArea": "Living area",
+      "constructionYear": "Build year",
+      "pricePerM2": "Price per m² (internal)",
+      "askingVsWoz": "Asking price vs. neighbourhood WOZ"
+    },
+    "disclaimer": "A mismatch is not automatically an error: sellers sometimes use different definitions. Verify during the viewing."
+  },
+  "report": {
+    "aria": "Shareable property report",
+    "kicker": "Property check report",
+    "loadFailed": "Report could not be loaded.",
+    "scoreLabel": "Reality Score",
+    "versionLabel": "analysis {analysis} · scoring model {scoring}",
+    "highlightsTitle": "Key points",
+    "unavailableLabel": "Unavailable",
+    "coverageLabel": "Coverage: {available} of {total} signals",
+    "gapsTitle": "Known gaps in public data",
+    "evidenceTitle": "Sources",
+    "evidenceSource": "Source",
+    "evidenceFetched": "Fetched",
+    "evidenceConfidence": "Confidence",
+    "disclaimer": "This report is a screening based on public data, not a building survey, appraisal, or legal advice. Sources may be outdated or incomplete; known gaps are listed above."
   }
 }

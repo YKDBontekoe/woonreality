@@ -687,3 +687,15 @@ button.coverage-strip.is-clickable:hover { border-color: var(--accent); }
   .kaart-inspect { top: auto; right: 16px; left: 16px; bottom: 16px; width: auto; max-height: 44vh; }
   .kaart-legend { right: 16px; left: 16px; width: auto; bottom: auto; top: 132px; }
 }
+
+.listing-discrepancy-card .discrepancy-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.discrepancy-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.discrepancy-list li svg { margin-top: 2px; flex-shrink: 0; color: var(--ok-border); }
+.discrepancy-list li strong { display: block; font: 600 13px "DM Sans", sans-serif; }
+.discrepancy-list li span { font-size: 12px; color: var(--moss); }
+.discrepancy-list li em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 600; white-space: nowrap; align-self: center; }
+.discrepancy-list li.is-mismatch { border-color: var(--attention-border); background: var(--attention-soft); }
+.discrepancy-list li.is-mismatch svg { color: var(--attention-deep); }
+.discrepancy-list li.is-mismatch em { color: var(--attention-deep); }
+.discrepancy-list li.is-attention svg { color: var(--attention-deep); }
+.discrepancy-list li.is-attention em { color: var(--attention-deep); }

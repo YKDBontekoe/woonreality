@@ -1,7 +1,11 @@
 import type { AiPropertyReport, AiReportStatus, Analysis } from "@/src/lib/types";
+import type { WatchDigest } from "@/src/lib/watch";
 import type { AiReportRow } from "@/src/lib/supabase/database.types";
 import { createSupabaseAdminClient } from "@/src/lib/supabase/server";
 import { logWarn } from "@/src/lib/logger";
+
+const WATCH_SNAPSHOT_SOURCE = "watch-digest";
+const WATCH_SNAPSHOT_TTL_SECONDS = 365 * 24 * 60 * 60;
 
 function asJson(value: unknown) {
   return value as never;
@@ -104,6 +108,18 @@ export async function putSourceCache(source: string, cacheKey: string, payload: 
   } catch (error) {
     logWarn("source_cache write failed", error);
   }
+}
+
+/**
+ * Last seen analysis digest for a property, used by change monitoring. Stored
+ * in the shared source_cache: the snapshot describes the property, not a user.
+ */
+export async function getWatchSnapshot(bagVboId: string, scoringVersion: string): Promise<WatchDigest | null> {
+  return getSourceCache<WatchDigest>(WATCH_SNAPSHOT_SOURCE, bagVboId, scoringVersion);
+}
+
+export async function putWatchSnapshot(bagVboId: string, digest: WatchDigest, scoringVersion: string): Promise<void> {
+  return putSourceCache(WATCH_SNAPSHOT_SOURCE, bagVboId, digest, scoringVersion, WATCH_SNAPSHOT_TTL_SECONDS);
 }
 
 async function propertyId(db: NonNullable<ReturnType<typeof createSupabaseAdminClient>>, bagVboId: string) {

@@ -6,9 +6,11 @@ import {
 } from "@/src/lib/listing-intake";
 import type { PropertyListing } from "@/src/lib/types";
 
-export const PARSER_VERSION = 1;
+export const PARSER_VERSION = 2;
 export const FUNDA_USER_PROVIDER = "Funda (door jou toegevoegd)";
 export const USER_PROVIDER = "Door jou toegevoegd";
+const MIN_ASKING_PRICE = 50_000;
+const MAX_ASKING_PRICE = 10_000_000;
 export const EXTENSION_REQUIRED_NOTE =
   "Kenmerken komen uit de WoonReality-browser-extensie. Open deze advertentie op Funda met de extensie geïnstalleerd.";
 
@@ -113,14 +115,16 @@ function titleCaseSlug(slug: string) {
 }
 
 function parseStreetFromSlug(streetSlug: string) {
-  const streetMatch = streetSlug.match(/^(.+)-(\d+)(?:-([a-z0-9]))?$/i);
+  const streetMatch = streetSlug.match(/^(.+?)-(\d{1,5})((?:-[a-z0-9]{1,4})*)$/i);
   if (!streetMatch) return null;
   const houseNumber = Number(streetMatch[2]);
   if (!Number.isFinite(houseNumber)) return null;
+  const additions = streetMatch[3] ? streetMatch[3].split("-").filter(Boolean).map((part) => part.toUpperCase()) : [];
+  const houseLetter = additions.length ? additions.join("").slice(0, 4) : undefined;
   return {
     street: titleCaseSlug(streetMatch[1]),
     houseNumber,
-    houseLetter: streetMatch[3] ? streetMatch[3].toUpperCase() : undefined,
+    houseLetter,
   };
 }
 
@@ -195,6 +199,30 @@ export function hasValue(value: unknown) {
 export function listingFactsAreSparse(facts: ImportedListingFacts) {
   return !hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount)
     && !hasValue(facts.roomCount) && !hasValue(facts.description);
+}
+
+export type ListingCaptureQuality = "full" | "partial" | "sparse";
+
+export function listingCaptureQuality(facts: ImportedListingFacts): ListingCaptureQuality {
+  const signals = [
+    hasValue(facts.askingPrice),
+    hasValue(facts.livingAreaM2),
+    hasValue(facts.bedroomCount) || hasValue(facts.roomCount),
+    hasValue(facts.description),
+  ];
+  const count = signals.filter(Boolean).length;
+  if (count >= 3) return "full";
+  if (count >= 1) return "partial";
+  return "sparse";
+}
+
+export const LISTING_STALE_AFTER_DAYS = 30;
+
+export function listingCaptureIsStale(capturedAt: string | undefined | null, now = new Date()): boolean {
+  if (!capturedAt) return true;
+  const parsed = Date.parse(capturedAt);
+  if (Number.isNaN(parsed)) return true;
+  return now.getTime() - parsed > LISTING_STALE_AFTER_DAYS * 24 * 60 * 60 * 1000;
 }
 
 export type MergeListingFactsOptions = {
@@ -314,7 +342,7 @@ function jsonLdString(value: unknown): string | undefined {
 }
 
 function parseEnergyLabel(value: string) {
-  const match = value.toUpperCase().match(/\b([A-G](?:\+{1,4}|-)?)\b/);
+  const match = value.toUpperCase().match(/\b([A-G](?:\+{1,4})?)(?![A-Za-z])/);
   return match?.[1];
 }
 
@@ -341,9 +369,10 @@ function parseBoolean(value: string) {
 
 function parseStatus(value: string): PropertyListing["status"] | undefined {
   const normalized = value.toLowerCase();
+  if (normalized.includes("onder voorbehoud")) return "sold";
   if (normalized.includes("verkocht")) return "sold";
-  if (normalized.includes("ingetrokken")) return "withdrawn";
-  if (normalized.includes("te koop") || normalized.includes("beschikbaar") || normalized.includes("te huur")) return "active";
+  if (normalized.includes("ingetrokken") || normalized.includes("verhuurd")) return "withdrawn";
+  if (/te koop|beschikbaar|te huur|onder bod/.test(normalized)) return "active";
   return undefined;
 }
 
@@ -369,14 +398,14 @@ export function applyKenmerk(label: string, value: string, facts: ImportedListin
     if (rooms) facts.roomCount ??= Number(rooms[1]);
     if (beds) facts.bedroomCount ??= Number(beds[1]);
     if (!rooms) facts.roomCount ??= parseCount(text, 30);
-  } else if (/energielabel/.test(key)) facts.energyLabel ??= parseEnergyLabel(text);
+  } else if (/energielabel|energieklasse/.test(key)) facts.energyLabel ??= parseEnergyLabel(text);
   else if (/bouwjaar/.test(key)) {
     const yearMatch = text.match(/\b(1[6-9]\d{2}|20[0-2]\d)\b/);
     const year = yearMatch ? Number(yearMatch[1]) : undefined;
     if (year && year >= 1600) facts.constructionYear ??= year;
   } else if (/soort woonhuis|soort appartement|woningtype|type woning|soort bouw/.test(key)) facts.propertyType ??= text;
   else if (/^isolatie$/.test(key)) facts.insulation ??= text;
-  else if (/verwarming/.test(key)) facts.heating ??= text;
+  else if (/verwarming|cv-ketel|warmwater|warm water/.test(key)) facts.heating ??= text;
   else if (/beglazing|isolatieglas/.test(key)) facts.glazing ??= text;
   else if (/zonnepanelen/.test(key)) {
     const count = parseCount(text, 200);
@@ -388,12 +417,21 @@ export function applyKenmerk(label: string, value: string, facts: ImportedListin
   else if (/parkeer/.test(key)) facts.parking ??= text;
   else if (/berging|schuur/.test(key)) facts.storage ??= text;
   else if (/reservefonds/.test(key)) facts.vveReserveFund ??= parseDutchNumber(text.replace(/[^\d,.]/g, ""));
+  else if (/bijzondere bijdrage/.test(key)) {
+    if (/\d/.test(text)) facts.notes = uniqueNotes([...(facts.notes ?? []), `Bijzondere VvE-bijdrage genoemd: ${text.slice(0, 200)}`]);
+  }
   else if (/bijdrage vve|^vve$|vve-bijdrage/.test(key) && /€|\d/.test(text)) facts.vveContribution ??= parseDutchNumber(text.replace(/[^\d,.]/g, ""));
   else if (/vraagprijs per m|koopprijs per m/.test(key)) { /* stored in extraKenmerken */ }
   else if (/vraagprijs|koopprijs|huurprijs/.test(key)) {
-    const price = parseDutchNumber(text.replace(/[^\d,.]/g, ""));
-    if (price != null && price >= 50_000 && price <= 5_000_000) facts.askingPrice ??= price;
-  } else if (/^status$|aanbodstatus/.test(key)) facts.status ??= parseStatus(text);
+    const price = parseDutchNumber(text.replace(/[^\d,.]/g, "").replace(/[.,]+$/, ""));
+    if (price != null && price >= MIN_ASKING_PRICE && price <= MAX_ASKING_PRICE) facts.askingPrice ??= price;
+  } else if (/^status$|aanbodstatus/.test(key)) {
+    const status = parseStatus(text);
+    if (status) facts.status ??= status;
+    if (status === "sold" && /onder voorbehoud/i.test(text)) {
+      facts.notes = uniqueNotes([...(facts.notes ?? []), "Advertentiestatus: verkocht onder voorbehoud — de koop kan nog doorgaan of afgeblazen worden."]);
+    }
+  }
   else if (/eigendomssituatie|erfpacht/.test(key)) {
     facts.ownership ??= text;
     if (/erfpacht/i.test(text)) facts.notes = uniqueNotes([...(facts.notes ?? []), "De advertentie noemt erfpacht — controleer canon en afkoop."]);
@@ -403,7 +441,7 @@ export function applyKenmerk(label: string, value: string, facts: ImportedListin
 export function applyJsonLd(node: Record<string, unknown>, facts: ImportedListingFacts) {
   const offers = asRecord(node.offers) ?? (Array.isArray(node.offers) ? asRecord(node.offers[0]) : null);
   const offerPrice = jsonLdNumber(offers?.price ?? node.price);
-  if (offerPrice != null && offerPrice >= 50_000 && offerPrice <= 5_000_000) facts.askingPrice ??= offerPrice;
+  if (offerPrice != null && offerPrice >= MIN_ASKING_PRICE && offerPrice <= MAX_ASKING_PRICE) facts.askingPrice ??= offerPrice;
   const livingArea = jsonLdNumber(asRecord(node.floorSize)?.value ?? node.floorSize);
   if (livingArea != null && livingArea >= 20 && livingArea <= 600) facts.livingAreaM2 ??= livingArea;
   facts.roomCount ??= jsonLdNumber(node.numberOfRooms);
@@ -572,6 +610,13 @@ export function listingFromUserRecord(row: {
   const sourceUrl = row.source_url?.trim() || "";
   if (!sourceUrl && !hasValue(facts.askingPrice) && !hasValue(facts.livingAreaM2) && !hasValue(facts.bedroomCount)) {
     return null;
+  }
+  const status = facts.status ?? "unknown";
+  if (status !== "sold" && status !== "withdrawn" && listingCaptureIsStale(row.updated_at)) {
+    facts.notes = uniqueNotes([
+      ...(facts.notes ?? []),
+      "Deze kenmerken zijn langer dan 30 dagen niet vernieuwd. Controleer op Funda of de advertentie nog actueel is.",
+    ]);
   }
   return listingFromImportedFacts(
     sourceUrl,
