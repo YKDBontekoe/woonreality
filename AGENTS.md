@@ -50,7 +50,8 @@ src/lib/
   sources/             # external API adapters: pdok/ (bag, bgt, location), cbs*, rivm,
                        # ndov, dso, ep-online, politie, ses, bodem, listings
   analysis/            # analyze.ts orchestrates signals; analyze-place.ts for places;
-                       # signals/ builders, evidence.ts, research/service.ts for AI
+                       # signals/ builders, evidence.ts; AI: llm.ts (shared helpers),
+                       # research.ts (report), listing-extract.ts, llm-context.ts
   scoring/score.ts     # deterministic, versioned score components
   types.ts             # normalized contracts shared across adapters/UI/API
   supabase/            # server/browser clients, middleware session refresh, DB types
@@ -74,7 +75,7 @@ messages/              # next-intl translation catalogs
 2. `GET /api/property/:bagId` → BAG VBO/pand identity + geometry (`pdok/bag.ts`), BGT context (`pdok/bgt.ts`).
 3. `GET /api/analysis/:bagId` → signal builders (`src/lib/analysis/signals/`) call source adapters; results aggregate through `analyze.ts`; scores computed by `src/lib/scoring/score.ts`; persistence via `src/lib/db/repository.ts` (Supabase upsert or cache-only fallback reported in the response).
 4. Listing intake: paste URL (`POST /api/listing/from-url`, slug → BAG only, no fetching) or extension ingest (`POST /api/listing/extension/ingest`, token-authenticated) → merge/dedupe (`listing-merge.ts`) → risk flags (`listing-risk.ts`).
-5. AI report (`POST /api/ai-analysis/:bagId`) → two bounded LLM calls via Vercel AI Gateway (`analysis/research.ts`, `analysis/service.ts`); cites URLs, never touches the deterministic score; deterministic risk flags are passed in so the model doesn't re-discover them.
+5. AI report (`POST /api/ai-analysis/:bagId`) → two bounded LLM calls via Vercel AI Gateway (`analysis/research.ts`; shared helpers in `analysis/llm.ts`); cites URLs, never touches the deterministic score; deterministic risk flags are passed in so the model doesn't re-discover them. Listing insights (`POST /api/listing-insights/:bagId`) use `analysis/listing-extract.ts`.
 
 ### Auth & middleware
 

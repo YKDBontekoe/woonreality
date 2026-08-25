@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { parseHTML } from "linkedom";
 import { extractText, getDocumentProxy } from "unpdf";
 import { z } from "zod";
+import { addUsage, compactJson, EMPTY_TOKEN_USAGE, resolveModel, usageFromResult, withLlmRetry } from "@/src/lib/analysis/llm";
 import type { Locale } from "@/src/lib/i18n/config";
 import { getLibTranslator } from "@/src/lib/i18n/lib-translator";
 import { listingRiskFlags } from "@/src/lib/listing-risk";
@@ -13,52 +14,55 @@ export const DEFAULT_AI_RESEARCH_MODEL = "openai/gpt-5.6-luna";
 export const DEFAULT_AI_SYNTHESIS_MODEL = "openai/gpt-5.6-luna";
 export const DEFAULT_AI_REASONING = "medium" as const;
 
-const REPORT_VERSION = "2026.08.ai.v3";
-const PROMPT_VERSION = "2026.08.ai-prompt.v3";
+const REPORT_VERSION = "2026.08.ai.v4";
+const PROMPT_VERSION = "2026.08.ai-prompt.v4";
 const REPORT_TTL_DAYS = Number(process.env.AI_REPORT_TTL_DAYS ?? "7") || 7;
 
-export const LISTING_MAX_DESCRIPTION_CHARS = 1_500;
-export const LISTING_MAX_SECTION_CHARS = 800;
-export const LISTING_MAX_SECTIONS = 4;
-export const LISTING_MAX_EXTRA_KENMERKEN = 20;
-export const LISTING_MAX_AGGREGATE_CHARS = 8_000;
-export const SOURCE_MAX_DOC_CHARS = 2_000;
+export const LISTING_MAX_DESCRIPTION_CHARS = 900;
+export const LISTING_MAX_SECTION_CHARS = 500;
+export const LISTING_MAX_SECTIONS = 3;
+export const LISTING_MAX_EXTRA_KENMERKEN = 12;
+export const LISTING_MAX_AGGREGATE_CHARS = 4_500;
+export const SOURCE_MAX_DOC_CHARS = 1_100;
 export const SOURCE_MAX_DOCS = 6;
-export const SOURCE_MAX_TOTAL_CHARS = 12_000;
-export const DISCOVER_MAX_STEPS = 3;
+export const SOURCE_MAX_TOTAL_CHARS = 6_500;
+export const DISCOVER_MAX_STEPS = 2;
 
 const reportSchema = z.object({
-  verdict: z.object({ title: z.string(), summary: z.string(), confidence: z.enum(["high", "medium", "low"]) }),
+  verdict: z.object({ title: z.string().max(120), summary: z.string().max(600), confidence: z.enum(["high", "medium", "low"]) }),
   findings: z.array(z.object({
     category: z.enum(["woning", "omgeving", "plannen", "mobiliteit", "klimaat", "markt"]),
-    title: z.string(),
-    summary: z.string(),
+    title: z.string().max(120),
+    summary: z.string().max(400),
     impact: z.enum(["positive", "neutral", "attention"]),
     confidence: z.enum(["high", "medium", "low"]),
-    temporalStatus: z.string().optional(),
-    spatialScale: z.string().optional(),
-    sourceIds: z.array(z.string()).min(1).max(5),
-    quote: z.string().min(8).max(400).optional(),
-  })).max(8),
-  contradictions: z.array(z.object({
-    subject: z.string(), summary: z.string(), severity: z.enum(["low", "medium", "high"]), sourceIds: z.array(z.string()).min(1).max(5),
-    quote: z.string().min(8).max(400).optional(),
+    temporalStatus: z.string().max(80).optional(),
+    spatialScale: z.string().max(80).optional(),
+    sourceIds: z.array(z.string()).min(1).max(3),
+    quote: z.string().min(8).max(280).optional(),
   })).max(6),
-  questions: z.array(z.string()).max(10),
+  contradictions: z.array(z.object({
+    subject: z.string().max(80), summary: z.string().max(400), severity: z.enum(["low", "medium", "high"]), sourceIds: z.array(z.string()).min(1).max(3),
+    quote: z.string().min(8).max(280).optional(),
+  })).max(4),
+  questions: z.array(z.string().max(200)).max(8),
 });
 
 type Document = { source: ResearchSource; text: string };
 
 export function resolvedResearchModel() {
-  return model(process.env.AI_RESEARCH_MODEL, DEFAULT_AI_RESEARCH_MODEL);
+  return resolveModel(process.env.AI_RESEARCH_MODEL, DEFAULT_AI_RESEARCH_MODEL);
 }
 
 export function resolvedSynthesisModel() {
-  return model(process.env.AI_SYNTHESIS_MODEL, DEFAULT_AI_SYNTHESIS_MODEL);
+  return resolveModel(process.env.AI_SYNTHESIS_MODEL, DEFAULT_AI_SYNTHESIS_MODEL);
 }
 
-function model(name: string | undefined, fallback: string) {
-  return name?.trim() || fallback;
+const REASONING_LEVELS = ["low", "medium", "high"] as const;
+
+export function resolvedSynthesisReasoning(): (typeof REASONING_LEVELS)[number] {
+  const value = process.env.AI_SYNTHESIS_REASONING?.trim().toLowerCase();
+  return (REASONING_LEVELS as readonly string[]).includes(value ?? "") ? value as (typeof REASONING_LEVELS)[number] : DEFAULT_AI_REASONING;
 }
 
 function normalizeHost(url: string) {
@@ -200,19 +204,18 @@ function listingDiscoveryDto(listing?: PropertyListing | null) {
 }
 
 async function discoverSources(property: Property, analysis: Analysis, listing?: PropertyListing | null): Promise<{ sources: ResearchSource[]; usage: AiTokenUsage }> {
-  const emptyUsage: AiTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-  if (!process.env.AI_GATEWAY_API_KEY) return { sources: [], usage: emptyUsage };
+  if (!process.env.AI_GATEWAY_API_KEY) return { sources: [], usage: EMPTY_TOKEN_USAGE };
   const query = [property.addressLabel, property.postcode, property.city, property.municipality, "vergunning omgevingsplan verkeersbesluit bouwplan klimaat"].filter(Boolean).join(", ");
   const fallback = analysis.evidence.map((evidence) => baseSource(analysis, evidence.sourceUrl, evidence.source, evidence.source.includes("DSO") ? "planning" : "official"));
   try {
-    const result = await generateText({
+    const result = await withLlmRetry(() => generateText({
       model: resolvedResearchModel(),
       reasoning: "low",
       system: "Je bent een Nederlandse woningonderzoeker. Zoek alleen bronnen die relevant zijn voor het exacte adres of de directe omgeving. Geef geen conclusies. Gebruik officiële overheids- en gemeentelijke bronnen.",
       prompt: `${query}\n\nBAG: ${JSON.stringify({ buildingYear: property.buildingYear, areaM2: property.areaM2 })}\nListing: ${JSON.stringify(listingDiscoveryDto(listing))}`,
-      tools: { web_search: openai.tools.webSearch({ searchContextSize: "medium", filters: { allowedDomains: ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl", "politie.nl", ...(process.env.AI_ALLOWED_DOMAINS ?? "").split(",").map((item) => item.trim()).filter(Boolean)] } }) },
+      tools: { web_search: openai.tools.webSearch({ searchContextSize: "low", filters: { allowedDomains: ["overheid.nl", "officielebekendmakingen.nl", "omgevingswet.overheid.nl", "data.overheid.nl", "pdok.nl", "cbs.nl", "rivm.nl", "politie.nl", ...(process.env.AI_ALLOWED_DOMAINS ?? "").split(",").map((item) => item.trim()).filter(Boolean)] } }) },
       stopWhen: stepCountIs(DISCOVER_MAX_STEPS),
-    });
+    }));
     const sources = (await result.sources).flatMap((item) => {
       if (item.sourceType !== "url" || !trustedSource(item.url, property)) return [];
       const source = sourceFromUrl(item.url, item.title, property);
@@ -221,7 +224,7 @@ async function discoverSources(property: Property, analysis: Analysis, listing?:
     const merged = [...fallback, ...sources].filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index).slice(0, SOURCE_MAX_DOCS);
     return { sources: merged, usage: usageFromResult(result) };
   } catch {
-    return { sources: fallback.slice(0, SOURCE_MAX_DOCS), usage: emptyUsage };
+    return { sources: fallback.slice(0, SOURCE_MAX_DOCS), usage: EMPTY_TOKEN_USAGE };
   }
 }
 
@@ -339,7 +342,7 @@ export function compactAnalysisDto(analysis: Analysis) {
     overallScore: analysis.overallScore,
     dataCoverage: analysis.dataCoverage.label,
     domains: analysis.domains.map(({ key, label, score, summary, hasUnscoredAttention }) => ({
-      key, label, score, summary, hasUnscoredAttention,
+      key, label, score, summary: summary.slice(0, 160), hasUnscoredAttention,
     })),
     insights: (analysis.everydayInsights ?? []).slice(0, 5).map(({ title, summary, tone }) => ({ title, summary, tone })),
     highlights: (analysis.highlights ?? []).slice(0, 5).map(({ type, signalKey, text }) => ({ type, signalKey, text })),
@@ -347,9 +350,35 @@ export function compactAnalysisDto(analysis: Analysis) {
   };
 }
 
+function listingFactsDto(listing: PropertyListing | null | undefined) {
+  if (!listing) return null;
+  return {
+    provider: listing.provider,
+    sourceUrl: listing.sourceUrl,
+    status: listing.status,
+    askingPrice: listing.askingPrice,
+    pricePerM2: listing.pricePerM2,
+    livingAreaM2: listing.livingAreaM2,
+    plotAreaM2: listing.plotAreaM2,
+    roomCount: listing.roomCount,
+    bedroomCount: listing.bedroomCount,
+    bathroomCount: listing.bathroomCount,
+    constructionYear: listing.constructionYear,
+    propertyType: listing.propertyType,
+    energyLabel: listing.energyLabel,
+    insulation: listing.insulation,
+    heating: listing.heating,
+    glazing: listing.glazing,
+    ownership: listing.ownership,
+    neighborhood: listing.neighborhood,
+    vveContribution: listing.vveContribution,
+    vveReserveFund: listing.vveReserveFund,
+    riskFlags: listingRiskFlags(listing).map(({ key, title, severity }) => ({ key, title, severity })),
+  };
+}
+
 export function buildSynthesisPrompt(property: Property, analysis: Analysis, listing: PropertyListing | null | undefined, documents: Document[]) {
-  const listingDto = listingSynthesisDto(listing);
-  return JSON.stringify({
+  return compactJson({
     property: {
       addressLabel: property.addressLabel,
       city: property.city,
@@ -358,8 +387,9 @@ export function buildSynthesisPrompt(property: Property, analysis: Analysis, lis
       areaM2: property.areaM2,
     },
     deterministicAnalysis: compactAnalysisDto(analysis),
-    listing: listingDto,
-    untrustedListingDescription: listingDto?.description ? wrapUntrustedListingText(listingDto.description) : null,
+    // Free listing text (description, sections, kenmerken) reaches the model
+    // once — as fenced source snippets below — never duplicated here.
+    listingFacts: listingFactsDto(listing),
     sources: sourceSnippets(documents),
   });
 }
@@ -424,34 +454,6 @@ function omitQuote<T extends { quote?: string }>(item: T) {
   return rest;
 }
 
-function usageFromResult(result: {
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    inputTokenDetails?: { cacheReadTokens?: number };
-    outputTokenDetails?: { reasoningTokens?: number };
-  };
-}): AiTokenUsage {
-  return {
-    inputTokens: result.usage?.inputTokens ?? 0,
-    outputTokens: result.usage?.outputTokens ?? 0,
-    totalTokens: result.usage?.totalTokens ?? 0,
-    reasoningTokens: result.usage?.outputTokenDetails?.reasoningTokens ?? 0,
-    cachedInputTokens: result.usage?.inputTokenDetails?.cacheReadTokens ?? 0,
-  };
-}
-
-function addUsage(left: AiTokenUsage, right: AiTokenUsage): AiTokenUsage {
-  return {
-    inputTokens: left.inputTokens + right.inputTokens,
-    outputTokens: left.outputTokens + right.outputTokens,
-    totalTokens: left.totalTokens + right.totalTokens,
-    reasoningTokens: (left.reasoningTokens ?? 0) + (right.reasoningTokens ?? 0),
-    cachedInputTokens: (left.cachedInputTokens ?? 0) + (right.cachedInputTokens ?? 0),
-  };
-}
-
 export async function generateAiPropertyReport(property: Property, analysis: Analysis, listing?: PropertyListing | null, locale: Locale = "nl"): Promise<AiPropertyReport | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
   const t = getLibTranslator(locale, "lib-analysis");
@@ -461,13 +463,13 @@ export async function generateAiPropertyReport(property: Property, analysis: Ana
   const listingDocs = listing ? listingDocuments(listing) : [];
   const documents = assemblePromptDocuments(listingDocs, fetched);
   const sourceManifest = documents.map(({ source }) => source);
-  const result = await generateText({
+  const result = await withLlmRetry(() => generateText({
     model: resolvedSynthesisModel(),
-    reasoning: DEFAULT_AI_REASONING,
+    reasoning: resolvedSynthesisReasoning(),
     output: Output.object({ schema: reportSchema, name: "woonreality_property_report" }),
     system: t("report.synthesisSystem"),
     prompt: buildSynthesisPrompt(property, analysis, listing, documents),
-  });
+  }));
   if (!result.output) return null;
   const sourceIds = new Set(sourceManifest.map((source) => source.id));
   const filteredFindings = result.output.findings

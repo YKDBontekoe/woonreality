@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { apiContext } from "@/src/lib/api/handlers";
-import { logError } from "@/src/lib/logger";
+import { logError, logWarn } from "@/src/lib/logger";
 import {
   generateListingInsights,
   hasListingExtractText,
   listingExtractFingerprint,
   listingExtractVersions,
 } from "@/src/lib/analysis/listing-extract";
-import { claimAiReportGeneration, persistAnalysis, persistAiReportFailure, persistStructuredAiReport, getAiReport, resolveReadyReport, aiReportStatus } from "@/src/lib/db/repository";
+import { claimAiReportGeneration, persistAnalysis, persistAiReportFailure, persistStructuredAiReport, getAiReport, releaseAiReportClaim, resolveReadyReport, aiReportStatus } from "@/src/lib/db/repository";
 import { isSupabaseConfigured } from "@/src/lib/supabase/server";
 import { allowAnonymousLlmGeneration, loadAiContext, loadListingContext } from "@/src/lib/analysis/llm-context";
 import type { Analysis, ListingInsights } from "@/src/lib/types";
@@ -44,7 +44,7 @@ export async function GET(request: Request, context: { params: Promise<{ bagId: 
       report: asInsights(resolved.report),
     });
   } catch (error) {
-    console.error("WoonReality listing insights status failed", error);
+    logError("WoonReality listing insights status failed", error);
     return NextResponse.json({ status: "failed", message: t("errors.listingInsightsLoadFailed") }, { status: 502 });
   }
 }
@@ -58,6 +58,7 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
   let analysis: Analysis | null = null;
   let fingerprint = "";
   let userId: string | null = null;
+  let claimed = false;
   try {
     const loaded = await loadAiContext(bagId);
     analysis = loaded.analysis;
@@ -68,6 +69,9 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
     }
     await persistAnalysis(analysis);
     fingerprint = listingExtractFingerprint(listing);
+    if (!signedIn && !allowAnonymousLlmGeneration(request, bagId, false)) {
+      return NextResponse.json({ status: "failed", message: t("errors.tooManyRequests") }, { status: 429 });
+    }
     if (isSupabaseConfigured()) {
       const existing = await getAiReport(analysis.property.bagVboId, listingExtractVersions.report, userId);
       const resolved = resolveReadyReport(existing, fingerprint);
@@ -83,13 +87,11 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       if (claim === "in-flight") {
         return NextResponse.json({ status: "generating" }, { status: 202 });
       }
-    }
-    if (!signedIn && !allowAnonymousLlmGeneration(request, bagId, false)) {
-      return NextResponse.json({ status: "failed", message: t("errors.tooManyRequests") }, { status: 429 });
+      claimed = claim === "claimed";
     }
     const report = await generateListingInsights(listing, locale);
     if (!report) {
-      await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, "empty_report", userId);
+      await persistFailureSafely(analysis, fingerprint, userId, "empty_report");
       return NextResponse.json({ status: "failed", message: t("errors.listingExtractFailed") }, { status: 502 });
     }
     await persistStructuredAiReport(analysis, {
@@ -102,12 +104,23 @@ export async function POST(request: Request, context: { params: Promise<{ bagId:
       reportJson: report,
       usage: report.usage,
     }, fingerprint, userId);
+    claimed = false;
     return NextResponse.json({ status: "ready", report });
   } catch (error) {
     logError("WoonReality listing insights failed", error);
-    if (analysis && fingerprint) {
-      await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, "generate_failed", userId);
+    if (claimed && analysis) {
+      await releaseAiReportClaim(analysis.property.bagVboId, listingExtractVersions.report, userId);
+    } else if (analysis && fingerprint) {
+      await persistFailureSafely(analysis, fingerprint, userId, "generate_failed");
     }
     return NextResponse.json({ status: "failed", message: t("errors.listingInsightsFailed") }, { status: 502 });
+  }
+}
+
+async function persistFailureSafely(analysis: Analysis, fingerprint: string, userId: string | null, errorCode: string) {
+  try {
+    await persistAiReportFailure(analysis, listingExtractVersions.report, listingExtractVersions.prompt, fingerprint, errorCode, userId);
+  } catch (error) {
+    logWarn("Could not persist listing insights failure state", error);
   }
 }

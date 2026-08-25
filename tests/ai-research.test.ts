@@ -218,6 +218,23 @@ test("synthesis prompt contains listing risk flags and no full signal dump", () 
   assert.equal(parsed.deterministicAnalysis.signals, undefined);
 });
 
+test("synthesis prompt carries listing free text only once", () => {
+  const analysis = sampleAnalysis();
+  const listing = sampleListing();
+  const prompt = buildSynthesisPrompt(analysis.property, analysis, listing, [{
+    source: {
+      id: "web-listing",
+      title: "Advertentietekst",
+      url: LISTING_URL,
+      type: "listing",
+      fetchedAt: listing.fetchedAt,
+    },
+    text: listing.description ?? "",
+  }]);
+  const needle = (listing.description ?? "").slice(0, 60);
+  assert.equal(prompt.split(needle).length - 1, 1);
+});
+
 test("sourceContext truncates bulky documents", () => {
   const documents = Array.from({ length: 12 }, (_, index) => ({
     source: {
