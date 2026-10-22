@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { scoreBand } from "@/src/lib/report-summary";
 import type { DomainSummary, SignalCategory } from "@/src/lib/types";
 
-const CX = 150;
+const CX = 200;
 const CY = 128;
 const R = 80;
 const LEVELS = [2.5, 5, 7.5, 10];
@@ -50,7 +50,7 @@ export function DomainRadar({
   return (
     <svg
       className="domain-radar"
-      viewBox="0 0 300 256"
+      viewBox="0 0 400 256"
       role="img"
       aria-label={t("charts.radarAria")}
     >
@@ -95,6 +95,7 @@ export function DomainRadar({
         const dot = pointFor(angle, ((Math.max(0.4, score ?? 0)) / 10) * R);
         const label = pointFor(angle, R + 16);
         const anchor = labelAnchor(angle);
+        const nameLines = domain.label.includes(" & ") ? [`${domain.label.split(" & ")[0]} &`, domain.label.split(" & ").slice(1).join(" & ")] : [domain.label];
         return (
           <g
             className={`domain-radar-label ${onSelectDomain ? "is-clickable" : ""}`}
@@ -127,14 +128,16 @@ export function DomainRadar({
               y={label.y}
               textAnchor={anchor}
             >
-              {domain.label}
+              {nameLines.map((line, lineIndex) => (
+                <tspan key={line} x={label.x} dy={lineIndex === 0 ? 0 : 14}>{line}</tspan>
+              ))}
               {domain.hasUnscoredAttention && <tspan className="domain-radar-warn"> !</tspan>}
             </text>
             <text
               aria-hidden="true"
               className={`domain-radar-score is-${tone}`}
               x={label.x}
-              y={label.y + 12}
+              y={label.y + 15 + (nameLines.length - 1) * 14}
               textAnchor={anchor}
             >
               {score == null ? "—" : score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}

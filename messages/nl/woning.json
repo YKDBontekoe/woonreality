@@ -401,6 +401,11 @@
     "catHousing": "Wonen",
     "catTax": "Heffingen"
   },
+  "mapFallback": {
+    "badge": "locatie",
+    "kicker": "Woninglocatie",
+    "unavailable": "Kaartdetails zijn nu niet beschikbaar. De omgevingssignalen hieronder blijven wel volledig bruikbaar."
+  },
   "charts": {
     "topicScoreKicker": "Score per onderwerp",
     "whereScoreFrom": "Waar de score vandaan komt",
@@ -466,7 +471,9 @@
     "thingsCount": "{count, plural, =1 {1 ding om te weten} other {# dingen om te weten}}",
     "plus": "Plus",
     "attention": "Let op",
-    "context": "Context"
+    "context": "Context",
+    "coverageLow": "Let op: deze score is gebaseerd op beperkte data. {missing} van {total} onderwerpen ontbreken.",
+    "fitExplainer": "Hier tellen alleen jouw voorkeuren mee. De omgevingsscore is voor iedereen hetzelfde."
   },
   "woz": {
     "surroundingsSketchAria": "WOZ-omgevingsschets",

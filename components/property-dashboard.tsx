@@ -38,6 +38,7 @@ import { WozBenchmarkCard } from "@/components/property/woz-benchmark-card";
 import { AiDecisionBrief } from "@/components/property/ai-decision-brief";
 import { VerdictHero, type TopThing } from "@/components/property/verdict-hero";
 import { CompositeCards } from "@/components/property/composite-cards";
+import { topThings } from "@/src/lib/report-summary";
 import { insightComposites } from "@/src/lib/analysis/composites";
 import { PageShell } from "@/components/ui/page-shell";
 import {
@@ -317,6 +318,8 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
   const personalFit = calculatePersonalFit(analysis, preferences);
   const nearbyProperties = analysis.nearbyProperties ?? [];
   const incompleteListing = listingNeedsExtension(marketListing);
+  const heroTitles = new Set(topThings(analysis, 3).map((thing) => thing.title));
+  const dailyInsights = (analysis.everydayInsights ?? []).filter((insight) => !heroTitles.has(insight.title));
   const energyLabel = marketListing?.energyLabel;
   const hypotheekQuery = new URLSearchParams();
   const mortgageEnergyLabel = parseCanonicalEnergyLabel(energyLabel);
@@ -543,11 +546,11 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
             onOpenSignals={() => selectTab("signalen")}
             onOpenChecklist={() => selectTab("checklist")}
           />
-          {(analysis.everydayInsights ?? []).length > 0 && (
+          {dailyInsights.length > 0 && (
             <section className="dash-insights-panel">
               <div className="section-kicker">{t("dashboard.dailyLifeKicker")}</div>
               <ul className="dash-point-list">
-                {analysis.everydayInsights.map((insight) => (
+                {dailyInsights.map((insight) => (
                   <li
                     className={`is-${insight.tone === "good" ? "positive" : insight.tone === "attention" ? "attention" : "neutral"}`}
                     key={insight.title}
@@ -797,8 +800,6 @@ export function PropertyDashboard({ bagId }: { bagId: string }) {
         bagVboId={property.bagVboId}
         hypotheekHref={hypotheekHref}
         caseId={caseId}
-        isSaved={isSaved}
-        onSave={() => { void saveProperty(); }}
       />
     </PageShell>
   );
@@ -861,13 +862,22 @@ function ChecklistProgress({ checklist }: { checklist: ChecklistItem[] }) {  con
 function LoadingDashboard() {
   return (
     <PageShell current="woning" className="property-dash-shell">
-      <div className="loading-shell">
+      <div className="dash-skeleton" aria-busy="true">
         <Link className="back-link" href="/">
           <ArrowLeft size={14} /> <LoadingBackLabel />
         </Link>
         <div className="loading-block" />
         <div className="loading-block big" />
-        <div className="loading-grid">
+        <div className="dash-skeleton-hero" aria-hidden="true">
+          <div className="dash-skeleton-ring" />
+          <div className="dash-skeleton-lines">
+            <div className="loading-block" />
+            <div className="loading-block big" />
+            <div className="loading-block" />
+          </div>
+        </div>
+        <div className="dash-skeleton-tabs" aria-hidden="true" />
+        <div className="loading-grid" aria-hidden="true">
           <div className="loading-panel" />
           <div className="loading-panel" />
         </div>

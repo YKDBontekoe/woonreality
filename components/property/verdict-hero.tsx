@@ -45,6 +45,9 @@ export function VerdictHero({
   const t = useTranslations("woning");
   const verdict = buildVerdict(analysis);
   const things = topThings(analysis, 3);
+  const totalDomains = analysis.domains.length;
+  const missingDomains = analysis.domains.filter((domain) => !domain.available).length;
+  const lowCoverage = totalDomains > 0 && missingDomains / totalDomains > 0.4;
   const hasListingFacts = Boolean(
     listing?.askingPrice || listing?.livingAreaM2 || listing?.constructionYear || listing?.energyLabel,
   );
@@ -58,6 +61,11 @@ export function VerdictHero({
             <div className="section-kicker">{t("hero.areaScore")}</div>
             <h2 className="dash-verdict-headline">{verdict.headline}</h2>
             <p className="dash-verdict-summary">{verdict.summary}</p>
+            {lowCoverage && (
+              <p className="dash-verdict-coverage" role="note">
+                {t("hero.coverageLow", { missing: missingDomains, total: totalDomains })}
+              </p>
+            )}
           </div>
         </div>
         <div className="dash-verdict-fit">
@@ -66,6 +74,7 @@ export function VerdictHero({
             <strong>{personalFit != null ? personalFit.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) : "—"}</strong>
           </div>
           <small>{personalFit != null ? t(`hero.${personalFitKey(personalFit)}`) : t("hero.setPreferencesHint")}</small>
+          <p className="dash-verdict-fit-note">{t("hero.fitExplainer")}</p>
           <button className="ghost-button" type="button" onClick={onTogglePreferences}>
             <Settings2 size={14} />
             {showPreferences ? t("hero.close") : preferencesConfigured ? t("hero.preferences") : t("hero.setPreferences")}

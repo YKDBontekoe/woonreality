@@ -401,6 +401,11 @@
     "catHousing": "Housing",
     "catTax": "Levies"
   },
+  "mapFallback": {
+    "badge": "location",
+    "kicker": "Home location",
+    "unavailable": "Map details are not available right now. The surroundings signals below remain fully usable."
+  },
   "charts": {
     "topicScoreKicker": "Score per topic",
     "whereScoreFrom": "Where the score comes from",
@@ -466,7 +471,9 @@
     "thingsCount": "{count, plural, =1 {1 thing to know} other {# things to know}}",
     "plus": "Plus",
     "attention": "Attention",
-    "context": "Context"
+    "context": "Context",
+    "coverageLow": "Note: this score rests on limited data. {missing} of {total} topics are missing.",
+    "fitExplainer": "Only your preferences count here. The area score is the same for everyone."
   },
   "woz": {
     "surroundingsSketchAria": "WOZ area sketch",

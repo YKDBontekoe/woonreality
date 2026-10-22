@@ -8,9 +8,9 @@ import { formatEuro } from "@/src/lib/purchase";
 import type { RunningCostCategory, RunningCostEstimate } from "@/src/lib/running-costs";
 
 const CATEGORY_META: Record<RunningCostCategory, { labelKey: string; tone: string }> = {
-  energy: { labelKey: "catEnergy", tone: "is-energy" },
-  housing: { labelKey: "catHousing", tone: "is-housing" },
-  tax: { labelKey: "catTax", tone: "is-tax" },
+  energy: { labelKey: "runningCosts.catEnergy", tone: "is-energy" },
+  housing: { labelKey: "runningCosts.catHousing", tone: "is-housing" },
+  tax: { labelKey: "runningCosts.catTax", tone: "is-tax" },
 };
 
 export function RunningCostsPanel({
