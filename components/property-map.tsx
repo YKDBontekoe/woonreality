@@ -2,6 +2,7 @@
 
 import { Box, Bus, Car, Crosshair, Expand, Footprints, Layers3, Locate, MapPinned, SunMedium } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
@@ -167,6 +168,7 @@ export function PropertyMap({
   const reachCacheRef = useRef(new Map<string, GeoJsonFeatureCollection>());
   const layerEventsRef = useRef({ nearby: false, ndov: false, probe: false });
   const homeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const tFallback = useTranslations("woning.mapFallback");
   const hasToken = Boolean(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
   const lng = property.coordinates.lng;
   const lat = property.coordinates.lat;
@@ -844,13 +846,13 @@ export function PropertyMap({
     return (
       <div className={`map-card map-empty is-${variant}`}>
         <div className="map-fallback-grid" aria-hidden="true" />
-        <div className="map-badge"><MapPinned size={12} /> locatie</div>
+        <div className="map-badge"><MapPinned size={12} /> {tFallback("badge")}</div>
         <div className="map-empty-copy">
           <div className="map-empty-pin" aria-hidden="true"><MapPinned size={18} /></div>
-          <span className="section-kicker">Woninglocatie</span>
+          <span className="section-kicker">{tFallback("kicker")}</span>
           <strong>{property.street} {houseNumber}</strong>
           <p>{property.postcode} {property.city}</p>
-          <small>Kaartdetails zijn nu niet beschikbaar. De omgevingssignalen hieronder blijven wel volledig bruikbaar.</small>
+          <small>{tFallback("unavailable")}</small>
         </div>
       </div>
     );

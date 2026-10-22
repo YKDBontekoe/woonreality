@@ -274,9 +274,9 @@
 .domain-radar-dot.is-neutral { stroke: var(--accent); }
 .domain-radar-dot.is-attention { stroke: var(--attention); }
 .domain-radar-dot.is-unscored { stroke-dasharray: 2 2; stroke: var(--muted); }
-.domain-radar-name { font: 500 11px "DM Sans", sans-serif; fill: var(--ink-soft); letter-spacing: -.01em; }
+.domain-radar-name { font: 500 13px "DM Sans", sans-serif; fill: var(--ink-soft); letter-spacing: -.01em; }
 .domain-radar-warn { fill: var(--attention-deep); font-weight: 700; }
-.domain-radar-score { font: 600 12px "DM Sans", sans-serif; fill: var(--moss); }
+.domain-radar-score { font: 600 14px "DM Sans", sans-serif; fill: var(--moss); }
 .domain-radar-score.is-attention { fill: var(--attention-deep); }
 .domain-radar-score.is-good { fill: var(--ok); }
 .domain-radar-label { cursor: default; outline-offset: 3px; border-radius: 8px; }
@@ -285,8 +285,8 @@
 .domain-radar-label:hover .domain-radar-name { fill: var(--ink); }
 
 .signal-mix { min-width: 0; }
-.signal-mix-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font: 500 10px "DM Sans", sans-serif; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
-.signal-mix-head .text-link { text-transform: none; letter-spacing: 0; }
+.signal-mix-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; font: 500 10px "DM Sans", sans-serif; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); }
+.signal-mix-head .text-link { text-transform: none; white-space: nowrap; letter-spacing: 0; }
 .signal-mix-bar { display: flex; gap: 2px; height: 9px; margin-top: 10px; border-radius: 99px; overflow: hidden; background: var(--surface-soft); }
 .signal-mix-bar i { display: block; height: 100%; min-width: 0; transition: width .4s ease; }
 .signal-mix-bar i:first-child { border-radius: 99px 0 0 99px; }

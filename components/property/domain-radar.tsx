@@ -95,6 +95,7 @@ export function DomainRadar({
         const dot = pointFor(angle, ((Math.max(0.4, score ?? 0)) / 10) * R);
         const label = pointFor(angle, R + 16);
         const anchor = labelAnchor(angle);
+        const nameLines = domain.label.includes(" & ") ? [`${domain.label.split(" & ")[0]} &`, domain.label.split(" & ").slice(1).join(" & ")] : [domain.label];
         return (
           <g
             className={`domain-radar-label ${onSelectDomain ? "is-clickable" : ""}`}
@@ -127,14 +128,16 @@ export function DomainRadar({
               y={label.y}
               textAnchor={anchor}
             >
-              {domain.label}
+              {nameLines.map((line, lineIndex) => (
+                <tspan key={line} x={label.x} dy={lineIndex === 0 ? 0 : 14}>{line}</tspan>
+              ))}
               {domain.hasUnscoredAttention && <tspan className="domain-radar-warn"> !</tspan>}
             </text>
             <text
               aria-hidden="true"
               className={`domain-radar-score is-${tone}`}
               x={label.x}
-              y={label.y + 12}
+              y={label.y + 15 + (nameLines.length - 1) * 14}
               textAnchor={anchor}
             >
               {score == null ? "—" : score.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}
