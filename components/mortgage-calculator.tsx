@@ -2,13 +2,14 @@
 
 import { Link, usePathname } from "@/src/lib/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/src/lib/i18n/config";
 import { Calculator, Check, ChevronDown, CircleAlert, Landmark, Link2, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ENERGY_LABELS,
   MORTGAGE_NORMS_YEAR,
   NHG,
-  WORK_TYPES,
+  workTypeOptions,
   buildMortgageScenarios,
   buildMortgageSchedule,
   calculateMortgageCapacity,
@@ -341,7 +342,8 @@ export function MortgageCalculator({
   const debts = debtSummary(state, t);
   const shownDebts = Array.from(new Set([...filledDebtKeys(state), ...addedDebts]));
   const unusedDebts = DEBT_FIELDS.filter((item) => !shownDebts.includes(item.key));
-  const workOptions = showMoreWork ? WORK_TYPES : WORK_TYPES.filter((item) => PRIMARY_WORK.includes(item.value));
+  const allWorkOptions = workTypeOptions(locale as Locale);
+  const workOptions = showMoreWork ? allWorkOptions : allWorkOptions.filter((item) => PRIMARY_WORK.includes(item.value));
   const highlightKeys = new Set(["max-loan", "max-price", "nhg", "lease", "student", "revolving", "funds-gap"]);
 
   return <>
@@ -625,7 +627,7 @@ function PersonFields({
 }: {
   title?: string;
   person: PersonForm;
-  workOptions: typeof WORK_TYPES;
+  workOptions: ReturnType<typeof workTypeOptions>;
   showMoreWork: boolean;
   onMoreWork: () => void;
   showExtras: boolean;

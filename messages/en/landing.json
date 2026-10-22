@@ -10,6 +10,7 @@
   "heroVisualAria": "Example of a WoonReality analysis",
   "visualLabel": "First impression",
   "visualTime": "Open data",
+  "visualExampleBadge": "Example score",
   "visualScoreMeta": "solid base, watch out for noise",
   "visualSource": "12 signals, each with a source",
   "tagGreenStrong": "Green 8.7",

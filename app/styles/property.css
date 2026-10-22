@@ -256,7 +256,7 @@
 .domain-attention-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 10px 12px; border: 1px solid var(--attention-border); border-radius: 11px; background: var(--attention-soft); color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
 .domain-attention-note svg { flex: none; margin-top: 2px; color: var(--attention-deep); }
 .domain-attention-note strong { color: var(--ink); }
-.domain-radar { width: 100%; max-width: 340px; height: auto; margin: 0 auto; display: block; }
+.domain-radar { width: 100%; max-width: 440px; height: auto; margin: 0 auto; display: block; }
 .domain-radar-ring { fill: none; stroke: var(--line); stroke-width: 1; }
 .domain-radar-axis { stroke: var(--line); stroke-width: 1; }
 .domain-radar-polygon {
@@ -266,7 +266,7 @@
   stroke-linejoin: round;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .domain-radar-polygon { transform-origin: 150px 128px; animation: domain-radar-in .55s cubic-bezier(.2, .7, .3, 1) both; }
+  .domain-radar-polygon { transform-origin: 200px 128px; animation: domain-radar-in .55s cubic-bezier(.2, .7, .3, 1) both; }
   @keyframes domain-radar-in { from { transform: scale(.35); opacity: 0; } }
 }
 .domain-radar-dot { fill: var(--paper); stroke-width: 2; }
@@ -611,6 +611,7 @@ button.coverage-strip.is-clickable:hover { border-color: var(--accent); }
 .comparison-empty { max-width: 780px; margin: 3.75rem 0 6rem; padding: 2.5rem; border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-md); }
 .comparison-empty h1 { max-width: 13ch; margin: 1rem 0 .8rem; font: 600 clamp(40px, 5vw, 60px)/.98 "DM Sans", sans-serif; letter-spacing: -.07em; }
 .comparison-empty .hero-copy { max-width: 590px; margin: 0; }
+.comparison-empty .back-link { display: flex; width: fit-content; margin: 0 0 1.5rem; }
 .comparison-empty-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 2rem 0; padding: 0; list-style: none; }
 .comparison-empty-steps li { display: flex; gap: 10px; padding: 14px; border-radius: 14px; background: var(--surface-soft); }
 .comparison-empty-steps span { display: grid; flex: none; place-items: center; width: 25px; height: 25px; border-radius: 50%; color: var(--accent-deep); background: var(--surface); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-xs); }

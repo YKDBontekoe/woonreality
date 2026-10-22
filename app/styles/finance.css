@@ -265,7 +265,7 @@ button.text-link { background: none; border: 0; padding: 0; }
 .mortgage-disclaimer { display: flex; gap: 8px; margin: 16px 0 0; }
 .mortgage-disclaimer svg { flex: none; color: var(--moss); margin-top: 1px; }
 .mortgage-warning { display: flex; gap: 8px; margin-top: 12px; color: var(--coral-deep); font-size: 12px; }
-.mortgage-toggle, .mortgage-person .text-link { margin: 8px 0 12px; background: none; border: 0; padding: 0; }
+.mortgage-toggle, .mortgage-person .text-link { display: flex; width: fit-content; margin: 8px 0 12px; background: none; border: 0; padding: 0; }
 .mortgage-check, .mortgage-span { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 13px; margin: 10px 0; }
 .form-grid .mortgage-span { display: flex; grid-column: 1 / -1; }
 .mortgage-years { margin-top: 10px; }

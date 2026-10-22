@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { scoreBand } from "@/src/lib/report-summary";
 import type { DomainSummary, SignalCategory } from "@/src/lib/types";
 
-const CX = 150;
+const CX = 200;
 const CY = 128;
 const R = 80;
 const LEVELS = [2.5, 5, 7.5, 10];
@@ -50,7 +50,7 @@ export function DomainRadar({
   return (
     <svg
       className="domain-radar"
-      viewBox="0 0 300 256"
+      viewBox="0 0 400 256"
       role="img"
       aria-label={t("charts.radarAria")}
     >

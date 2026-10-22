@@ -105,6 +105,7 @@ export { ENERGY_LABELS, parseCanonicalEnergyLabel } from "@/src/lib/mortgage/typ
 export {
   MORTGAGE_STORAGE_KEY,
   WORK_TYPES,
+  workTypeOptions,
   buyerProfileFromMortgageCapacity,
   buildMortgageSnapshot,
   calculatorFundsTotal,
